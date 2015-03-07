@@ -50,7 +50,7 @@ func ByteSlicesToStrings(bss [][]byte) []string {
 
 func BoolsToBitfield(table []bool) (bitfield uint64) {
 	elvisOp := map[bool]uint64{false: 0, true: 1}
-	for i, b := range table[:math.Min(float64(len(table)), 64)] {
+	for i, b := range table[:int(math.Min(float64(len(table)), 64))] {
 		bitfield |= (elvisOp[b] << uint64(i))
 	}
 	return
