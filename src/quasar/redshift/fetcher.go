@@ -18,7 +18,7 @@ type FetcherPlugin interface {
 	FindComicURLList(title string) (links []string, titles []string)
 	FetchComicInfo(comic *Comic) *ComicInfo
 	FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter)
-	FetchChapterPageLinks(comic *Comic, chapterIndex, alterIndex int) []string
+	FetchChapterPageLinks(url string) []string
 }
 
 type FetcherPluginCapabilities struct { //TODO: more detailed capabilities?
@@ -59,7 +59,7 @@ func (this *Fetcher) RegisterPlugin(plugin FetcherPlugin) (success, replaced boo
 func (this *Fetcher) DownloadComicInfoFor(comic *Comic) {
 	this.initialize()
 	for _, source := range comic.Sources() {
-		comic.Info.Merge(this.plugins[source.PluginName].FetchComicInfo(comic))
+		comic.Info.MergeWith(this.plugins[source.PluginName].FetchComicInfo(comic))
 	}
 }
 
@@ -126,18 +126,17 @@ func (this *Fetcher) DownloadChapterListFor(comic *Comic) { //TODO: whole bool (
 	}
 }
 
-func (this *Fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, alterIndex int) {
+func (this *Fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
 	this.initialize()
-	for _, source := range comic.Sources() {
-		if plugin := this.plugins[source.PluginName]; plugin.Capabilities().ProvidesData {
-			links := plugin.FetchChapterPageLinks(comic, chapterIndex, alterIndex)
-			chapter, identity := comic.GetChapter(chapterIndex)
-			data := chapter.DataForPlugin(source.PluginName, alterIndex)
-			data.PageLinks = links
-			chapter.SetData(source.PluginName, data)
-			comic.AddChapter(identity, &chapter)
-		}
+	chapter, identity := comic.GetChapter(chapterIndex)
+	scanlation := chapter.Scanlation(scanlationIndex)
+	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
+		links := plugin.FetchChapterPageLinks(scanlation.URL)
+		scanlation.PageLinks = links
+		chapter.AddScanlation(scanlation)
+		comic.AddChapter(identity, &chapter)
 	}
+	return
 }
 
 func (this *Fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {

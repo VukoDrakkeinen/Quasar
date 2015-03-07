@@ -272,7 +272,7 @@ func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdenti
 				}
 				title += "]"
 				chapter := Chapter{AlreadyRead: source.MarkAsRead}
-				chapter.SetData(this.name, ChapterData{JoinScanlators(scanlators), title, ENGLISH_LANG(), "", make([]string, 0)})
+				chapter.AddScanlation(ChapterScanlation{title, ENGLISH_LANG(), JoinScanlators(scanlators), this.name, "", make([]string, 0, 20)})
 
 				identities = append(identities, identity)
 				chapters = append(chapters, chapter)
@@ -322,11 +322,8 @@ func (this CorrectiveSlice) Swap(i, j int) {
 	this.chapters[i], this.chapters[j] = this.chapters[j], this.chapters[i]
 }
 
-func (this *BUpdates) FetchChapterPageLinks(comic *Comic, chapterIndex, alterIndex int) []string {
-	this.initialize()
-	_ = comic         //unused
-	_ = chapterIndex  //unused
-	_ = alterIndex    //unused
+func (this *BUpdates) FetchChapterPageLinks(url string) []string {
+	_ = url           //unused
 	return []string{} //plugin doesn't provide data, return empty list
 }
 

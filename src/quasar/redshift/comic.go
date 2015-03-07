@@ -76,7 +76,7 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 	this.initialize()
 	existingChapter, merged := this.chapters[identity]
 	if merged {
-		existingChapter.Merge(chapter)
+		existingChapter.MergeWith(chapter)
 	} else {
 		chapter.SetParent(this)
 		this.chapters[identity] = *chapter
@@ -97,7 +97,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		chapter := chapters[i]
 		existingChapter, exists := this.chapters[identity]
 		if exists {
-			existingChapter.Merge(&chapter)
+			existingChapter.MergeWith(&chapter)
 			if newStart { //Sequence ended, add newly created slice to the list, set creation status to false
 				nonexistentSlices = append(nonexistentSlices, identities[startIndex:i])
 				newStart = false
@@ -176,7 +176,7 @@ func (this *ComicInfo) initialize() *ComicInfo {
 	return this
 }
 
-func (this *ComicInfo) Merge(another *ComicInfo) {
+func (this *ComicInfo) MergeWith(another *ComicInfo) {
 	this.initialize()
 	if this.Title == "" {
 		this.Title = another.Title

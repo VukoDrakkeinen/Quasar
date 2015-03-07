@@ -283,7 +283,7 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 		scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
 
 		chapter := Chapter{AlreadyRead: source.MarkAsRead}
-		chapter.SetData(this.name, ChapterData{JoinScanlators(scanlators), title, lang, url, make([]string, 0, 20)})
+		chapter.AddScanlation(ChapterScanlation{title, lang, JoinScanlators(scanlators), this.name, url, make([]string, 0, 20)})
 
 		identities = append(identities, identity)
 		chapters = append(chapters, chapter)
@@ -302,17 +302,15 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 	return
 }
 
-func (this *Batoto) FetchChapterPageLinks(comic *Comic, chapterIndex, alterIndex int) []string {
+func (this *Batoto) FetchChapterPageLinks(url string) []string {
 	this.initialize()
-	chapter, _ := comic.GetChapter(chapterIndex)
-	link := chapter.DataForPlugin(this.name, alterIndex).URL
-	firstContents := this.fetcher().DownloadData(link)
+	firstContents := this.fetcher().DownloadData(url)
 	pageCount, _ := strconv.ParseUint(string(this.rPageCount.Find(firstContents)), 10, 8)
 	contentsSlice := make([][]byte, 0, pageCount)
 	contentsSlice = append(contentsSlice, firstContents)
 	for i := int64(3); i <= int64(pageCount); i += 2 {
-		contentsSlice = append(contentsSlice, this.fetcher().DownloadData(link+"/"+strconv.FormatInt(i, 10)))
-		fmt.Println("PageSourceLink:", link+"/"+strconv.FormatInt(i, 10))
+		contentsSlice = append(contentsSlice, this.fetcher().DownloadData(url+"/"+strconv.FormatInt(i, 10)))
+		fmt.Println("PageSourceLink:", url+"/"+strconv.FormatInt(i, 10))
 	}
 	pageLinks := make([]string, 0, pageCount)
 	for _, contents := range contentsSlice {
