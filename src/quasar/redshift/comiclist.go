@@ -1,14 +1,13 @@
 package redshift
 
 import (
-	"database/sql"
 	"quasar/qutils"
 	"quasar/redshift/qdb"
 )
 
 type ComicList []Comic
 
-func (this *ComicList) saveToDB() {
+func (this ComicList) saveToDB() {
 	db := qdb.DB() //TODO: error out on nil
 	createSettings := `
 	CREATE TABLE IF NOT EXISTS comic.Settings (
@@ -27,6 +26,7 @@ func (this *ComicList) saveToDB() {
 	altTitlesTable TEXT NOT NULL,
 	authorsTable
 	`
+	_ = createInfos //FIXME: remove
 	_, err := db.Exec(createSettings)
 	if err != nil {
 		//TODO: log error

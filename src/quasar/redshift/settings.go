@@ -6,9 +6,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"quasar/redshift/idbase"
+	. "quasar/redshift/idbase"
 	"reflect"
-	"strconv"
 	"time"
 )
 
@@ -20,7 +19,7 @@ type GlobalSettings struct {
 	DefaultDelayedModeDuration    time.Duration
 	DefaultDownloadsPath          string
 	Plugins                       map[FetcherPluginName]PluginEnabled
-	Languages                     map[idbase.LangId]LanguageEnabled
+	Languages                     map[LangId]LanguageEnabled
 	//TODO: default plugin priority?
 }
 
@@ -43,7 +42,7 @@ func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	}
 	proxy.Languages = make(map[string]LanguageEnabled)
 	for id, status := range this.Languages {
-		proxy.Languages[strconv.FormatInt(int64(id.ordinal), 10)] = status
+		proxy.Languages[LangDict.NameOf(id)] = status
 	}
 	return proxy
 }
@@ -56,13 +55,8 @@ func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 		DefaultDownloadsPath:          this.DefaultDownloadsPath,
 		Plugins:                       this.Plugins,
 	}
-	for num, status := range this.Languages {
-		i, err := strconv.ParseInt(num, 10, 64)
-		if err != nil {
-			//TODO: log error
-		} else {
-			settings.Languages[idbase.LangId{idbase.Id(i)}] = status
-		}
+	for lang, status := range this.Languages {
+		settings.Languages[LangDict.Id(lang)] = status
 	}
 	return settings
 }
@@ -131,7 +125,7 @@ func ReadConfig(filename string) (contents []byte, err error) {
 	if err != nil {
 		return
 	}
-	contents, err := ioutil.ReadAll(file)
+	contents, err = ioutil.ReadAll(file)
 	return
 }
 
