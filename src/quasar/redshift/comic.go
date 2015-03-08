@@ -119,7 +119,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 
 	for i := 0; i < len(nonexistentSlices); i++ {
 		neSlice := nonexistentSlices[i]
-		insertionIndex := int(this.chaptersOrder.Search(neSlice[0]))
+		insertionIndex := int(this.chaptersOrder.vestedIndexOf(neSlice[0]))
 		this.chaptersOrder = this.chaptersOrder.InsertMultiple(insertionIndex, neSlice)
 	}
 }
