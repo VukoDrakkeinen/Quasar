@@ -134,7 +134,7 @@ func (this *Fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 		links := plugin.FetchChapterPageLinks(scanlation.URL)
 		scanlation.PageLinks = links
 		chapter.AddScanlation(scanlation)
-		comic.AddChapter(identity, &chapter)
+		comic.AddChapter(identity, &chapter) //TODO: use pointers instead?
 	}
 	return
 }

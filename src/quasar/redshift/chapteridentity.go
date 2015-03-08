@@ -92,7 +92,7 @@ func (this ChapterIdentitiesSlice) overflowingSearch(ci ChapterIdentity) (index 
 	}
 }
 
-func (this ChapterIdentitiesSlice) Search(ci ChapterIdentity) (index int64) {
+func (this ChapterIdentitiesSlice) vestedIndexOf(ci ChapterIdentity) (index int) {
 	low := int64(0)
 	mid := int64(0)
 	high := int64(0)
@@ -100,7 +100,7 @@ func (this ChapterIdentitiesSlice) Search(ci ChapterIdentity) (index int64) {
 		high = int64(this.Len() - 1)
 	}
 	if high == 0 || ci.n() > this[high].n() {
-		return int64(this.Len())
+		return this.Len()
 	}
 	for this[low].n() <= ci.n() && this[high].n() >= ci.n() {
 		diff0 := ci.n() - this[low].n()
@@ -112,14 +112,14 @@ func (this ChapterIdentitiesSlice) Search(ci ChapterIdentity) (index int64) {
 		} else if this[mid].n() > ci.n() {
 			high = mid - 1
 		} else {
-			return mid
+			return int(mid)
 		}
 	}
 
 	if ci.n() > this[low].n() {
-		return mid
+		return int(mid)
 	} else {
-		return low
+		return int(low)
 	}
 }
 

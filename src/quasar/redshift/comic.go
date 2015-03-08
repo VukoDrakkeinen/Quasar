@@ -77,11 +77,11 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 	existingChapter, merged := this.chapters[identity]
 	if merged {
 		existingChapter.MergeWith(chapter)
+		this.chapters[identity] = existingChapter //TODO: use pointers instead?
 	} else {
 		chapter.SetParent(this)
 		this.chapters[identity] = *chapter
-		index := int(this.chaptersOrder.Search(identity))
-		this.chaptersOrder = this.chaptersOrder.Insert(index, identity)
+		this.chaptersOrder = this.chaptersOrder.Insert(this.chaptersOrder.vestedIndexOf(identity), identity)
 	}
 	return
 }
@@ -102,6 +102,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 				nonexistentSlices = append(nonexistentSlices, identities[startIndex:i])
 				newStart = false
 			}
+			this.chapters[identity] = existingChapter //TODO: use pointers instead?
 		} else {
 			chapter.SetParent(this)
 			this.chapters[identity] = chapter

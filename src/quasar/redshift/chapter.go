@@ -54,7 +54,7 @@ func (this *Chapter) MergeWith(another *Chapter) *Chapter {
 func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool) {
 	this.initialize()
 	if mapped, pluginExists := this.mapping[scanlation.PluginName]; pluginExists {
-		if index, scanlatorsExists := mapped[scanlation.Scanlators]; scanlatorsExists {
+		if index, jointExists := mapped[scanlation.Scanlators]; jointExists {
 			this.scanlations[index] = scanlation
 			return true
 		}
