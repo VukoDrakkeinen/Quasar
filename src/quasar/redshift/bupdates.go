@@ -259,10 +259,11 @@ func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdenti
 			volumeString := string(infoPieces[2])
 			missingVolumes = missingVolumes || volumeString == ""
 			numberString := string(infoPieces[3])
-			for i, scanlator := range infoPieces[4:] {
-				infoPieces[i] = []byte(html.UnescapeString(string(scanlator)))
+			scanlatorNames := infoPieces[4:]
+			for i, scanlator := range scanlatorNames {
+				scanlatorNames[i] = []byte(html.UnescapeString(string(scanlator)))
 			}
-			scanlators, _ := Scanlators.AssignIdsBytes(infoPieces[4:])
+			scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
 			newIdentities, _ := this.parseIdentities(volumeString, numberString, prevIdentity) //TODO: parsing error logging
 			prevIdentity = newIdentities[len(newIdentities)-1]
 			for _, identity := range newIdentities {
