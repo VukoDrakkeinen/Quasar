@@ -145,3 +145,12 @@ func (this ChapterIdentitiesSlice) InsertMultiple(at int, cis []ChapterIdentity)
 		return this
 	}
 }
+
+func ChapterIdentityFromInt64(n int64) (ci ChapterIdentity) {
+	ci.Version = byte(n)
+	ci.Letter = byte(n >> 8)
+	ci.MinorNum = byte(n >> 16)
+	ci.MajorNum = uint16(n >> 24)
+	ci.Volume = byte(n >> 40)
+	return
+}
