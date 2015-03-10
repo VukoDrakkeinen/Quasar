@@ -29,7 +29,7 @@ func Contains(list interface{}, elem interface{}) bool {
 
 func IndexOf(list interface{}, elem interface{}) (int, error) {
 	if reflect.TypeOf(list) != reflect.SliceOf(reflect.TypeOf(elem)) {
-		panic("Contains: types do not match!")
+		panic("IndexOf: types do not match!")
 	}
 	slice := reflect.ValueOf(list)
 	for i := 0; i < slice.Len(); i++ {
@@ -38,6 +38,30 @@ func IndexOf(list interface{}, elem interface{}) (int, error) {
 		}
 	}
 	return -1, errors.New("IndexOf: element not found")
+}
+
+func SetAppend(list interface{}, elems ...interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
+	//TODO: type assert
+	slice := reflect.ValueOf(list)
+	for _, elem := range elems {
+		if !Contains(list, elem) {
+			slice = reflect.Append(slice, reflect.ValueOf(elem))
+		}
+	}
+	return slice.Interface()
+}
+
+func SetAppendSlice(list interface{}, elems interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
+	//TODO: type assert
+	listSlice := reflect.ValueOf(list)
+	elemsSlice := reflect.ValueOf(elems)
+	for i := 0; i < elemsSlice.Len(); i++ {
+		elem := elemsSlice.Index(i)
+		if !Contains(list, elem.Interface()) {
+			listSlice = reflect.Append(listSlice, elem)
+		}
+	}
+	return listSlice.Interface()
 }
 
 func ByteSlicesToStrings(bss [][]byte) []string {
