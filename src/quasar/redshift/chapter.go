@@ -31,12 +31,8 @@ type ChapterScanlation struct {
 
 func (this *Chapter) Scanlation(index int) ChapterScanlation {
 	this.initialize()
-	if this.parent == nil { //We have no parent, so we can't access priority lists for plugins and scanlators
-		return this.scanlations[index]
-	} else {
-		pluginName, scanlators := this.indexToPath(index)
-		return this.scanlations[this.mapping[pluginName][scanlators]]
-	}
+	pluginName, scanlators := this.indexToPath(index)
+	return this.scanlations[this.mapping[pluginName][scanlators]]
 }
 
 func (this *Chapter) ScanlationsCount() int {
@@ -62,7 +58,9 @@ func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool)
 		this.usedPlugins = append(this.usedPlugins, scanlation.PluginName)
 	}
 
-	this.mapping[scanlation.PluginName] = make(map[JointScanlatorIds]scanlationIndex)
+	if this.mapping[scanlation.PluginName] == nil { //TODO: refactor
+		this.mapping[scanlation.PluginName] = make(map[JointScanlatorIds]scanlationIndex)
+	}
 	this.mapping[scanlation.PluginName][scanlation.Scanlators] = scanlationIndex(len(this.scanlations))
 	this.scanlations = append(this.scanlations, scanlation)
 	return false
@@ -118,6 +116,11 @@ func (this *Chapter) SetParent(comic *Comic) {
 }
 
 func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorIds) {
+	if this.parent == nil { //We have no parent, so we can't access priority lists for plugins and scanlators
+		scanlation := this.scanlations[index]
+		return scanlation.PluginName, scanlation.Scanlators
+	}
+
 	var pluginNames []FetcherPluginName          //Create a set of plugin names with prioritized ones at the beginning
 	for _, source := range this.parent.sources { //Add prioritized plugin names
 		if _, exists := this.mapping[source.PluginName]; exists {
@@ -134,7 +137,7 @@ func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorId
 	for _, pluginName = range pluginNames { //Absolute index => relative index
 		jointsPerPlugin := len(this.mapping[pluginName])
 		if index >= jointsPerPlugin {
-			index -= (jointsPerPlugin - 1)
+			index -= jointsPerPlugin
 		} else {
 			break
 		}

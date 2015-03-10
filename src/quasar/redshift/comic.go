@@ -3,6 +3,7 @@ package redshift
 import (
 	"image"
 	"math"
+	"quasar/qutils"
 	. "quasar/redshift/idbase"
 )
 
@@ -74,6 +75,7 @@ func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
 	this.initialize()
+	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
 		existingChapter.MergeWith(chapter)
@@ -96,6 +98,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		identity := identities[i]
 		chapter := chapters[i]
 		existingChapter, exists := this.chapters[identity]
+		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 		if exists {
 			existingChapter.MergeWith(&chapter)
 			if newStart { //Sequence ended, add newly created slice to the list, set creation status to false
