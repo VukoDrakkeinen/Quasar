@@ -1,6 +1,7 @@
 package idbase
 
 import (
+	"database/sql"
 	"fmt"
 )
 
@@ -45,12 +46,15 @@ func (this LangId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), LangDict.NameOf(this))
 }
 
-func (this *LanguageDict) Save() {
-	this.IdAssigner.saveToDB("languages")
-}
-
-func (this *LanguageDict) Load() {
-	this.IdAssigner.loadFromDB("languages")
+func (this LangId) ExecuteDBStatement(stmt *sql.Stmt, scanlationData ...interface{}) (err error) {
+	if len(scanlationData) != 3 {
+		panic("LangId.ExecuteDBStatement: invalid number of parameters!")
+	}
+	title := scanlationData[0].(string)
+	pluginName := scanlationData[1].(string)
+	url := scanlationData[2].(string)
+	_, err = stmt.Exec(title, this.ordinal+1, pluginName, url) //RDBMSes start counting at 1 not 0
+	return
 }
 
 /*
@@ -63,7 +67,7 @@ func (this *LanguageDict) Save() {
 func (this *LanguageDict) Load() {
 	data, err := ReadConfig(languageBaseFile)
 	if err != nil {
-		//TODO: log error
+		//tTODO: log error
 	} else {
 		this.IdAssigner.loadData(data, "languages")
 	}

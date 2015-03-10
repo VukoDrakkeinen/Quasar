@@ -1,6 +1,7 @@
 package idbase
 
 import (
+	"database/sql"
 	"fmt"
 	"quasar/qutils"
 )
@@ -49,10 +50,12 @@ func (this ComicGenreId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), ComicGenres.NameOf(this))
 }
 
-func (this *ComicGenresDict) Save() {
-	this.IdAssigner.saveToDB("genres")
-}
-
-func (this *ComicGenresDict) Load() {
-	this.IdAssigner.loadFromDB("genres")
+func (this ComicGenreId) ExecuteDBStatement(stmt *sql.Stmt, IinfoId ...interface{}) (err error) {
+	if len(IinfoId) != 1 {
+		panic("ComicGenreId.ExecuteDBStatement: invalid number of parameters!")
+	}
+	for _, infoId := range IinfoId {
+		_, err = stmt.Exec(infoId, this.ordinal+1) //RDBMSes start counting at 1 not 0
+	}
+	return
 }

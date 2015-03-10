@@ -20,7 +20,7 @@ func main() {
 	fet.RegisterPlugin(redshift.NewBatoto())
 	fet.RegisterPlugin(redshift.NewBUpdates())
 	fmt.Println("Creating Comic")
-	comic := &redshift.Comic{}
+	comic := &redshift.Comic{Settings: *redshift.NewIndividualSettings(redshift.LoadGlobalSettings())}
 	fmt.Println("Finding comic URL")
 	fet.TestFind(comic, redshift.FetcherPluginName("Batoto"), "Kingdom")
 	fet.TestFind(comic, redshift.FetcherPluginName("BUpdates"), "Kingdom")
@@ -41,6 +41,11 @@ func main() {
 		chapter, id := comic.GetChapter(i)
 		fmt.Printf("%v %+v\n", id, chapter)
 	}
+	fmt.Println("Saving to DB")
+	var list redshift.ComicList
+	list = append(list, *comic)
+	list.SaveToDB()
+	fmt.Println("Saved")
 	return
 	fmt.Println("\nDownloading Page Links for Chapter0 alt0")
 	fet.DownloadPageLinksFor(comic, 0, 0)

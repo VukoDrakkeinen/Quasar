@@ -98,6 +98,10 @@ func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 	}
 }
 
+func (this *IndividualSettings) Valid() bool {
+	return len(this.UseDefaults) != 0
+}
+
 //TODO:
 //XP: + \Local Settings\Application Data\Quasar\
 //Win: + \AppData\Local\Quasar\

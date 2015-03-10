@@ -1,6 +1,7 @@
 package idbase
 
 import (
+	"database/sql"
 	"fmt"
 	"quasar/qutils"
 )
@@ -39,10 +40,12 @@ func (this AuthorId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), Authors.NameOf(this))
 }
 
-func (this *AuthorsDict) Save() {
-	this.IdAssigner.saveToDB("authors")
-}
-
-func (this *AuthorsDict) Load() {
-	this.IdAssigner.loadFromDB("authors")
+func (this AuthorId) ExecuteDBStatement(stmt *sql.Stmt, IinfoId ...interface{}) (err error) {
+	if len(IinfoId) != 1 {
+		panic("AuthorId.ExecuteDBStatement: invalid number of parameters!")
+	}
+	for _, infoId := range IinfoId {
+		_, err = stmt.Exec(infoId, this.ordinal+1) //RDBMSes start counting at 1 not 0
+	}
+	return
 }

@@ -1,6 +1,7 @@
 package idbase
 
 import (
+	"database/sql"
 	"fmt"
 	"quasar/qutils"
 	"strconv"
@@ -41,12 +42,14 @@ func (this ScanlatorId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), Scanlators.NameOf(this))
 }
 
-func (this *ScanlatorsDict) Save() {
-	this.IdAssigner.saveToDB("scanlators")
-}
-
-func (this *ScanlatorsDict) Load() {
-	this.IdAssigner.loadFromDB("scanlators")
+func (this ScanlatorId) ExecuteDBStatement(stmt *sql.Stmt, IscanlationId ...interface{}) (err error) {
+	if len(IscanlationId) != 1 {
+		panic("ScanlatorId.ExecuteDBStatement: invalid number of parameters!")
+	}
+	for _, scanlationId := range IscanlationId {
+		_, err = stmt.Exec(scanlationId, this.ordinal+1) //RDBMSes start counting at 1 not 0
+	}
+	return
 }
 
 //////////////
@@ -74,9 +77,10 @@ func (this *JointScanlatorIds) ToSlice() []ScanlatorId {
 }
 
 func (this JointScanlatorIds) String() string {
-	ids := this.ToSlice()
-	paramsConf := strings.Repeat("%v ", len(ids))
-	paramsConf = paramsConf[:len(paramsConf)-1] //remove trailing space
-	paramsConf = fmt.Sprintf("[%s]", paramsConf)
-	return fmt.Sprintf(paramsConf, ids)
+	ids := this.ToSlice() /*
+		paramsConf := strings.Repeat("%v ", len(ids))
+		paramsConf = paramsConf[:len(paramsConf)-1] //remove trailing space
+		paramsConf = fmt.Sprintf("[%s]", paramsConf)
+		return fmt.Sprintf(paramsConf, ids)	//*/
+	return fmt.Sprintf("%v", ids)
 }
