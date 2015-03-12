@@ -31,6 +31,10 @@ func DB() *sql.DB {
 	return qdb
 }
 
-type DBStatementExecutor interface {
-	ExecuteDBStatement(stmt *sql.Stmt, additionalArgs ...interface{}) error
+type InsertionStmtExecutor interface {
+	ExecuteInsertionStmt(stmt *sql.Stmt, additionalArgs ...interface{}) error
+}
+
+type QueryStmtExecutor interface {
+	ExecuteQueryStmt(stmt *sql.Stmt, additionalArgs ...interface{}) error
 }

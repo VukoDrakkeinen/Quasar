@@ -1,6 +1,7 @@
 package redshift
 
 import (
+	"errors"
 	. "quasar/qutils"
 )
 
@@ -46,6 +47,19 @@ func (this ChapterIdentity) MoreEq(another ChapterIdentity) bool {
 
 func (this ChapterIdentity) n() int64 {
 	return int64(this.Volume)<<40 | int64(this.MajorNum)<<24 | int64(this.MinorNum)<<16 | int64(this.Letter)<<8 | int64(this.Version)
+}
+
+func (this *ChapterIdentity) Scan(src interface{}) error {
+	n, ok := src.(int64)
+	if !ok || src == nil {
+		return errors.New("ChapterIdentity.Scan: type assert failed (must be an int64!)")
+	}
+	this.Version = byte(n)
+	this.Letter = byte(n >> 8)
+	this.MinorNum = byte(n >> 16)
+	this.MajorNum = uint16(n >> 24)
+	this.Volume = byte(n >> 40)
+	return nil
 }
 
 type ChapterIdentitiesSlice []ChapterIdentity
@@ -147,10 +161,6 @@ func (this ChapterIdentitiesSlice) InsertMultiple(at int, cis []ChapterIdentity)
 }
 
 func ChapterIdentityFromInt64(n int64) (ci ChapterIdentity) {
-	ci.Version = byte(n)
-	ci.Letter = byte(n >> 8)
-	ci.MinorNum = byte(n >> 16)
-	ci.MajorNum = uint16(n >> 24)
-	ci.Volume = byte(n >> 40)
+	ci.Scan(n)
 	return
 }

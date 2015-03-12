@@ -46,6 +46,15 @@ func main() {
 	list = append(list, *comic)
 	list.SaveToDB()
 	fmt.Println("Saved")
+	fmt.Println("Loading from DB")
+	list, _ = redshift.LoadComicList()
+	fmt.Println("Loaded")
+	comic2 := list[0]
+	fmt.Println(comic2.Info)
+	fmt.Println(comic2.Settings)
+	fmt.Println(comic.GetSource(redshift.FetcherPluginName("Batoto")))
+	chh, _ := comic.GetChapter(0)
+	fmt.Println(chh.Scanlation(0))
 	return
 	fmt.Println("\nDownloading Page Links for Chapter0 alt0")
 	fet.DownloadPageLinksFor(comic, 0, 0)

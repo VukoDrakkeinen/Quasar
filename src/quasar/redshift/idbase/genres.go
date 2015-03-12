@@ -2,6 +2,7 @@ package idbase
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"quasar/qutils"
 )
@@ -19,7 +20,7 @@ func MATURE_GENRE() ComicGenreId {
 }
 
 type ComicGenresDict struct {
-	IdAssigner
+	idAssigner
 }
 
 type ComicGenreId struct {
@@ -27,7 +28,7 @@ type ComicGenreId struct {
 }
 
 func (this *ComicGenresDict) AssignIds(genres []string) (ids []ComicGenreId, added []bool) {
-	lids, added := this.IdAssigner.assign(genres)
+	lids, added := this.idAssigner.assign(genres)
 	for _, id := range lids {
 		ids = append(ids, ComicGenreId{id})
 	}
@@ -39,18 +40,18 @@ func (this *ComicGenresDict) AssignIdsBytes(genres [][]byte) (ids []ComicGenreId
 }
 
 func (this *ComicGenresDict) Id(genre string) ComicGenreId {
-	return ComicGenreId{this.IdAssigner.id(genre)}
+	return ComicGenreId{this.idAssigner.id(genre)}
 }
 
 func (this *ComicGenresDict) NameOf(id ComicGenreId) string {
-	return this.IdAssigner.nameOf(id.ordinal)
+	return this.idAssigner.nameOf(id.ordinal)
 }
 
 func (this ComicGenreId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), ComicGenres.NameOf(this))
 }
 
-func (this ComicGenreId) ExecuteDBStatement(stmt *sql.Stmt, IinfoId ...interface{}) (err error) {
+func (this ComicGenreId) ExecuteInsertionStmt(stmt *sql.Stmt, IinfoId ...interface{}) (err error) {
 	if len(IinfoId) != 1 {
 		panic("ComicGenreId.ExecuteDBStatement: invalid number of parameters!")
 	}
@@ -58,4 +59,13 @@ func (this ComicGenreId) ExecuteDBStatement(stmt *sql.Stmt, IinfoId ...interface
 		_, err = stmt.Exec(infoId, this.ordinal+1) //RDBMSes start counting at 1 not 0
 	}
 	return
+}
+
+func (this *ComicGenreId) Scan(src interface{}) error {
+	n, ok := src.(int64)
+	if !ok || src == nil {
+		return errors.New("ComicGenreId.Scan: type assert failed (must be an int64!)")
+	}
+	this.ordinal = Id(n - 1) //RDBMSes start counting at 1, not 0
+	return nil
 }

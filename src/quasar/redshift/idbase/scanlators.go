@@ -2,6 +2,7 @@ package idbase
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"quasar/qutils"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 var Scanlators ScanlatorsDict
 
 type ScanlatorsDict struct {
-	IdAssigner
+	idAssigner
 }
 
 type ScanlatorId struct {
@@ -19,7 +20,7 @@ type ScanlatorId struct {
 }
 
 func (this *ScanlatorsDict) AssignIds(scanlators []string) (ids []ScanlatorId, added []bool) {
-	lids, added := this.IdAssigner.assign(scanlators)
+	lids, added := this.idAssigner.assign(scanlators)
 	for _, id := range lids {
 		ids = append(ids, ScanlatorId{id})
 	}
@@ -31,18 +32,18 @@ func (this *ScanlatorsDict) AssignIdsBytes(scanlators [][]byte) (ids []Scanlator
 }
 
 func (this *ScanlatorsDict) Id(scanlator string) ScanlatorId {
-	return ScanlatorId{this.IdAssigner.id(scanlator)}
+	return ScanlatorId{this.idAssigner.id(scanlator)}
 }
 
 func (this *ScanlatorsDict) NameOf(id ScanlatorId) string {
-	return this.IdAssigner.nameOf(id.ordinal)
+	return this.idAssigner.nameOf(id.ordinal)
 }
 
 func (this ScanlatorId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), Scanlators.NameOf(this))
 }
 
-func (this ScanlatorId) ExecuteDBStatement(stmt *sql.Stmt, IscanlationId ...interface{}) (err error) {
+func (this ScanlatorId) ExecuteInsertionStmt(stmt *sql.Stmt, IscanlationId ...interface{}) (err error) {
 	if len(IscanlationId) != 1 {
 		panic("ScanlatorId.ExecuteDBStatement: invalid number of parameters!")
 	}
@@ -50,6 +51,15 @@ func (this ScanlatorId) ExecuteDBStatement(stmt *sql.Stmt, IscanlationId ...inte
 		_, err = stmt.Exec(scanlationId, this.ordinal+1) //RDBMSes start counting at 1 not 0
 	}
 	return
+}
+
+func (this *ScanlatorId) Scan(src interface{}) error {
+	n, ok := src.(int64)
+	if !ok || src == nil {
+		return errors.New("ScanlatorId.Scan: type assert failed (must be an int64!)")
+	}
+	this.ordinal = Id(n - 1) //RDBMSes start counting at 1, not 0
+	return nil
 }
 
 //////////////

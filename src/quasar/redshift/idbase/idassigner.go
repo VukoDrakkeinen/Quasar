@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-type IdAssigner struct {
+type idAssigner struct {
 	names   []string
 	mapping map[string]Id
 	lock    sync.Mutex
@@ -24,7 +24,7 @@ type assignerJsonProxy struct {
 	Names []string
 }
 
-func (this *IdAssigner) ExecuteDBStatement(stmt *sql.Stmt, unused ...interface{}) error {
+func (this *idAssigner) ExecuteInsertionStmt(stmt *sql.Stmt, unused ...interface{}) error {
 	_ = unused
 	for _, name := range this.names {
 		_, err := stmt.Exec(name)
@@ -35,14 +35,31 @@ func (this *IdAssigner) ExecuteDBStatement(stmt *sql.Stmt, unused ...interface{}
 	return nil
 }
 
-func (this *IdAssigner) reset() {
+func (this *idAssigner) ExecuteQueryStmt(stmt *sql.Stmt, unused ...interface{}) error {
+	_ = unused
+	nameRows, err := stmt.Query()
+	if err != nil {
+		return err
+	}
+	var names []string
+	for nameRows.Next() {
+		var name string
+		nameRows.Scan(&name)
+		names = append(names, name)
+	}
+	this.reset()
+	this.assign(names)
+	return nil
+}
+
+func (this *idAssigner) reset() {
 	this.names = make([]string, 0, 10)
 	this.mapping = make(map[string]Id)
 	this.assign([]string{"Unknown"})
 	this.assign(this.preLoadedNames)
 }
 
-func (this *IdAssigner) initialize() *IdAssigner {
+func (this *idAssigner) initialize() *idAssigner {
 	if this.mapping == nil {
 		this.reset()
 		this.replacer = strings.NewReplacer("/S", "/s", "'S", "'s") //FIXME: see bug #233830
@@ -51,11 +68,11 @@ func (this *IdAssigner) initialize() *IdAssigner {
 	return this
 }
 
-func (this *IdAssigner) toJSONProxy() *assignerJsonProxy {
+func (this *idAssigner) toJSONProxy() *assignerJsonProxy {
 	return &assignerJsonProxy{Names: this.names}
 }
 
-func (this *IdAssigner) loadData(b []byte, fieldName string) {
+func (this *idAssigner) loadData(b []byte, fieldName string) {
 	var proxy assignerJsonProxy
 	err := json.Unmarshal(bytes.Replace(b, []byte(strconv.Quote(fieldName)), []byte(`"Names"`), 1), &proxy)
 	if err != nil {
@@ -66,7 +83,7 @@ func (this *IdAssigner) loadData(b []byte, fieldName string) {
 	}
 }
 
-func (this *IdAssigner) getSaveData(fieldName string) []byte {
+func (this *idAssigner) getSaveData(fieldName string) []byte {
 	this.initialize()
 	this.lock.Lock()
 	defer this.lock.Unlock()
@@ -76,7 +93,7 @@ func (this *IdAssigner) getSaveData(fieldName string) []byte {
 	return buf.Bytes()
 }
 
-func (this *IdAssigner) assign(names []string) (ids []Id, added []bool) {
+func (this *idAssigner) assign(names []string) (ids []Id, added []bool) {
 	this.initialize()
 	this.lock.Lock()
 	defer this.lock.Unlock()
@@ -94,7 +111,7 @@ func (this *IdAssigner) assign(names []string) (ids []Id, added []bool) {
 	return
 }
 
-func (this *IdAssigner) id(name string) Id {
+func (this *idAssigner) id(name string) Id {
 	this.initialize()
 	if id, exists := this.mapping[strings.ToLower(name)]; exists {
 		return id
@@ -102,7 +119,7 @@ func (this *IdAssigner) id(name string) Id {
 	return Id(0) //Unknown
 }
 
-func (this *IdAssigner) nameOf(id Id) string {
+func (this *idAssigner) nameOf(id Id) string {
 	this.initialize()
 	//FIXME: bug #233830: strings.Title() has a bug where it will occasionally capitalize wrong letters
 	return this.replacer.Replace(strings.Title(this.names[id]))
