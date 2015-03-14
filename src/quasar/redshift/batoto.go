@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 	"quasar/qregexp"
 	"quasar/qutils"
 	. "quasar/redshift/idbase"
@@ -152,7 +153,7 @@ func (this *Batoto) FindComicURL(title string) string {
 
 func (this *Batoto) FindComicURLList(title string) (links []string, titles []string) {
 	this.initialize()
-	contents := this.fetcher().DownloadData("http://bato.to/search?name_cond=c&name=" + title)
+	contents := this.fetcher().DownloadData("http://bato.to/search?name_cond=c&name=" + url.QueryEscape(title))
 	urlAndTitlesList := this.rResultsRegions.FindAll(contents, -1)
 	for _, urlAndTitles := range urlAndTitlesList {
 		url := string(this.rComicURL.Find(urlAndTitles))

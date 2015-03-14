@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 	"quasar/qregexp"
 	"quasar/qutils"
 	. "quasar/redshift/idbase"
@@ -145,7 +146,7 @@ func (this *BUpdates) FindComicURLList(title string) (links []string, titles []s
 	if this.m_fetcher == nil {
 		panic("Fetcher is nil!")
 	}
-	contents := this.fetcher().DownloadData("https://www.mangaupdates.com/series.html?page=1&stype=title&perpage=100&search=" + title)
+	contents := this.fetcher().DownloadData("https://www.mangaupdates.com/series.html?page=1&stype=title&perpage=100&search=" + url.QueryEscape(title))
 	urlAndTitleList := this.rURLAndTitleList.FindAllSubmatch(contents, -1)
 	for _, urlAndTitle := range urlAndTitleList {
 		links = append(links, string(urlAndTitle[1]))

@@ -2,6 +2,7 @@ package redshift
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	. "quasar/redshift/idbase"
@@ -68,6 +69,7 @@ func (this *Fetcher) DownloadComicInfoFor(comic *Comic) {
 func (this *Fetcher) DownloadData(url string) []byte {
 	this.initialize()
 	response, err := this.webClient.Get(url)
+	fmt.Println("Response status:", response.Status)
 	if err != nil {
 		panic("Error in Client.Get()")
 	}
