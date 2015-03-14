@@ -18,6 +18,8 @@ type Chapter struct {
 	mapping     map[FetcherPluginName]map[JointScanlatorIds]scanlationIndex
 	usedPlugins []FetcherPluginName
 	AlreadyRead bool
+
+	InDBStatusHolder
 }
 
 type ChapterScanlation struct {
@@ -27,6 +29,8 @@ type ChapterScanlation struct {
 	PluginName FetcherPluginName
 	URL        string
 	PageLinks  []string
+
+	InDBStatusHolder
 }
 
 func (this *Chapter) Scanlation(index int) ChapterScanlation {
@@ -49,6 +53,7 @@ func (this *Chapter) MergeWith(another *Chapter) *Chapter {
 
 func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool) {
 	this.initialize()
+	this.InDBMarkModified()
 	if mapped, pluginExists := this.mapping[scanlation.PluginName]; pluginExists {
 		if index, jointExists := mapped[scanlation.Scanlators]; jointExists {
 			this.scanlations[index] = scanlation

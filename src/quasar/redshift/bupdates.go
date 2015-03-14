@@ -274,7 +274,7 @@ func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdenti
 				}
 				title += "]"
 				chapter := Chapter{AlreadyRead: source.MarkAsRead}
-				chapter.AddScanlation(ChapterScanlation{title, ENGLISH_LANG(), JoinScanlators(scanlators), this.name, "", make([]string, 0, 20)})
+				chapter.AddScanlation(ChapterScanlation{title, ENGLISH_LANG(), JoinScanlators(scanlators), this.name, "", make([]string, 0, 20), InDBStatusHolder{}})
 
 				identities = append(identities, identity)
 				chapters = append(chapters, chapter)

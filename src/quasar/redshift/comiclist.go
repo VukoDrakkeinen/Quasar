@@ -194,21 +194,27 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		lastIdStmt, _ := transaction.Prepare(lastIdCmd)
 
 		var comicId int
-		comicInsertionStmt, _ := transaction.Prepare(comicsInsertionCmd)
 		stts := &comic.Settings
 		inf := &comic.Info
-		if !stts.Valid() {
-			stts = NewIndividualSettings(LoadGlobalSettings()) //FIXME: use current globals, not saved!
-		}
-		comicInsertionStmt.Exec(
-			inf.Title, inf.Type, inf.Status, inf.ScanlationStatus, inf.Description, //Info
-			inf.Rating, inf.Mature, "TODO", //FIXME: get path to thumbnail
+		if comic.InDBInsertionNeeded() {
+			comicInsertionStmt, _ := transaction.Prepare(comicsInsertionCmd)
+			if !stts.Valid() {
+				stts = NewIndividualSettings(LoadGlobalSettings()) //FIXME: use current globals, not saved!
+			}
+			comicInsertionStmt.Exec(
+				inf.Title, inf.Type, inf.Status, inf.ScanlationStatus, inf.Description, //Info
+				inf.Rating, inf.Mature, "TODO", //FIXME: get path to thumbnail
 
-			qutils.BoolsToBitfield(stts.UseDefaults), stts.UpdateNotificationMode, //Settings
-			stts.AccumulativeModeCount, stts.DelayedModeDuration,
-		)
-		lastIdStmt.QueryRow().Scan(&comicId)
-		comicInsertionStmt.Close()
+				qutils.BoolsToBitfield(stts.UseDefaults), stts.UpdateNotificationMode, //Settings
+				stts.AccumulativeModeCount, stts.DelayedModeDuration,
+			)
+			lastIdStmt.QueryRow().Scan(&comicId)
+			comicInsertionStmt.Close()
+		} else if comic.InDBUpdateNeeded() {
+			comicId = comic.InDBId()
+		} else {
+			continue
+		}
 
 		altTitlesInsertionStmt, _ := transaction.Prepare(altTitlesInsertionCmd)
 		altTitlesRelationStmt, _ := transaction.Prepare(altTitlesRelationCmd)
@@ -248,10 +254,12 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		sourcesInsertionStmt, _ := transaction.Prepare(sourcesInsertionCmd)
 		sourcesRelationStmt, _ := transaction.Prepare(sourcesRelationCmd)
 		for _, src := range comic.sources {
-			sourcesInsertionStmt.Exec(string(src.PluginName), src.URL, src.MarkAsRead)
-			var sourceId int
-			lastIdStmt.QueryRow().Scan(&sourceId)
-			sourcesRelationStmt.Exec(comicId, sourceId)
+			if src.InDBInsertionNeeded() {
+				sourcesInsertionStmt.Exec(string(src.PluginName), src.URL, src.MarkAsRead)
+				var sourceId int
+				lastIdStmt.QueryRow().Scan(&sourceId)
+				sourcesRelationStmt.Exec(comicId, sourceId)
+			}
 		}
 		sourcesInsertionStmt.Close()
 		sourcesRelationStmt.Close()
@@ -265,17 +273,29 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		pageLinksRelationStmt, _ := transaction.Prepare(pageLinksRelationCmd)
 		for i := 0; i < comic.ChapterCount(); i++ {
 			chapter, identity := comic.GetChapter(i)
-			chaptersInsertionStmt.Exec(identity.n(), chapter.AlreadyRead)
 			var chapterId int
-			lastIdStmt.QueryRow().Scan(&chapterId)
+			if chapter.InDBInsertionNeeded() {
+				chaptersInsertionStmt.Exec(identity.n(), chapter.AlreadyRead)
+				lastIdStmt.QueryRow().Scan(&chapterId)
+			} else if chapter.InDBUpdateNeeded() {
+				chapterId = chapter.InDBId()
+			} else {
+				continue
+			}
 			chaptersRelationStmt.Exec(comicId, chapterId)
 
 			for i := 0; i < chapter.ScanlationsCount(); i++ {
 				sc := chapter.Scanlation(i)
-				sc.Language.ExecuteInsertionStmt(scanlationInsertionStmt, sc.Title, string(sc.PluginName), sc.URL)
 				var scanlationId int
-				lastIdStmt.QueryRow().Scan(&scanlationId)
-				scanlationRelationStmt.Exec(chapterId, scanlationId)
+				if sc.InDBInsertionNeeded() {
+					sc.Language.ExecuteInsertionStmt(scanlationInsertionStmt, sc.Title, string(sc.PluginName), sc.URL)
+					lastIdStmt.QueryRow().Scan(&scanlationId)
+					scanlationRelationStmt.Exec(chapterId, scanlationId)
+				} else if sc.InDBUpdateNeeded() {
+					scanlationId = sc.InDBId()
+				} else {
+					continue
+				}
 
 				for _, scanlator := range sc.Scanlators.ToSlice() {
 					scanlator.ExecuteInsertionStmt(scanlatorsRelationStmt, scanlationId)
@@ -287,7 +307,9 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 					lastIdStmt.QueryRow().Scan(&pageLinkId)
 					pageLinksRelationStmt.Exec(scanlationId, pageLinkId)
 				}
+				sc.InDBMarkLoaded(scanlationId)
 			}
+			chapter.InDBMarkLoaded(chapterId)
 		}
 		chaptersInsertionStmt.Close()
 		chaptersRelationStmt.Close()
@@ -300,6 +322,7 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		lastIdStmt.Close()
 
 		transaction.Commit()
+		comic.InDBMarkLoaded(comicId)
 	}
 }
 
@@ -343,7 +366,7 @@ func LoadComicList() (list ComicList, err error) {
 	tagsQueryCmd := `SELECT tagId FROM rel_Comic_Tags WHERE comicId = ?;`
 	sourcesQueryCmd := `
 	SELECT
-		pluginName, url, markAsRead
+		id, pluginName, url, markAsRead
 	FROM sources
 	WHERE id IN(
 		SELECT sourceId FROM rel_Comic_Sources WHERE comicId = ?
@@ -446,8 +469,10 @@ func LoadComicList() (list ComicList, err error) {
 		sourcesQueryStmt, _ := transaction.Prepare(sourcesQueryCmd)
 		sourceRows, _ := sourcesQueryStmt.Query(comicId)
 		for sourceRows.Next() {
+			var sourceId int
 			var source UpdateSource
-			sourceRows.Scan(&source.PluginName, &source.URL, &source.MarkAsRead)
+			sourceRows.Scan(&sourceId, &source.PluginName, &source.URL, &source.MarkAsRead)
+			source.InDBMarkLoaded(sourceId)
 			comic.AddSource(source)
 		}
 
@@ -486,16 +511,56 @@ func LoadComicList() (list ComicList, err error) {
 					scanlation.PageLinks = append(scanlation.PageLinks, pageLink)
 				}
 
+				scanlation.InDBMarkLoaded(scanlationId)
 				chapter.AddScanlation(scanlation)
 			}
+
+			chapter.InDBMarkLoaded(chapterId)
 			identities = append(identities, identity)
 			chapters = append(chapters, chapter)
 		}
 		comic.AddMultipleChapters(identities, chapters)
+		comic.InDBMarkLoaded(comicId)
 
 		list = append(list, comic)
 	}
 
 	transaction.Commit()
 	return //FIXME: return errors
+}
+
+type InDBStatus int
+
+const (
+	StructNew InDBStatus = iota
+	StructLoaded
+	StructModifed
+)
+
+type InDBStatusHolder struct {
+	inDBId     int
+	inDBStatus InDBStatus
+}
+
+func (this InDBStatusHolder) InDBId() int {
+	return this.inDBId
+}
+
+func (this InDBStatusHolder) InDBInsertionNeeded() bool {
+	return this.inDBStatus == StructNew
+}
+
+func (this InDBStatusHolder) InDBUpdateNeeded() bool {
+	return this.inDBStatus == StructModifed
+}
+
+func (this *InDBStatusHolder) InDBMarkLoaded(inDBId int) {
+	this.inDBId = inDBId
+	this.inDBStatus = StructLoaded
+}
+
+func (this *InDBStatusHolder) InDBMarkModified() {
+	if this.inDBStatus != StructNew {
+		this.inDBStatus = StructModifed
+	}
 }

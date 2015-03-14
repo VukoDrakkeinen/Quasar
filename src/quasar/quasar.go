@@ -8,6 +8,21 @@ import (
 )
 
 func main() {
+	if false {
+		cl, _ := redshift.LoadComicList()
+		cmc := &(cl[0])
+		cmc.AddSource(redshift.UpdateSource{redshift.FetcherPluginName("DummyPlugin"), "http://dummy.url.com", true, redshift.InDBStatusHolder{}})
+		cl[0] = *cmc
+		fch := redshift.Fetcher{}
+		fch.RegisterPlugin(redshift.NewBatoto())
+		cmc = &redshift.Comic{Settings: *redshift.NewIndividualSettings(redshift.LoadGlobalSettings())}
+		fch.TestFind(cmc, redshift.FetcherPluginName("Batoto"), "Boku no Hero Academia")
+		fch.DownloadComicInfoFor(cmc)
+		fmt.Println(cmc)
+		cl = append(cl, *cmc)
+		cl.SaveToDB()
+		return
+	}
 	///if err := qml.Run(launchGUI); err != nil {
 	///	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	///	os.Exit(1)
@@ -48,6 +63,7 @@ func main() {
 	fmt.Println("Saved")
 	fmt.Println("Loading from DB")
 	list, _ = redshift.LoadComicList()
+	list.SaveToDB()
 	fmt.Println("Loaded")
 	comic2 := list[0]
 	fmt.Println(comic2.Info)

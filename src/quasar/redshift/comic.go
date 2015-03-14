@@ -18,6 +18,8 @@ type Comic struct {
 	chaptersOrder     ChapterIdentitiesSlice
 	chapters          map[ChapterIdentity]Chapter
 	scanlatorPriority []JointScanlatorIds
+
+	InDBStatusHolder
 }
 
 func (this *Comic) initialize() *Comic {
@@ -35,6 +37,7 @@ func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
 
 func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded bool) {
 	this.initialize()
+	this.InDBMarkModified()
 	existingIndex, alreadyAdded := this.sourceIdxByPlugin[source.PluginName]
 	if alreadyAdded {
 		this.sources[existingIndex] = source //replace
@@ -75,6 +78,7 @@ func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
 	this.initialize()
+	this.InDBMarkModified()
 	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
@@ -90,6 +94,7 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
 	this.initialize()
+	this.InDBMarkModified()
 	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
@@ -153,6 +158,8 @@ type UpdateSource struct {
 	PluginName FetcherPluginName
 	URL        string
 	MarkAsRead bool
+
+	InDBStatusHolder
 }
 
 type ComicInfo struct {
