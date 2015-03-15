@@ -12,7 +12,6 @@ import (
 	"quasar/qutils"
 	. "quasar/redshift/idbase"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -231,7 +230,7 @@ func (this *Batoto) FetchComicInfo(comic *Comic) *ComicInfo {
 	}
 }
 
-func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter) {
+func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	this.initialize()
 	source := comic.GetSource(this.name)
 	link := source.URL
@@ -245,8 +244,6 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 	identities = make([]ChapterIdentity, 0, len(chaptersList))
 	chapters = make([]Chapter, 0, len(chaptersList))
 
-	missingVolumes := false
-	//previousIdentity := ChapterIdentity{Volume: 1} //start with volume #1
 	for i := len(chaptersList) - 1; i >= 0; i-- { //cannot use range, because we're iterating in reverse :(
 		chapterInfo := chaptersList[i]
 
@@ -263,10 +260,6 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 
 		identityAndTitle := this.rIdentityAndTitle.FindSubmatch(chapterInfo)
 		identity, _ := this.parseIdentity(string(identityAndTitle[1])) //TODO: log error
-		//identity, err := this.parseIdentity(string(identityAndTitle[1]), previousIdentity) //TODO: log error
-		//if err == nil {
-		//	previousIdentity = identity
-		//}
 		missingVolumes = missingVolumes || identity.Volume == 0
 		title := html.UnescapeString(string(identityAndTitle[2]))
 		if title == "" { //TODO: shared plugin logic?
@@ -295,17 +288,6 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 
 		identities = append(identities, identity)
 		chapters = append(chapters, chapter)
-	}
-	if missingVolumes { //TODO: shared plugin logic
-		correctiveSlice := CorrectiveSlice{identities, chapters}
-		sort.Sort(correctiveSlice)
-		prevVol := byte(1)
-		for i := range correctiveSlice.identities {
-			if correctiveSlice.identities[i].Volume == 0 {
-				correctiveSlice.identities[i].Volume = prevVol
-			}
-			prevVol = correctiveSlice.identities[i].Volume
-		}
 	}
 	return
 }
@@ -341,7 +323,7 @@ func (this *CIError) Error() string {
 	return this.msg + " (caused by: " + this.Err.Error() + ")"
 }
 
-func (this *Batoto) parseIdentity(str string /*, previous ChapterIdentity*/) (identity ChapterIdentity, perr error) {
+func (this *Batoto) parseIdentity(str string) (identity ChapterIdentity, perr error) {
 	parsing := this.rIdentityParse.FindStringSubmatch(str)
 	/*
 		[0] is whole match
@@ -354,9 +336,7 @@ func (this *Batoto) parseIdentity(str string /*, previous ChapterIdentity*/) (id
 		if str := parsing[1]; str != "" {
 			i, _ := strconv.ParseUint(str, 10, 8)
 			identity.Volume = byte(i)
-		} //else {
-		//	identity.Volume = previous.Volume
-		//}
+		}
 		/*        parsing[2]         */ {
 			i, _ := strconv.ParseUint(parsing[2], 10, 16)
 			identity.MajorNum = uint16(i)

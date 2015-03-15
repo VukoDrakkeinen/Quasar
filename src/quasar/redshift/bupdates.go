@@ -12,7 +12,6 @@ import (
 	"quasar/qutils"
 	. "quasar/redshift/idbase"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -233,7 +232,7 @@ func (this *BUpdates) FetchComicInfo(comic *Comic) *ComicInfo {
 	}
 }
 
-func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter) {
+func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	this.initialize()
 	source := comic.GetSource(this.name)
 	linkPrefix := "https://www.mangaupdates.com/releases.html?stype=series&perpage=100&search=" + this.rComicID.FindString(source.URL) + "&page="
@@ -246,7 +245,7 @@ func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdenti
 	}
 	identities = make([]ChapterIdentity, 0, pageCount*100)
 	chapters = make([]Chapter, 0, pageCount*100)
-	missingVolumes := false
+
 	for i := len(regionsSlice) - 1; i >= 0; i-- { //cannot use range, because we're iterating in reverse :(
 		chaptersInfos := this.rChaptersInfoList.FindAll(regionsSlice[i], -1)
 		prevIdentity := ChapterIdentity{}
@@ -288,47 +287,7 @@ func (this *BUpdates) FetchChapterList(comic *Comic) (identities []ChapterIdenti
 			}
 		}
 	}
-	if missingVolumes {
-		correctiveSlice := CorrectiveSlice{identities, chapters}
-		sort.Sort(correctiveSlice)
-		prevVol := byte(1)
-		for i := range correctiveSlice.identities {
-			if correctiveSlice.identities[i].Volume == 0 {
-				correctiveSlice.identities[i].Volume = prevVol
-			}
-			prevVol = correctiveSlice.identities[i].Volume
-		}
-	}
 	return
-}
-
-type CorrectiveSlice struct {
-	identities []ChapterIdentity
-	chapters   []Chapter
-}
-
-func (this CorrectiveSlice) Len() int {
-	if ilen := len(this.identities); ilen == len(this.chapters) {
-		return ilen
-	} else {
-		return 0
-	}
-}
-
-func (this CorrectiveSlice) Less(i, j int) bool {
-	ident1 := this.identities[i]
-	ident2 := this.identities[j]
-	if ident1.Volume != 0 && ident2.Volume != 0 {
-		return ident1.Less(ident2)
-	} else {
-		return ident1.MajorNum < ident2.MajorNum ||
-			(ident1.MajorNum == ident2.MajorNum && ident1.MinorNum < ident2.MinorNum)
-	}
-}
-
-func (this CorrectiveSlice) Swap(i, j int) {
-	this.identities[i], this.identities[j] = this.identities[j], this.identities[i]
-	this.chapters[i], this.chapters[j] = this.chapters[j], this.chapters[i]
 }
 
 func (this *BUpdates) FetchChapterPageLinks(url string) []string {
