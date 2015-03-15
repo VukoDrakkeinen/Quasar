@@ -496,11 +496,3 @@ type QueryStmtGroup struct {
 	scanlatorsQueryStmt  *sql.Stmt
 	pageLinksQueryStmt   *sql.Stmt
 }
-
-type privateStruct struct {
-	Number int
-}
-
-func NewPrivate() privateStruct {
-	return privateStruct{8}
-}
