@@ -284,7 +284,14 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 		scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
 
 		chapter := Chapter{AlreadyRead: source.MarkAsRead}
-		chapter.AddScanlation(ChapterScanlation{title, lang, JoinScanlators(scanlators), this.name, url, make([]string, 0, 20), InDBStatusHolder{}})
+		chapter.AddScanlation(ChapterScanlation{
+			Title:      title,
+			Language:   lang,
+			Scanlators: JoinScanlators(scanlators),
+			PluginName: this.name,
+			URL:        url,
+			PageLinks:  make([]string, 0),
+		})
 
 		identities = append(identities, identity)
 		chapters = append(chapters, chapter)

@@ -1,7 +1,7 @@
 package idbase
 
 import (
-	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"quasar/qutils"
@@ -43,16 +43,6 @@ func (this ScanlatorId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), Scanlators.NameOf(this))
 }
 
-func (this ScanlatorId) ExecuteInsertionStmt(stmt *sql.Stmt, IscanlationId ...interface{}) (err error) {
-	if len(IscanlationId) != 1 {
-		panic("ScanlatorId.ExecuteDBStatement: invalid number of parameters!")
-	}
-	for _, scanlationId := range IscanlationId {
-		_, err = stmt.Exec(scanlationId, this.ordinal+1) //RDBMSes start counting at 1 not 0
-	}
-	return
-}
-
 func (this *ScanlatorId) Scan(src interface{}) error {
 	n, ok := src.(int64)
 	if !ok || src == nil {
@@ -60,6 +50,10 @@ func (this *ScanlatorId) Scan(src interface{}) error {
 	}
 	this.ordinal = Id(n - 1) //RDBMSes start counting at 1, not 0
 	return nil
+}
+
+func (this ScanlatorId) Value() (driver.Value, error) {
+	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
 //////////////

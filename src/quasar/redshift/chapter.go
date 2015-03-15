@@ -19,7 +19,7 @@ type Chapter struct {
 	usedPlugins []FetcherPluginName
 	AlreadyRead bool
 
-	InDBStatusHolder
+	sqlId int64
 }
 
 type ChapterScanlation struct {
@@ -30,7 +30,8 @@ type ChapterScanlation struct {
 	URL        string
 	PageLinks  []string
 
-	InDBStatusHolder
+	sqlId    int64
+	plSQLIds []int64
 }
 
 func (this *Chapter) Scanlation(index int) ChapterScanlation {
@@ -53,10 +54,10 @@ func (this *Chapter) MergeWith(another *Chapter) *Chapter {
 
 func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool) {
 	this.initialize()
-	this.InDBMarkModified()
 	if mapped, pluginExists := this.mapping[scanlation.PluginName]; pluginExists {
 		if index, jointExists := mapped[scanlation.Scanlators]; jointExists {
-			this.scanlations[index] = scanlation
+			scanlation.sqlId = this.scanlations[index].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
+			this.scanlations[index] = scanlation             //replace
 			return true
 		}
 	} else {
@@ -120,6 +121,33 @@ func (this *Chapter) SetParent(comic *Comic) {
 	this.parent = comic
 }
 
+func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts InsertionStmtGroup) (err error) {
+	var newId int64
+	result, err := stmts.chaptersInsertionStmt.Exec(this.sqlId, identity.n(), this.AlreadyRead)
+	if err != nil {
+		return err
+	}
+	newId, err = result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	this.sqlId = newId
+
+	result, err = stmts.chaptersRelationStmt.Exec(this.parent.sqlId, this.sqlId)
+	if err != nil {
+		return err
+	}
+
+	for i := range this.scanlations {
+		err = this.scanlations[i].SQLInsert(this.sqlId, stmts)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorIds) {
 	if this.parent == nil { //We have no parent, so we can't access priority lists for plugins and scanlators
 		scanlation := this.scanlations[index]
@@ -163,4 +191,48 @@ func (this *Chapter) initialize() {
 	if this.mapping == nil {
 		this.mapping = make(map[FetcherPluginName]map[JointScanlatorIds]scanlationIndex)
 	}
+}
+
+func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGroup) (err error) {
+	var newId int64
+	result, err := stmts.scanlationInsertionStmt.Exec(this.sqlId, this.Title, this.Language, string(this.PluginName), this.URL)
+	if err != nil {
+		return err
+	}
+	newId, err = result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	this.sqlId = newId
+
+	result, err = stmts.scanlationRelationStmt.Exec(chapterId, this.sqlId)
+	if err != nil {
+		return err
+	}
+
+	for _, scanlator := range this.Scanlators.ToSlice() {
+		result, err = stmts.scanlatorsRelationStmt.Exec(this.sqlId, scanlator)
+		if err != nil {
+			return err
+		}
+	}
+
+	if this.plSQLIds == nil {
+		this.plSQLIds = make([]int64, len(this.PageLinks))
+	}
+	for i, pageLink := range this.PageLinks {
+		var pageLinkId int64 = this.plSQLIds[i] //WARNING: may go out of bounds (shouldn't ever; leaving it for the sake of experiment)
+		result, err = stmts.pageLinksInsertionStmt.Exec(pageLink)
+		if err != nil {
+			return err
+		}
+		pageLinkId, err = result.LastInsertId()
+		if err != nil {
+			return err
+		}
+		this.plSQLIds[i] = pageLinkId
+		stmts.pageLinksRelationStmt.Exec(this.sqlId, pageLinkId)
+	}
+
+	return nil
 }

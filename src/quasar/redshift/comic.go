@@ -19,15 +19,7 @@ type Comic struct {
 	chapters          map[ChapterIdentity]Chapter
 	scanlatorPriority []JointScanlatorIds
 
-	InDBStatusHolder
-}
-
-func (this *Comic) initialize() *Comic {
-	if this.sourceIdxByPlugin == nil {
-		this.sourceIdxByPlugin = make(map[FetcherPluginName]sourceIndex)
-		this.chapters = make(map[ChapterIdentity]Chapter)
-	}
-	return this
+	sqlId int64
 }
 
 func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
@@ -37,10 +29,10 @@ func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
 
 func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded bool) {
 	this.initialize()
-	this.InDBMarkModified()
 	existingIndex, alreadyAdded := this.sourceIdxByPlugin[source.PluginName]
 	if alreadyAdded {
-		this.sources[existingIndex] = source //replace
+		source.sqlId = this.sources[existingIndex].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
+		this.sources[existingIndex] = source             //replace
 	} else {
 		if index < len(this.sources) { //insert
 			this.sources = append(this.sources, UpdateSource{}) //grow the slice
@@ -78,12 +70,11 @@ func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
 	this.initialize()
-	this.InDBMarkModified()
 	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
 		existingChapter.MergeWith(chapter)
-		this.chapters[identity] = existingChapter //TODO: use pointers instead?
+		this.chapters[identity] = existingChapter //reinsert //TODO?: use pointers instead?
 	} else {
 		chapter.SetParent(this)
 		this.chapters[identity] = *chapter
@@ -94,7 +85,7 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
 	this.initialize()
-	this.InDBMarkModified()
+	////this.InDBMarkModified()
 	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
@@ -110,7 +101,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 				nonexistentSlices = append(nonexistentSlices, identities[startIndex:i])
 				newStart = false
 			}
-			this.chapters[identity] = existingChapter //TODO: use pointers instead?
+			this.chapters[identity] = existingChapter //reinsert //TODO?: use pointers instead?
 		} else {
 			chapter.SetParent(this)
 			this.chapters[identity] = chapter
@@ -154,12 +145,104 @@ func (this *Comic) ChapterCount() int {
 	return len(this.chaptersOrder)
 }
 
+//TODO: some error wrapper struct (could use runtime.Caller() to discover its origin?)
+//TODO?: method -> function (will return ids)
+func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
+	var newId int64
+	result, err := stmts.comicInsertionStmt.Exec(
+		this.sqlId,
+		this.Info.Title, this.Info.Type, this.Info.Status, this.Info.ScanlationStatus, this.Info.Description,
+		this.Info.Rating, this.Info.Mature, "TODO", //FIXME
+		qutils.BoolsToBitfield(this.Settings.UseDefaults), this.Settings.UpdateNotificationMode,
+		this.Settings.AccumulativeModeCount, this.Settings.DelayedModeDuration,
+	)
+	if err != nil {
+		return err
+	}
+	newId, err = result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	this.sqlId = newId
+
+	if this.Info.altSQLIds == nil {
+		this.Info.altSQLIds = make(map[string]int64)
+	}
+	for title := range this.Info.AltTitles {
+		var newATId int64
+		result, err = stmts.altTitlesInsertionStmt.Exec(this.Info.altSQLIds[title], title)
+		if err != nil {
+			return err
+		}
+		newATId, err = result.LastInsertId()
+		if err != nil {
+			return err
+		}
+		this.Info.altSQLIds[title] = newATId
+		stmts.altTitlesRelationStmt.Exec(this.sqlId, newATId)
+	}
+
+	for _, author := range this.Info.Authors {
+		stmts.authorsRelationStmt.Exec(this.sqlId, author)
+	}
+	for _, artist := range this.Info.Artists {
+		stmts.artistsRelationStmt.Exec(this.sqlId, artist)
+	}
+	for genre := range this.Info.Genres {
+		stmts.genresRelationStmt.Exec(this.sqlId, genre)
+	}
+	for tag := range this.Info.Categories {
+		stmts.tagsRelationStmt.Exec(this.sqlId, tag)
+	}
+
+	for i := range this.sources {
+		err = this.sources[i].SQLInsert(this.sqlId, stmts)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, identity := range this.chaptersOrder {
+		chapter := this.chapters[identity] //can't take a pointer
+		err = chapter.SQLInsert(identity, stmts)
+		if err != nil {
+			return err
+		}
+		this.chapters[identity] = chapter //so reinsert
+	}
+
+	return nil
+}
+
+func (this *Comic) initialize() *Comic {
+	if this.sourceIdxByPlugin == nil {
+		this.sourceIdxByPlugin = make(map[FetcherPluginName]sourceIndex)
+		this.chapters = make(map[ChapterIdentity]Chapter)
+	}
+	return this
+}
+
 type UpdateSource struct {
 	PluginName FetcherPluginName
 	URL        string
 	MarkAsRead bool
 
-	InDBStatusHolder
+	sqlId int64
+}
+
+func (this *UpdateSource) SQLInsert(comicId int64, stmts InsertionStmtGroup) (err error) {
+	var newId int64
+	result, err := stmts.sourcesInsertionStmt.Exec(this.sqlId, string(this.PluginName), this.URL, this.MarkAsRead)
+	if err != nil {
+		return err
+	}
+	newId, err = result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	this.sqlId = newId
+	stmts.sourcesRelationStmt.Exec(comicId, this.sqlId)
+	return nil
 }
 
 type ComicInfo struct {
@@ -176,15 +259,8 @@ type ComicInfo struct {
 	Rating           float32
 	Mature           bool
 	Thumbnail        image.Image
-}
 
-func (this *ComicInfo) initialize() *ComicInfo {
-	if this.AltTitles == nil {
-		this.AltTitles = make(map[string]struct{})
-		this.Genres = make(map[ComicGenreId]struct{})
-		this.Categories = make(map[ComicTagId]struct{})
-	}
-	return this
+	altSQLIds map[string]int64
 }
 
 func (this *ComicInfo) MergeWith(another *ComicInfo) {
@@ -261,6 +337,15 @@ func (this *ComicInfo) MergeWith(another *ComicInfo) {
 	if this.Thumbnail == nil {
 		this.Thumbnail = another.Thumbnail
 	}
+}
+
+func (this *ComicInfo) initialize() *ComicInfo {
+	if this.AltTitles == nil {
+		this.AltTitles = make(map[string]struct{})
+		this.Genres = make(map[ComicGenreId]struct{})
+		this.Categories = make(map[ComicTagId]struct{})
+	}
+	return this
 }
 
 type comicType int

@@ -1,7 +1,7 @@
 package idbase
 
 import (
-	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"quasar/qutils"
@@ -41,14 +41,8 @@ func (this ArtistId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), Artists.NameOf(this))
 }
 
-func (this ArtistId) ExecuteInsertionStmt(stmt *sql.Stmt, IinfoId ...interface{}) (err error) {
-	if len(IinfoId) != 1 {
-		return errors.New("ArtistId.ExecuteDBStatement: invalid number of parameters!")
-	}
-	for _, infoId := range IinfoId {
-		_, err = stmt.Exec(infoId, this.ordinal+1) //RDBMSes start counting at 1, not 0
-	}
-	return
+func (this ArtistId) Value() (driver.Value, error) {
+	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
 func (this *ArtistId) Scan(src interface{}) error {

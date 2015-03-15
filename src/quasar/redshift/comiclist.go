@@ -10,10 +10,8 @@ import (
 	"time"
 )
 
-type ComicList []Comic
-
-func (this ComicList) createDB(db *sql.DB) {
-	createCmd := `
+var (
+	createCmd = `
 	CREATE TABLE IF NOT EXISTS langs(
 		id INTEGER PRIMARY KEY,
 		lang TEXT UNIQUE NOT NULL
@@ -132,21 +130,88 @@ func (this ComicList) createDB(db *sql.DB) {
 		pageLinkId INTEGER NOT NULL REFERENCES pageLinks(id) ON DELETE CASCADE,
 		CONSTRAINT pk_SC_PA PRIMARY KEY (scanlationId, pageLinkId)
 	);`
-	_, err := db.Exec(createCmd)
-	if err != nil {
-		log.Println(err)
-	}
+
+	enableForeignKeysCmd = `PRAGMA foreign_keys = ON;`
+
+	idsInsertionPreCmd = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
+	comicsInsertionCmd = `
+	INSERT OR REPLACE INTO comics(
+		id,
+		title, type, status, scanStatus, desc, rating, mature, image,
+		useDefaultsBits, notifMode, accumCount, delayDuration
+	) VALUES((SELECT id FROM comics WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+	altTitlesInsertionCmd  = `INSERT OR REPLACE INTO altTitles(id, title) VALUES((SELECT id FROM altTitles WHERE id = ?), ?);`
+	altTitlesRelationCmd   = `INSERT OR IGNORE INTO rel_Comic_AltTitles(comicId, titleId) VALUES(?, ?);`
+	authorsRelationCmd     = `INSERT OR IGNORE INTO rel_Comic_Authors(comicId, authorId) VALUES(?, ?);`
+	artistsRelationCmd     = `INSERT OR IGNORE INTO rel_Comic_Artists(comicId, artistId) VALUES(?, ?);`
+	genresRelationCmd      = `INSERT OR IGNORE INTO rel_Comic_Genres(comicId, genreId) VALUES(?, ?);`
+	tagsRelationCmd        = `INSERT OR IGNORE INTO rel_Comic_Tags(comicId, tagId) VALUES(?, ?);`
+	sourcesInsertionCmd    = `INSERT OR REPLACE INTO sources(id, pluginName, url, markAsRead) VALUES((SELECT id FROM sources WHERE id = ?), ?, ?, ?);`
+	sourcesRelationCmd     = `INSERT OR IGNORE INTO rel_Comic_Sources(comicId, sourceId) VALUES(?, ?);`
+	chaptersInsertionCmd   = `INSERT OR REPLACE INTO chapters(id, identity, alreadyRead) VALUES((SELECT id FROM chapters WHERE id = ?), ?, ?);`
+	chaptersRelationCmd    = `INSERT OR IGNORE INTO rel_Comic_Chapters(comicId, chapterId) VALUES(?, ?);`
+	scanlationInsertionCmd = `INSERT OR REPLACE INTO scanlations(id, title, lang, pluginName, url) VALUES((SELECT id FROM scanlations WHERE id = ?), ?, ?, ?, ?);`
+	scanlationRelationCmd  = `INSERT OR IGNORE INTO rel_Chapter_Scanlations(chapterId, scanlationid) VALUES(?, ?);`
+	scanlatorsRelationCmd  = `INSERT OR IGNORE INTO rel_Scanlation_Scanlators(scanlationId, scanlatorId) VALUES(?, ?);`
+	pageLinksInsertionCmd  = `INSERT OR REPLACE INTO pageLinks(id, url) VALUES((SELECT id FROM pageLinks WHERE id = ?), ?);`
+	pageLinksRelationCmd   = `INSERT OR IGNORE INTO rel_Scanlation_PageLinks(scanlationId, pageLinkId) VALUES(?, ?);`
+
+	idsQueryPreCmd = `SELECT $colName FROM $tableName;` //TODO?: use placeholders?
+	comicsQueryCmd = `
+	SELECT
+		id,
+		title, type, status, scanStatus, desc, rating, mature, image,
+		useDefaultsBits, notifMode, accumCount, delayDuration
+	FROM comics;`
+	altTitlesQueryCmd = `SELECT id, title FROM altTitles WHERE id IN (SELECT titleId FROM rel_Comic_AltTitles WHERE comicId = ?);`
+	authorsQueryCmd   = `SELECT authorId FROM rel_Comic_Authors WHERE comicId = ?;`
+	artistsQueryCmd   = `SELECT artistId FROM rel_Comic_Artists WHERE comicId = ?;`
+	genresQueryCmd    = `SELECT genreId FROM rel_Comic_Genres WHERE comicId = ?;`
+	tagsQueryCmd      = `SELECT tagId FROM rel_Comic_Tags WHERE comicId = ?;`
+	sourcesQueryCmd   = `
+	SELECT
+		id, pluginName, url, markAsRead
+	FROM sources
+	WHERE id IN(
+		SELECT sourceId FROM rel_Comic_Sources WHERE comicId = ?
+	);`
+	chaptersQueryCmd = `
+	SELECT
+		id, identity, alreadyRead
+	FROM chapters
+	WHERE id IN(
+		SELECT chapterId FROM rel_Comic_Chapters WHERE comicId = ?
+	);`
+	scanlationsQueryCmd = `
+	SELECT
+		id, title, lang, pluginName, url
+	FROM scanlations
+	WHERE id IN(
+		SELECT scanlationId FROM rel_Chapter_Scanlations WHERE chapterId = ?
+	);`
+	scanlatorsQueryCmd = `SELECT scanlatorId FROM rel_Scanlation_Scanlators WHERE scanlationId = ?;`
+	pageLinksQueryCmd  = `
+	SELECT id, url
+	FROM pageLinks
+	WHERE id IN(
+		SELECT pageLinkId FROM rel_Scanlation_PageLinks WHERE scanlationId = ?
+	);`
+)
+
+type ComicList []*Comic
+
+func (this ComicList) createDB(db *sql.DB) {
+	transaction, _ := db.Begin()
+	transaction.Exec(createCmd)
+	transaction.Commit()
 }
 
 func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicating them
 	log.SetFlags(log.Lshortfile | log.Ltime)
 	db := qdb.DB() //TODO: error out on nil
 	this.createDB(db)
-	db.Exec("PRAGMA foreign_keys = ON;")
+	db.Exec(enableForeignKeysCmd)
 
-	lastIdCmd := `SELECT last_insert_rowid();`
-
-	idsInsertionCmd := `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
 	type tuple struct {
 		dict      qdb.InsertionStmtExecutor
 		tableName string
@@ -162,108 +227,24 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 	} {
 		transaction, _ := db.Begin()
 		rep := strings.NewReplacer("$tableName", tuple.tableName, "$colName", tuple.colName)
-		idsInsertionStmt, _ := transaction.Prepare(rep.Replace(idsInsertionCmd))
+		idsInsertionStmt, _ := transaction.Prepare(rep.Replace(idsInsertionPreCmd))
 		tuple.dict.ExecuteInsertionStmt(idsInsertionStmt)
 		idsInsertionStmt.Close()
 		transaction.Commit()
 	}
 
-	comicsInsertionCmd := `
-	INSERT INTO comics(
-		title, type, status, scanStatus, desc, rating, mature, image,
-		useDefaultsBits, notifMode, accumCount, delayDuration
-	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
-	altTitlesInsertionCmd := `INSERT INTO altTitles(title) VALUES(?);`
-	altTitlesRelationCmd := `INSERT INTO rel_Comic_AltTitles(comicId, titleId) VALUES(?, ?);`
-	authorsRelationCmd := `INSERT INTO rel_Comic_Authors(comicId, authorId) VALUES(?, ?);`
-	artistsRelationCmd := `INSERT INTO rel_Comic_Artists(comicId, artistId) VALUES(?, ?);`
-	genresRelationCmd := `INSERT INTO rel_Comic_Genres(comicId, genreId) VALUES(?, ?);`
-	tagsRelationCmd := `INSERT INTO rel_Comic_Tags(comicId, tagId) VALUES(?, ?);`
-	sourcesInsertionCmd := `INSERT INTO sources(pluginName, url, markAsRead) VALUES(?, ?, ?);`
-	sourcesRelationCmd := `INSERT INTO rel_Comic_Sources(comicId, sourceId) VALUES(?, ?);`
-	chaptersInsertionCmd := `INSERT INTO chapters(identity, alreadyRead) VALUES(?, ?);`
-	chaptersRelationCmd := `INSERT INTO rel_Comic_Chapters(comicId, chapterId) VALUES(?, ?);`
-	scanlationInsertionCmd := `INSERT INTO scanlations(title, lang, pluginName, url) VALUES(?, ?, ?, ?);`
-	scanlationRelationCmd := `INSERT INTO rel_Chapter_Scanlations(chapterId, scanlationid) VALUES(?, ?);`
-	scanlatorsRelationCmd := `INSERT INTO rel_Scanlation_Scanlators(scanlationId, scanlatorId) VALUES(?, ?);`
-	pageLinksInsertionCmd := `INSERT INTO pageLinks(url) VALUES(?);`
-	pageLinksRelationCmd := `INSERT INTO rel_Scanlation_PageLinks(scanlationId, pageLinkId) VALUES(?, ?);`
 	for _, comic := range this { //TODO: do not reprepare statements every iteration. Make them transaction-specific instead.
 		transaction, _ := db.Begin()
 
-		lastIdStmt, _ := transaction.Prepare(lastIdCmd)
-
-		var comicId int
-		stts := &comic.Settings
-		inf := &comic.Info
-		if comic.InDBInsertionNeeded() {
-			comicInsertionStmt, _ := transaction.Prepare(comicsInsertionCmd)
-			if !stts.Valid() {
-				stts = NewIndividualSettings(LoadGlobalSettings()) //FIXME: use current globals, not saved!
-			}
-			comicInsertionStmt.Exec(
-				inf.Title, inf.Type, inf.Status, inf.ScanlationStatus, inf.Description, //Info
-				inf.Rating, inf.Mature, "TODO", //FIXME: get path to thumbnail
-
-				qutils.BoolsToBitfield(stts.UseDefaults), stts.UpdateNotificationMode, //Settings
-				stts.AccumulativeModeCount, stts.DelayedModeDuration,
-			)
-			lastIdStmt.QueryRow().Scan(&comicId)
-			comicInsertionStmt.Close()
-		} else if comic.InDBUpdateNeeded() {
-			comicId = comic.InDBId()
-		} else {
-			continue
-		}
-
+		comicInsertionStmt, _ := transaction.Prepare(comicsInsertionCmd)
 		altTitlesInsertionStmt, _ := transaction.Prepare(altTitlesInsertionCmd)
 		altTitlesRelationStmt, _ := transaction.Prepare(altTitlesRelationCmd)
-		for title, _ := range inf.AltTitles {
-			altTitlesInsertionStmt.Exec(title)
-			var titleId int
-			lastIdStmt.QueryRow().Scan(&titleId)
-			altTitlesRelationStmt.Exec(comicId, titleId)
-		}
-		altTitlesInsertionStmt.Close()
-		altTitlesRelationStmt.Close()
-
 		authorsRelationStmt, _ := transaction.Prepare(authorsRelationCmd)
-		for _, authorId := range inf.Authors {
-			authorId.ExecuteInsertionStmt(authorsRelationStmt, comicId)
-		}
-		authorsRelationStmt.Close()
-
 		artistsRelationStmt, _ := transaction.Prepare(artistsRelationCmd)
-		for _, artistId := range inf.Artists {
-			artistId.ExecuteInsertionStmt(artistsRelationStmt, comicId)
-		}
-		artistsRelationStmt.Close()
-
 		genresRelationStmt, _ := transaction.Prepare(genresRelationCmd)
-		for genreId := range inf.Genres {
-			genreId.ExecuteInsertionStmt(genresRelationStmt, comicId)
-		}
-		genresRelationStmt.Close()
-
 		tagsRelationStmt, _ := transaction.Prepare(tagsRelationCmd)
-		for tagId := range inf.Categories {
-			tagId.ExecuteInsertionStmt(tagsRelationStmt, comicId)
-		}
-		tagsRelationStmt.Close()
-
 		sourcesInsertionStmt, _ := transaction.Prepare(sourcesInsertionCmd)
 		sourcesRelationStmt, _ := transaction.Prepare(sourcesRelationCmd)
-		for _, src := range comic.sources {
-			if src.InDBInsertionNeeded() {
-				sourcesInsertionStmt.Exec(string(src.PluginName), src.URL, src.MarkAsRead)
-				var sourceId int
-				lastIdStmt.QueryRow().Scan(&sourceId)
-				sourcesRelationStmt.Exec(comicId, sourceId)
-			}
-		}
-		sourcesInsertionStmt.Close()
-		sourcesRelationStmt.Close()
-
 		chaptersInsertionStmt, _ := transaction.Prepare(chaptersInsertionCmd)
 		chaptersRelationStmt, _ := transaction.Prepare(chaptersRelationCmd)
 		scanlationInsertionStmt, _ := transaction.Prepare(scanlationInsertionCmd)
@@ -271,46 +252,42 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		scanlatorsRelationStmt, _ := transaction.Prepare(scanlatorsRelationCmd)
 		pageLinksInsertionStmt, _ := transaction.Prepare(pageLinksInsertionCmd)
 		pageLinksRelationStmt, _ := transaction.Prepare(pageLinksRelationCmd)
-		for i := 0; i < comic.ChapterCount(); i++ {
-			chapter, identity := comic.GetChapter(i)
-			var chapterId int
-			if chapter.InDBInsertionNeeded() {
-				chaptersInsertionStmt.Exec(identity.n(), chapter.AlreadyRead)
-				lastIdStmt.QueryRow().Scan(&chapterId)
-			} else if chapter.InDBUpdateNeeded() {
-				chapterId = chapter.InDBId()
-			} else {
-				continue
-			}
-			chaptersRelationStmt.Exec(comicId, chapterId)
 
-			for i := 0; i < chapter.ScanlationsCount(); i++ {
-				sc := chapter.Scanlation(i)
-				var scanlationId int
-				if sc.InDBInsertionNeeded() {
-					sc.Language.ExecuteInsertionStmt(scanlationInsertionStmt, sc.Title, string(sc.PluginName), sc.URL)
-					lastIdStmt.QueryRow().Scan(&scanlationId)
-					scanlationRelationStmt.Exec(chapterId, scanlationId)
-				} else if sc.InDBUpdateNeeded() {
-					scanlationId = sc.InDBId()
-				} else {
-					continue
-				}
-
-				for _, scanlator := range sc.Scanlators.ToSlice() {
-					scanlator.ExecuteInsertionStmt(scanlatorsRelationStmt, scanlationId)
-				}
-
-				for _, pageLink := range sc.PageLinks {
-					pageLinksInsertionStmt.Exec(pageLink)
-					var pageLinkId int
-					lastIdStmt.QueryRow().Scan(&pageLinkId)
-					pageLinksRelationStmt.Exec(scanlationId, pageLinkId)
-				}
-				sc.InDBMarkLoaded(scanlationId)
-			}
-			chapter.InDBMarkLoaded(chapterId)
+		stmts := InsertionStmtGroup{
+			comicInsertionStmt:      comicInsertionStmt,
+			altTitlesInsertionStmt:  altTitlesInsertionStmt,
+			altTitlesRelationStmt:   altTitlesRelationStmt,
+			authorsRelationStmt:     authorsRelationStmt,
+			artistsRelationStmt:     artistsRelationStmt,
+			genresRelationStmt:      genresRelationStmt,
+			tagsRelationStmt:        tagsRelationStmt,
+			sourcesInsertionStmt:    sourcesInsertionStmt,
+			sourcesRelationStmt:     sourcesRelationStmt,
+			chaptersInsertionStmt:   chaptersInsertionStmt,
+			chaptersRelationStmt:    chaptersRelationStmt,
+			scanlationInsertionStmt: scanlationInsertionStmt,
+			scanlationRelationStmt:  scanlationRelationStmt,
+			scanlatorsRelationStmt:  scanlatorsRelationStmt,
+			pageLinksInsertionStmt:  pageLinksInsertionStmt,
+			pageLinksRelationStmt:   pageLinksRelationStmt,
 		}
+		err := comic.SQLInsert(stmts)
+		if err != nil {
+			log.Println(err)
+			transaction.Rollback()
+		} else {
+			transaction.Commit()
+		}
+
+		comicInsertionStmt.Close()
+		altTitlesInsertionStmt.Close()
+		altTitlesRelationStmt.Close()
+		authorsRelationStmt.Close()
+		artistsRelationStmt.Close()
+		genresRelationStmt.Close()
+		tagsRelationStmt.Close()
+		sourcesInsertionStmt.Close()
+		sourcesRelationStmt.Close()
 		chaptersInsertionStmt.Close()
 		chaptersRelationStmt.Close()
 		scanlationInsertionStmt.Close()
@@ -318,11 +295,6 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		scanlatorsRelationStmt.Close()
 		pageLinksInsertionStmt.Close()
 		pageLinksRelationStmt.Close()
-
-		lastIdStmt.Close()
-
-		transaction.Commit()
-		comic.InDBMarkLoaded(comicId)
 	}
 }
 
@@ -330,10 +302,8 @@ func LoadComicList() (list ComicList, err error) {
 	log.SetFlags(log.Ltime | log.Lshortfile)
 	db := qdb.DB()
 	list.createDB(db)
-
 	transaction, _ := db.Begin()
 
-	idsQueryCmd := `SELECT $colName FROM $tableName;`
 	type tuple struct {
 		dict      qdb.QueryStmtExecutor
 		tableName string
@@ -348,60 +318,19 @@ func LoadComicList() (list ComicList, err error) {
 		{&idbase.ComicTags, "tags", "tag"},
 	} {
 		rep := strings.NewReplacer("$tableName", tuple.tableName, "$colName", tuple.colName)
-		idsQueryStmt, _ := transaction.Prepare(rep.Replace(idsQueryCmd))
+		idsQueryStmt, _ := transaction.Prepare(rep.Replace(idsQueryPreCmd))
 		tuple.dict.ExecuteQueryStmt(idsQueryStmt)
 		idsQueryStmt.Close()
 	}
 
-	comicsQueryCmd := `
-	SELECT
-		id,
-		title, type, status, scanStatus, desc, rating, mature, image,
-		useDefaultsBits, notifMode, accumCount, delayDuration
-	FROM comics;`
-	altTitlesQueryCmd := `SELECT title FROM altTitles WHERE id IN (SELECT titleId FROM rel_Comic_AltTitles WHERE comicId = ?);`
-	authorsQueryCmd := `SELECT authorId FROM rel_Comic_Authors WHERE comicId = ?;`
-	artistsQueryCmd := `SELECT artistId FROM rel_Comic_Artists WHERE comicId = ?;`
-	genresQueryCmd := `SELECT genreId FROM rel_Comic_Genres WHERE comicId = ?;`
-	tagsQueryCmd := `SELECT tagId FROM rel_Comic_Tags WHERE comicId = ?;`
-	sourcesQueryCmd := `
-	SELECT
-		id, pluginName, url, markAsRead
-	FROM sources
-	WHERE id IN(
-		SELECT sourceId FROM rel_Comic_Sources WHERE comicId = ?
-	);`
-	chaptersQueryCmd := `
-	SELECT
-		id, identity, alreadyRead
-	FROM chapters
-	WHERE id IN(
-		SELECT chapterId FROM rel_Comic_Chapters WHERE comicId = ?
-	);`
-	scanlationsQueryCmd := `
-	SELECT
-		id, title, lang, pluginName, url
-	FROM scanlations
-	WHERE id IN(
-		SELECT scanlationId FROM rel_Chapter_Scanlations WHERE chapterId = ?
-	);`
-	scanlatorsQueryCmd := `SELECT scanlatorId FROM rel_Scanlation_Scanlators WHERE scanlationId = ?;`
-	pageLinksQueryCmd := `
-	SELECT url
-	FROM pageLinks
-	WHERE id IN(
-		SELECT pageLinkId FROM rel_Scanlation_PageLinks WHERE scanlationId = ?
-	);`
-
 	comicsQueryStmt, _ := transaction.Prepare(comicsQueryCmd)
-
 	comicRows, _ := comicsQueryStmt.Query()
 	for comicRows.Next() {
-		info := ComicInfo{}
+		info := ComicInfo{altSQLIds: make(map[string]int64)}
 		stts := IndividualSettings{}
 		var imagePath sql.NullString //FIXME
 		var bitfield uint64
-		var comicId int
+		var comicId int64
 		var duration int64
 		comicRows.Scan(
 			&comicId,
@@ -415,9 +344,11 @@ func LoadComicList() (list ComicList, err error) {
 		altTitleRows, _ := altTitlesQueryStmt.Query(comicId)
 		altTitles := make(map[string]struct{})
 		for altTitleRows.Next() {
+			var titleId int64
 			var title string
-			altTitleRows.Scan(&title)
+			altTitleRows.Scan(&titleId, &title)
 			altTitles[title] = struct{}{}
+			info.altSQLIds[title] = titleId
 		}
 		info.AltTitles = altTitles
 
@@ -425,9 +356,9 @@ func LoadComicList() (list ComicList, err error) {
 		authorRows, _ := authorsQueryStmt.Query(comicId)
 		var authors []idbase.AuthorId
 		for authorRows.Next() {
-			var authorId idbase.AuthorId
-			authorRows.Scan(&authorId)
-			authors = append(authors, authorId)
+			var author idbase.AuthorId
+			authorRows.Scan(&author)
+			authors = append(authors, author)
 		}
 		info.Authors = authors
 
@@ -435,9 +366,9 @@ func LoadComicList() (list ComicList, err error) {
 		artistRows, _ := artistsQueryStmt.Query(comicId)
 		var artists []idbase.ArtistId
 		for artistRows.Next() {
-			var artistId idbase.ArtistId
-			artistRows.Scan(&artistId)
-			artists = append(artists, artistId)
+			var artist idbase.ArtistId
+			artistRows.Scan(&artist)
+			artists = append(artists, artist)
 		}
 		info.Artists = artists
 
@@ -461,18 +392,20 @@ func LoadComicList() (list ComicList, err error) {
 		}
 		info.Categories = tags
 
-		comic := Comic{
+		comic := &Comic{
 			Info:     info,
 			Settings: stts,
+			sqlId:    comicId,
 		}
 
 		sourcesQueryStmt, _ := transaction.Prepare(sourcesQueryCmd)
 		sourceRows, _ := sourcesQueryStmt.Query(comicId)
 		for sourceRows.Next() {
-			var sourceId int
+			var sourceId int64
 			var source UpdateSource
 			sourceRows.Scan(&sourceId, &source.PluginName, &source.URL, &source.MarkAsRead)
-			source.InDBMarkLoaded(sourceId)
+			//source.InDBMarkLoaded(sourceId)
+			source.sqlId = sourceId
 			comic.AddSource(source)
 		}
 
@@ -484,16 +417,18 @@ func LoadComicList() (list ComicList, err error) {
 		var identities []ChapterIdentity
 		var chapters []Chapter
 		for chapterRows.Next() {
-			var chapterId int
+			var chapterId int64
 			var identity ChapterIdentity
 			chapter := Chapter{}
 			chapterRows.Scan(&chapterId, &identity, &chapter.AlreadyRead)
+			chapter.sqlId = chapterId
 
 			scanlationRows, _ := scanlationsQueryStmt.Query(chapterId)
 			for scanlationRows.Next() {
-				var scanlationId int
+				var scanlationId int64
 				scanlation := ChapterScanlation{}
 				scanlationRows.Scan(&scanlationId, &scanlation.Title, &scanlation.Language, &scanlation.PluginName, &scanlation.URL)
+				scanlation.sqlId = scanlationId
 
 				scanlatorRows, _ := scanlatorsQueryStmt.Query(scanlationId)
 				var scanlators []idbase.ScanlatorId
@@ -506,21 +441,20 @@ func LoadComicList() (list ComicList, err error) {
 
 				pageLinkRows, _ := pageLinksQueryStmt.Query(scanlationId)
 				for pageLinkRows.Next() {
+					var pageLinkId int64
 					var pageLink string
-					pageLinkRows.Scan(&pageLink)
+					pageLinkRows.Scan(&pageLinkId, &pageLink)
 					scanlation.PageLinks = append(scanlation.PageLinks, pageLink)
+					scanlation.plSQLIds = append(scanlation.plSQLIds, pageLinkId)
 				}
 
-				scanlation.InDBMarkLoaded(scanlationId)
 				chapter.AddScanlation(scanlation)
 			}
 
-			chapter.InDBMarkLoaded(chapterId)
 			identities = append(identities, identity)
 			chapters = append(chapters, chapter)
 		}
 		comic.AddMultipleChapters(identities, chapters)
-		comic.InDBMarkLoaded(comicId)
 
 		list = append(list, comic)
 	}
@@ -529,38 +463,44 @@ func LoadComicList() (list ComicList, err error) {
 	return //FIXME: return errors
 }
 
-type InDBStatus int
-
-const (
-	StructNew InDBStatus = iota
-	StructLoaded
-	StructModifed
-)
-
-type InDBStatusHolder struct {
-	inDBId     int
-	inDBStatus InDBStatus
+type InsertionStmtGroup struct {
+	lastIdStmt              *sql.Stmt
+	comicInsertionStmt      *sql.Stmt
+	altTitlesInsertionStmt  *sql.Stmt
+	altTitlesRelationStmt   *sql.Stmt
+	authorsRelationStmt     *sql.Stmt
+	artistsRelationStmt     *sql.Stmt
+	genresRelationStmt      *sql.Stmt
+	tagsRelationStmt        *sql.Stmt
+	sourcesInsertionStmt    *sql.Stmt
+	sourcesRelationStmt     *sql.Stmt
+	chaptersInsertionStmt   *sql.Stmt
+	chaptersRelationStmt    *sql.Stmt
+	scanlationInsertionStmt *sql.Stmt
+	scanlationRelationStmt  *sql.Stmt
+	scanlatorsRelationStmt  *sql.Stmt
+	pageLinksInsertionStmt  *sql.Stmt
+	pageLinksRelationStmt   *sql.Stmt
 }
 
-func (this InDBStatusHolder) InDBId() int {
-	return this.inDBId
+type QueryStmtGroup struct {
+	comicsQueryStmt      *sql.Stmt
+	altTitlesQueryStmt   *sql.Stmt
+	authorsQueryStmt     *sql.Stmt
+	artistsQueryStmt     *sql.Stmt
+	genresQueryStmt      *sql.Stmt
+	tagsQueryStmt        *sql.Stmt
+	sourcesQueryStmt     *sql.Stmt
+	chaptersQueryStmt    *sql.Stmt
+	scanlationsQueryStmt *sql.Stmt
+	scanlatorsQueryStmt  *sql.Stmt
+	pageLinksQueryStmt   *sql.Stmt
 }
 
-func (this InDBStatusHolder) InDBInsertionNeeded() bool {
-	return this.inDBStatus == StructNew
+type privateStruct struct {
+	Number int
 }
 
-func (this InDBStatusHolder) InDBUpdateNeeded() bool {
-	return this.inDBStatus == StructModifed
-}
-
-func (this *InDBStatusHolder) InDBMarkLoaded(inDBId int) {
-	this.inDBId = inDBId
-	this.inDBStatus = StructLoaded
-}
-
-func (this *InDBStatusHolder) InDBMarkModified() {
-	if this.inDBStatus != StructNew {
-		this.inDBStatus = StructModifed
-	}
+func NewPrivate() privateStruct {
+	return privateStruct{8}
 }

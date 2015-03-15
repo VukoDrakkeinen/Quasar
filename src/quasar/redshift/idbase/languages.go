@@ -1,7 +1,7 @@
 package idbase
 
 import (
-	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 )
@@ -47,17 +47,6 @@ func (this LangId) String() string {
 	return fmt.Sprintf("(%d)%s", int(this.ordinal), LangDict.NameOf(this))
 }
 
-func (this LangId) ExecuteInsertionStmt(stmt *sql.Stmt, scanlationData ...interface{}) (err error) {
-	if len(scanlationData) != 3 {
-		panic("LangId.ExecuteDBStatement: invalid number of parameters!")
-	}
-	title := scanlationData[0].(string)
-	pluginName := scanlationData[1].(string)
-	url := scanlationData[2].(string)
-	_, err = stmt.Exec(title, this.ordinal+1, pluginName, url) //RDBMSes start counting at 1, not 0
-	return
-}
-
 func (this *LangId) Scan(src interface{}) error {
 	n, ok := src.(int64)
 	if !ok || src == nil {
@@ -65,6 +54,10 @@ func (this *LangId) Scan(src interface{}) error {
 	}
 	this.ordinal = Id(n - 1) //RDBMSes start counting at 1, not 0
 	return nil
+}
+
+func (this LangId) Value() (driver.Value, error) {
+	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
 /*

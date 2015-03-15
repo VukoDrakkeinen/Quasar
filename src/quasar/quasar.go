@@ -8,37 +8,25 @@ import (
 )
 
 func main() {
-	if false {
-		cl, _ := redshift.LoadComicList()
-		cmc := &(cl[0])
-		cmc.AddSource(redshift.UpdateSource{redshift.FetcherPluginName("DummyPlugin"), "http://dummy.url.com", true, redshift.InDBStatusHolder{}})
-		cl[0] = *cmc
-		fch := redshift.Fetcher{}
-		fch.RegisterPlugin(redshift.NewBatoto())
-		cmc = &redshift.Comic{Settings: *redshift.NewIndividualSettings(redshift.LoadGlobalSettings())}
-		fch.TestFind(cmc, redshift.FetcherPluginName("Batoto"), "Boku no Hero Academia")
-		fch.DownloadComicInfoFor(cmc)
-		fmt.Println(cmc)
-		cl = append(cl, *cmc)
-		cl.SaveToDB()
-		return
-	}
 	///if err := qml.Run(launchGUI); err != nil {
 	///	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	///	os.Exit(1)
 	///}
+
 	///return
+
 	fmt.Println("Creating Fetcher")
-	//fet := redshift.NewFetcher()
 	fet := redshift.Fetcher{}
 	fmt.Println("Registering plugins")
-	fet.RegisterPlugin(redshift.NewBatoto())
-	fet.RegisterPlugin(redshift.NewBUpdates())
+	batoto := redshift.NewBatoto()
+	bupdates := redshift.NewBUpdates()
+	fet.RegisterPlugin(batoto)
+	fet.RegisterPlugin(bupdates)
 	fmt.Println("Creating Comic")
 	comic := &redshift.Comic{Settings: *redshift.NewIndividualSettings(redshift.LoadGlobalSettings())}
 	fmt.Println("Finding comic URL")
-	fet.TestFind(comic, redshift.FetcherPluginName("Batoto"), "Kingdom")
-	fet.TestFind(comic, redshift.FetcherPluginName("BUpdates"), "Kingdom")
+	fet.TestFind(comic, batoto.PluginName(), "Kingdom")
+	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
 	/*fmt.Println("Adding UpdateSource")
 	comic.AddSource(redshift.UpdateSource{
 		PluginName: redshift.FetcherPluginName("BATOTO"),
@@ -56,28 +44,24 @@ func main() {
 		chapter, id := comic.GetChapter(i)
 		fmt.Printf("%v %+v\n", id, chapter)
 	}
+
+	return
+
 	fmt.Println("Saving to DB")
 	var list redshift.ComicList
-	list = append(list, *comic)
+	list = append(list, comic)
 	list.SaveToDB()
 	fmt.Println("Saved")
 	fmt.Println("Loading from DB")
 	list, _ = redshift.LoadComicList()
-	list.SaveToDB()
 	fmt.Println("Loaded")
-	comic2 := list[0]
-	fmt.Println(comic2.Info)
-	fmt.Println(comic2.Settings)
-	fmt.Println(comic.GetSource(redshift.FetcherPluginName("Batoto")))
-	chh, _ := comic.GetChapter(0)
-	fmt.Println(chh.Scanlation(0))
+
 	return
-	fmt.Println("\nDownloading Page Links for Chapter0 alt0")
+
+	fmt.Println("\nDownloading Page Links for Chapter:0 Scanlation:0")
 	fet.DownloadPageLinksFor(comic, 0, 0)
 	chapter, id := comic.GetChapter(0)
 	fmt.Println(id, chapter)
-	//fmt.Println(chapter.DataCount())
-	//fmt.Println(chapter.Data(0).PageLinks)
 }
 
 ///func launchGUI() error {
@@ -104,8 +88,4 @@ func main() {
 ///	window.Wait()
 ///	settings.Save()
 ///	return nil
-///}
-
-///func initializeData(obj *qml.Window) {
-///	obj.Object("optsWindow").Object("chooser").Call("setValues", int(redshift.Delayed), 88, nil)
 ///}
