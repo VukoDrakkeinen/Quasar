@@ -2,6 +2,7 @@ package redshift
 
 import (
 	"quasar/qutils"
+	"quasar/qutils/qerr"
 	. "quasar/redshift/idbase"
 )
 
@@ -125,23 +126,23 @@ func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts InsertionStmtGrou
 	var newId int64
 	result, err := stmts.chaptersInsertionStmt.Exec(this.sqlId, identity.n(), this.AlreadyRead)
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	newId, err = result.LastInsertId()
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	this.sqlId = newId
 
 	result, err = stmts.chaptersRelationStmt.Exec(this.parent.sqlId, this.sqlId)
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 
 	for i := range this.scanlations {
 		err = this.scanlations[i].SQLInsert(this.sqlId, stmts)
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 	}
 
@@ -197,23 +198,23 @@ func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGro
 	var newId int64
 	result, err := stmts.scanlationInsertionStmt.Exec(this.sqlId, this.Title, this.Language, string(this.PluginName), this.URL)
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	newId, err = result.LastInsertId()
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	this.sqlId = newId
 
 	result, err = stmts.scanlationRelationStmt.Exec(chapterId, this.sqlId)
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 
 	for _, scanlator := range this.Scanlators.ToSlice() {
 		result, err = stmts.scanlatorsRelationStmt.Exec(this.sqlId, scanlator)
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 	}
 
@@ -224,11 +225,11 @@ func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGro
 		var pageLinkId int64 = this.plSQLIds[i] //WARNING: may go out of bounds (shouldn't ever; leaving it for the sake of experiment)
 		result, err = stmts.pageLinksInsertionStmt.Exec(pageLink)
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 		pageLinkId, err = result.LastInsertId()
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 		this.plSQLIds[i] = pageLinkId
 		stmts.pageLinksRelationStmt.Exec(this.sqlId, pageLinkId)

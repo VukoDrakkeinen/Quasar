@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"quasar/qregexp"
 	"quasar/qutils"
+	"quasar/qutils/qerr"
 	. "quasar/redshift/idbase"
 	"reflect"
 	"strconv"
@@ -295,8 +296,8 @@ func (this *BUpdates) FetchChapterPageLinks(url string) []string {
 	return []string{} //plugin doesn't provide data, return empty list
 }
 
-func (this *BUpdates) parseIdentities(volumeStr, numberStr string, previous ChapterIdentity) (identities []ChapterIdentity, perr error) {
-	errStr := strconv.Quote(volumeStr) + " + " + strconv.Quote(numberStr)
+func (this *BUpdates) parseIdentities(volumeStr, numberStr string, previous ChapterIdentity) (identities []ChapterIdentity, err error) {
+	inputStr := strconv.Quote(volumeStr) + " + " + strconv.Quote(numberStr)
 	qualityModifier := MQ_Modifier
 	identity := ChapterIdentity{Version: qualityModifier + 1}
 	volumeParsing := this.rIdentityParse.FindStringSubmatch(volumeStr)
@@ -389,9 +390,10 @@ func (this *BUpdates) parseIdentities(volumeStr, numberStr string, previous Chap
 		return
 	} else if numberStr != "" { //Apparently bullshit like "Road to the movie" is a valid chapter number
 		identity.MajorNum = previous.MajorNum
-		identity.MinorNum += 5 //so we treat it as a special chapter
-		return []ChapterIdentity{identity}, nil
+		identity.MinorNum += 1 //so we treat it as a special chapter
+		identities = append(identities, identity)
+		return
 	} else { //numberStr is empty, which means whole volume got scanlated, but we have no way to tell how many chapters is that
-		return []ChapterIdentity{}, &CIError{errStr, nil, "Whole volume scanlated, unknown number of chapters"}
+		return []ChapterIdentity{}, qerr.NewParse("Whole volume scanlated, unknown number of chapters", nil, inputStr)
 	}
 }

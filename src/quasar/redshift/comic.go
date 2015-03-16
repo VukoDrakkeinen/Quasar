@@ -4,6 +4,7 @@ import (
 	"image"
 	"math"
 	"quasar/qutils"
+	"quasar/qutils/qerr"
 	. "quasar/redshift/idbase"
 )
 
@@ -157,11 +158,11 @@ func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
 		this.Settings.AccumulativeModeCount, this.Settings.DelayedModeDuration,
 	)
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	newId, err = result.LastInsertId()
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	this.sqlId = newId
 
@@ -172,11 +173,11 @@ func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
 		var newATId int64
 		result, err = stmts.altTitlesInsertionStmt.Exec(this.Info.altSQLIds[title], title)
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 		newATId, err = result.LastInsertId()
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 		this.Info.altSQLIds[title] = newATId
 		stmts.altTitlesRelationStmt.Exec(this.sqlId, newATId)
@@ -198,7 +199,7 @@ func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
 	for i := range this.sources {
 		err = this.sources[i].SQLInsert(this.sqlId, stmts)
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 	}
 
@@ -206,7 +207,7 @@ func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
 		chapter := this.chapters[identity] //can't take a pointer
 		err = chapter.SQLInsert(identity, stmts)
 		if err != nil {
-			return err
+			return qerr.NewLocated(err)
 		}
 		this.chapters[identity] = chapter //so reinsert
 	}
@@ -234,11 +235,11 @@ func (this *UpdateSource) SQLInsert(comicId int64, stmts InsertionStmtGroup) (er
 	var newId int64
 	result, err := stmts.sourcesInsertionStmt.Exec(this.sqlId, string(this.PluginName), this.URL, this.MarkAsRead)
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	newId, err = result.LastInsertId()
 	if err != nil {
-		return err
+		return qerr.NewLocated(err)
 	}
 	this.sqlId = newId
 	stmts.sourcesRelationStmt.Exec(comicId, this.sqlId)

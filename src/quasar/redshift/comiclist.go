@@ -2,6 +2,7 @@ package redshift
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"quasar/qutils"
 	"quasar/redshift/idbase"
@@ -273,7 +274,7 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		}
 		err := comic.SQLInsert(stmts)
 		if err != nil {
-			log.Println(err)
+			fmt.Println(err)
 			transaction.Rollback()
 		} else {
 			transaction.Commit()

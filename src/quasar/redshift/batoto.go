@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"quasar/qregexp"
 	"quasar/qutils"
+	"quasar/qutils/qerr"
 	. "quasar/redshift/idbase"
 	"reflect"
 	"strconv"
@@ -300,7 +301,6 @@ func (this *Batoto) FetchChapterPageLinks(url string) []string {
 	contentsSlice = append(contentsSlice, firstContents)
 	for i := int64(3); i <= int64(pageCount); i += 2 {
 		contentsSlice = append(contentsSlice, this.fetcher().DownloadData(url+"/"+strconv.FormatInt(i, 10)))
-		fmt.Println("PageSourceLink:", url+"/"+strconv.FormatInt(i, 10))
 	}
 	pageLinks := make([]string, 0, pageCount)
 	for _, contents := range contentsSlice {
@@ -313,17 +313,7 @@ func (this *Batoto) FetchChapterPageLinks(url string) []string {
 	return pageLinks
 }
 
-type CIError struct {
-	Input string
-	Err   error //caused by
-	msg   string
-}
-
-func (this *CIError) Error() string {
-	return this.msg + " (caused by: " + this.Err.Error() + ")"
-}
-
-func (this *Batoto) parseIdentity(str string) (identity ChapterIdentity, perr error) {
+func (this *Batoto) parseIdentity(str string) (identity ChapterIdentity, err error) {
 	parsing := this.rIdentityParse.FindStringSubmatch(str)
 	/*
 		[0] is whole match
@@ -351,8 +341,7 @@ func (this *Batoto) parseIdentity(str string) (identity ChapterIdentity, perr er
 		} else {
 			identity.Version = MQ_Modifier + 1
 		}
-		return identity, nil
-	} else {
-		return identity, &CIError{strconv.Quote(str), nil, "Regular expression matching failed!"}
+		return
 	}
+	return identity, qerr.NewParse("Regular expression match failed!", nil, strconv.Quote(str))
 }

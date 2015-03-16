@@ -52,7 +52,7 @@ func (this *idAssigner) ExecuteQueryStmt(stmt *sql.Stmt, unused ...interface{}) 
 	return nil
 }
 
-func (this *idAssigner) reset() {
+func (this *idAssigner) reset() { //FIXME: racy?
 	this.names = make([]string, 0, 10)
 	this.mapping = make(map[string]Id)
 	this.assign([]string{"Unknown"})
