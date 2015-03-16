@@ -3,14 +3,13 @@ package redshift
 import (
 	"bytes"
 	"html"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"net/url"
+	"path"
 	"quasar/qregexp"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
+	"quasar/redshift/qdb"
 	"reflect"
 	"strconv"
 	"strings"
@@ -165,21 +164,26 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	desc := html.UnescapeString(string(bytes.Replace(batoto_rDescriptionLine.Find(infoRegion), []byte("<br />"), []byte("\n"), -1)))
 	mature := batoto_rMature.Match(infoRegion)
 	rating, _ := strconv.ParseFloat(string(batoto_rRating.Find(infoRegion)), 32)
-	image, _, _ := image.Decode(bytes.NewReader(this.fetcher().DownloadData(string(batoto_rImageURL.Find(infoRegion)))))
+	var thumbnailFilename string
+	thumbnailUrl := string(batoto_rImageURL.Find(infoRegion))
+	if thumbnailUrl != "" {
+		thumbnailFilename = path.Base(thumbnailUrl)
+		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(thumbnailUrl))
+	}
 	return &ComicInfo{
-		Title:            title,
-		AltTitles:        altTitles,
-		Authors:          authors,
-		Artists:          artists,
-		Genres:           genres,
-		Categories:       make(map[ComicTagId]struct{}), //empty
-		Type:             cType,
-		Status:           status,
-		ScanlationStatus: scanStatus,
-		Description:      desc,
-		Rating:           float32(rating),
-		Mature:           mature,
-		Thumbnail:        image,
+		Title:             title,
+		AltTitles:         altTitles,
+		Authors:           authors,
+		Artists:           artists,
+		Genres:            genres,
+		Categories:        make(map[ComicTagId]struct{}), //empty
+		Type:              cType,
+		Status:            status,
+		ScanlationStatus:  scanStatus,
+		Description:       desc,
+		Rating:            float32(rating),
+		Mature:            mature,
+		ThumbnailFilename: thumbnailFilename,
 	}
 }
 

@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"html"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"net/url"
+	"path"
 	"quasar/qregexp"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
+	"quasar/redshift/qdb"
 	"reflect"
 	"strconv"
 	"strings"
@@ -158,8 +157,12 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 	ratingString := string(bakaUpdates_rRating.Find(infoRegion))
 	rating, _ := strconv.ParseFloat(ratingString, 32)
+	var thumbnailFilename string
 	imageUrl := string(bakaUpdates_rImageURL.Find(infoRegion))
-	image, _, _ := image.Decode(bytes.NewReader(this.fetcher().DownloadData(imageUrl)))
+	if imageUrl != "" {
+		thumbnailFilename = path.Base(imageUrl)
+		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(imageUrl))
+	}
 	genres := make(map[ComicGenreId]struct{})
 	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(bytes.Split(bakaUpdates_rRemoveHTML.ReplaceAll(bakaUpdates_rGenres.Find(infoRegion), []byte{}), []byte("&nbsp; "))))[0].([]ComicGenreId) {
 		genres[genre] = struct{}{}
@@ -174,19 +177,19 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	_, mature := genres[MATURE_GENRE()]
 
 	return &ComicInfo{
-		Title:            title,
-		AltTitles:        altTitles,
-		Authors:          authors,
-		Artists:          artists,
-		Genres:           genres,
-		Categories:       categories,
-		Type:             cType,
-		Status:           status,
-		ScanlationStatus: scanStatus,
-		Description:      description,
-		Rating:           float32(rating),
-		Mature:           mature,
-		Thumbnail:        image,
+		Title:             title,
+		AltTitles:         altTitles,
+		Authors:           authors,
+		Artists:           artists,
+		Genres:            genres,
+		Categories:        categories,
+		Type:              cType,
+		Status:            status,
+		ScanlationStatus:  scanStatus,
+		Description:       description,
+		Rating:            float32(rating),
+		Mature:            mature,
+		ThumbnailFilename: thumbnailFilename,
 	}
 }
 

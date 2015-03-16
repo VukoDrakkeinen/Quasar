@@ -1,7 +1,6 @@
 package redshift
 
 import (
-	"image"
 	"math"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
@@ -142,14 +141,13 @@ func (this *Comic) ChapterCount() int {
 	return len(this.chaptersOrder)
 }
 
-//TODO: some error wrapper struct (could use runtime.Caller() to discover its origin?)
 //TODO?: method -> function (will return ids)
 func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
 	var newId int64
 	result, err := stmts.comicInsertionStmt.Exec(
 		this.sqlId,
 		this.Info.Title, this.Info.Type, this.Info.Status, this.Info.ScanlationStatus, this.Info.Description,
-		this.Info.Rating, this.Info.Mature, "TODO", //FIXME
+		this.Info.Rating, this.Info.Mature, this.Info.ThumbnailFilename,
 		qutils.BoolsToBitfield(this.Settings.UseDefaults), this.Settings.UpdateNotificationMode,
 		this.Settings.AccumulativeModeCount, this.Settings.DelayedModeDuration,
 	)
@@ -235,19 +233,19 @@ func (this *UpdateSource) SQLInsert(comicId int64, stmts InsertionStmtGroup) (er
 }
 
 type ComicInfo struct {
-	Title            string
-	AltTitles        map[string]struct{}
-	Authors          []AuthorId
-	Artists          []ArtistId
-	Genres           map[ComicGenreId]struct{}
-	Categories       map[ComicTagId]struct{}
-	Type             comicType
-	Status           comicStatus
-	ScanlationStatus ScanlationStatus
-	Description      string
-	Rating           float32
-	Mature           bool
-	Thumbnail        image.Image
+	Title             string
+	AltTitles         map[string]struct{}
+	Authors           []AuthorId
+	Artists           []ArtistId
+	Genres            map[ComicGenreId]struct{}
+	Categories        map[ComicTagId]struct{}
+	Type              comicType
+	Status            comicStatus
+	ScanlationStatus  ScanlationStatus
+	Description       string
+	Rating            float32
+	Mature            bool
+	ThumbnailFilename string
 
 	altSQLIds map[string]int64
 }
@@ -328,8 +326,8 @@ func (this *ComicInfo) MergeWith(another *ComicInfo) {
 
 	this.Mature = another.Mature || this.Mature
 
-	if this.Thumbnail == nil {
-		this.Thumbnail = another.Thumbnail
+	if this.ThumbnailFilename == "" {
+		this.ThumbnailFilename = another.ThumbnailFilename
 	}
 }
 

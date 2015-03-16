@@ -90,11 +90,11 @@ func (this *idAssigner) id(name string) Id {
 }
 
 func (this *idAssigner) nameOf(id Id) string {
-	//FIXME: bug #233830: strings.Title() has a bug where it will occasionally capitalize wrong letters
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	if int(id) >= len(this.names) {
 		id = Id(0)
 	}
+	//FIXME: bug #233830: strings.Title() has a bug where it will occasionally capitalize wrong letters
 	return this.replacer.Replace(strings.Title(this.names[id]))
 }

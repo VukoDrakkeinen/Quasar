@@ -51,7 +51,7 @@ var (
 		desc TEXT NOT NULL,
 		rating REAL NOT NULL,
 		mature INTEGER NOT NULL,
-		image TEXT,
+		thumbnailFilename TEXT,
 		-- settings
 		useDefaultsBits INTEGER NOT NULL,
 		notifMode INTEGER,
@@ -138,7 +138,7 @@ var (
 	comicsInsertionCmd = `
 	INSERT OR REPLACE INTO comics(
 		id,
-		title, type, status, scanStatus, desc, rating, mature, image,
+		title, type, status, scanStatus, desc, rating, mature, thumbnailFilename,
 		useDefaultsBits, notifMode, accumCount, delayDuration
 	) VALUES((SELECT id FROM comics WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 	altTitlesInsertionCmd  = `INSERT OR REPLACE INTO altTitles(id, title) VALUES((SELECT id FROM altTitles WHERE id = ?), ?);`
@@ -161,7 +161,7 @@ var (
 	comicsQueryCmd = `
 	SELECT
 		id,
-		title, type, status, scanStatus, desc, rating, mature, image,
+		title, type, status, scanStatus, desc, rating, mature, thumbnailFilename,
 		useDefaultsBits, notifMode, accumCount, delayDuration
 	FROM comics;`
 	altTitlesQueryCmd = `SELECT id, title FROM altTitles WHERE id IN (SELECT titleId FROM rel_Comic_AltTitles WHERE comicId = ?);`
@@ -329,17 +329,18 @@ func LoadComicList() (list ComicList, err error) {
 	for comicRows.Next() {
 		info := ComicInfo{altSQLIds: make(map[string]int64)}
 		stts := IndividualSettings{}
-		var imagePath sql.NullString //FIXME
-		var bitfield uint64
 		var comicId int64
+		var thumbnailFilename sql.NullString
+		var useDefaultsBitfield uint64
 		var duration int64
 		comicRows.Scan(
 			&comicId,
-			&info.Title, &info.Type, &info.Status, &info.ScanlationStatus, &info.Description, &info.Rating, &info.Mature, &imagePath,
-			&bitfield, &stts.UpdateNotificationMode, &stts.AccumulativeModeCount, &duration,
+			&info.Title, &info.Type, &info.Status, &info.ScanlationStatus, &info.Description, &info.Rating, &info.Mature, &thumbnailFilename,
+			&useDefaultsBitfield, &stts.UpdateNotificationMode, &stts.AccumulativeModeCount, &duration,
 		)
+		info.ThumbnailFilename = thumbnailFilename.String
 		stts.DelayedModeDuration = time.Duration(duration)
-		stts.UseDefaults = qutils.BitfieldToBools(bitfield)
+		stts.UseDefaults = qutils.BitfieldToBools(useDefaultsBitfield)
 
 		altTitlesQueryStmt, _ := transaction.Prepare(altTitlesQueryCmd)
 		altTitleRows, _ := altTitlesQueryStmt.Query(comicId)
