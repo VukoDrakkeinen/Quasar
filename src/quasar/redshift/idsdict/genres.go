@@ -1,4 +1,4 @@
-package idbase
+package idsdict
 
 import (
 	"database/sql/driver"
@@ -7,13 +7,9 @@ import (
 	"quasar/qutils"
 )
 
-var ComicGenres ComicGenresDict
+var ComicGenres = NewComicGenresDict()
 
 const MATURE_GENRE_NAME = "Mature"
-
-func init() {
-	ComicGenres.AssignIds([]string{MATURE_GENRE_NAME})
-}
 
 func MATURE_GENRE() ComicGenreId {
 	return ComicGenres.Id(MATURE_GENRE_NAME)
@@ -25,6 +21,10 @@ type ComicGenresDict struct {
 
 type ComicGenreId struct {
 	ordinal Id
+}
+
+func NewComicGenresDict() ComicGenresDict {
+	return ComicGenresDict{newIdAssigner(MATURE_GENRE_NAME)}
 }
 
 func (this *ComicGenresDict) AssignIds(genres []string) (ids []ComicGenreId, added []bool) {

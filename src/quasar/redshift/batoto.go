@@ -2,7 +2,6 @@ package redshift
 
 import (
 	"bytes"
-	"fmt"
 	"html"
 	"image"
 	_ "image/jpeg"
@@ -11,138 +10,93 @@ import (
 	"quasar/qregexp"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idbase"
+	. "quasar/redshift/idsdict"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
-type Batoto struct {
-	initialized bool
-	name        FetcherPluginName
-	m_fetcher   *Fetcher
+var (
+	batoto_rURLValidator = qregexp.MustCompile(`^http://bato.to/comic/_/comics/[\w-]+r\d+$`)
 
-	rURLValidator *qregexp.QRegexp
+	batoto_rInfoRegion      = qregexp.MustCompile(`(?s)class='rating.*class='ipsPad'`)
+	batoto_rTitle           = qregexp.MustCompile(`(?<=ipsType_pagetitle'>\s+)[^\r\n]+`)
+	batoto_rRating          = qregexp.MustCompile(`(?<=\()\d\.\d\d(?= - \d+votes\))`)
+	batoto_rAltTitlesLine   = qregexp.MustCompile(`(?<=Alt Names:</td>\s+<td>).*(?=</td>)`)
+	batoto_rAuthorsLine     = qregexp.MustCompile(`(?<=Author:</td>\s+<td>).*(?=</td>)`)
+	batoto_rArtistsLine     = qregexp.MustCompile(`(?<=Artist:</td>\s+<td>).*(?=</td>)`)
+	batoto_rGenresLine      = qregexp.MustCompile(`(?<=Genres:</td>\s+<td><a href[^>]+>).*(?=</a)`)
+	batoto_rType            = qregexp.MustCompile(`(?<=Type:</td>\s+<td>).*(?=</)`)
+	batoto_rScanStatus      = qregexp.MustCompile(`(?<=Status:</td>\s+<td>).*(?=</)`)
+	batoto_rDescriptionLine = qregexp.MustCompile(`(?<=Description:</td>\s+<td>).*(?=</td>)`)
+	batoto_rMature          = qregexp.MustCompile("The following content is intended for mature audiences and may contain sexual themes, gore, violence and/or strong language. Discretion is advised.")
+	batoto_rImageURL        = qregexp.MustCompile(`http://img\.batoto[^"]+`)
+	batoto_rExtract         = qregexp.MustCompile(`(?<=> ?)[^<]+(?=<)`)
+	batoto_rExtractStrict   = qregexp.MustCompile(`(?<=">)[^<]+(?=<)`)
 
-	rInfoRegion      *qregexp.QRegexp
-	rTitle           *qregexp.QRegexp
-	rRating          *qregexp.QRegexp
-	rAltTitlesLine   *qregexp.QRegexp
-	rAuthorsLine     *qregexp.QRegexp
-	rArtistsLine     *qregexp.QRegexp
-	rGenresLine      *qregexp.QRegexp
-	rType            *qregexp.QRegexp
-	rScanStatus      *qregexp.QRegexp
-	rDescriptionLine *qregexp.QRegexp
-	rMature          *qregexp.QRegexp
-	rImageURL        *qregexp.QRegexp
-	rExtract         *qregexp.QRegexp
-	rExtractStrict   *qregexp.QRegexp
+	batoto_rChaptersRegion   = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
+	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")http://bato.to/read/_/[^"]+(?="><img src=)`)
+	batoto_rIdentityAndTitle = qregexp.MustCompile(`/> ([^ ]* *[^ ]+)(?: Read Online|: ([^<]+))`)
+	batoto_rScanlator        = qregexp.MustCompile(`(?<=bato.to/group/_/[^"]+">)[^<]+`)
+	batoto_rLang             = qregexp.MustCompile(`(?<=<div title=")[^"]+`)
 
-	rChaptersRegion   *qregexp.QRegexp
-	rLang             *qregexp.QRegexp
-	rChapterURL       *qregexp.QRegexp
-	rIdentityAndTitle *qregexp.QRegexp
-	rScanlator        *qregexp.QRegexp
+	batoto_rIdentityParse = qregexp.MustCompile(`(?:Vol\.(\d+) +)?Ch\.(\d+)(?:\.(\d))?(?:v(\d))?`)
 
-	rIdentityParse *qregexp.QRegexp
+	batoto_rPageCount  = qregexp.MustCompile(`(?<=id="page_select".+\n +<.*page )\d+(?=</option>\n)`)
+	batoto_rImageLink1 = qregexp.MustCompile(`(?<=id="comic_page".*src=")[^"]+`)
+	batoto_rImageLink2 = qregexp.MustCompile(`(?<=img\.src = ")[^"]+`)
 
-	rPageCount  *qregexp.QRegexp
-	rImageLink1 *qregexp.QRegexp
-	rImageLink2 *qregexp.QRegexp
+	batoto_rResultsRegions = qregexp.MustCompile(`http://bato.to/comic/_/.+</a>`)
+	batoto_rComicURL       = qregexp.MustCompile(`http://bato.to/comic/_/[^\"]+`)
+	batoto_rComicTitles    = qregexp.MustCompile(`/> ([^(<]+)(?: \(([^)]+)\))?</a>`)
+)
 
-	rResultsRegions *qregexp.QRegexp
-	rComicURL       *qregexp.QRegexp
-	rComicTitles    *qregexp.QRegexp
+type batoto struct {
+	name      FetcherPluginName
+	m_fetcher *fetcher
 }
 
-func NewBatoto() *Batoto {
-	return new(Batoto).initialize()
+func NewBatoto() *batoto { //TODO: logic saved as interpreted files
+	ret := &batoto{}
+	ret.name = FetcherPluginName(reflect.TypeOf(*ret).Name())
+	return ret
 }
 
-func (this *Batoto) initialize() *Batoto { //TODO: handle errors
-	if !this.initialized { //TODO: logic saved as interpreted files
-
-		this.name = FetcherPluginName(reflect.TypeOf(*this).Name())
-
-		this.rURLValidator = qregexp.MustCompile(`^http://bato.to/comic/_/comics/[\w-]+r\d+$`)
-
-		this.rInfoRegion = qregexp.MustCompile(`(?s)class='rating.*class='ipsPad'`)
-		this.rTitle = qregexp.MustCompile(`(?<=ipsType_pagetitle'>\s+)[^\r\n]+`)
-		this.rRating = qregexp.MustCompile(`(?<=\()\d\.\d\d(?= - \d+votes\))`)
-		this.rAltTitlesLine = qregexp.MustCompile(`(?<=Alt Names:</td>\s+<td>).*(?=</td>)`)
-		this.rAuthorsLine = qregexp.MustCompile(`(?<=Author:</td>\s+<td>).*(?=</td>)`)
-		this.rArtistsLine = qregexp.MustCompile(`(?<=Artist:</td>\s+<td>).*(?=</td>)`)
-		this.rGenresLine = qregexp.MustCompile(`(?<=Genres:</td>\s+<td><a href[^>]+>).*(?=</a)`)
-		this.rType = qregexp.MustCompile(`(?<=Type:</td>\s+<td>).*(?=</)`)
-		this.rScanStatus = qregexp.MustCompile(`(?<=Status:</td>\s+<td>).*(?=</)`)
-		this.rDescriptionLine = qregexp.MustCompile(`(?<=Description:</td>\s+<td>).*(?=</td>)`)
-		this.rMature = qregexp.MustCompile("The following content is intended for mature audiences and may contain sexual themes, gore, violence and/or strong language. Discretion is advised.")
-		this.rImageURL = qregexp.MustCompile(`http://img\.batoto[^"]+`)
-		this.rExtract = qregexp.MustCompile(`(?<=> ?)[^<]+(?=<)`)
-		this.rExtractStrict = qregexp.MustCompile(`(?<=">)[^<]+(?=<)`)
-
-		this.rChaptersRegion = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
-		this.rChapterURL = qregexp.MustCompile(`(?<=<a href=")http://bato.to/read/_/[^"]+(?="><img src=)`)
-		this.rIdentityAndTitle = qregexp.MustCompile(`/> ([^ ]* *[^ ]+)(?: Read Online|: ([^<]+))`)
-		this.rScanlator = qregexp.MustCompile(`(?<=bato.to/group/_/[^"]+">)[^<]+`)
-		this.rLang = qregexp.MustCompile(`(?<=<div title=")[^"]+`)
-
-		this.rIdentityParse = qregexp.MustCompile(`(?:Vol\.(\d+) +)?Ch\.(\d+)(?:\.(\d))?(?:v(\d))?`)
-
-		this.rPageCount = qregexp.MustCompile(`(?<=id="page_select".+\n +<.*page )\d+(?=</option>\n)`)
-		this.rImageLink1 = qregexp.MustCompile(`(?<=id="comic_page".*src=")[^"]+`)
-		this.rImageLink2 = qregexp.MustCompile(`(?<=img\.src = ")[^"]+`)
-
-		this.rResultsRegions = qregexp.MustCompile(`http://bato.to/comic/_/.+</a>`)
-		this.rComicURL = qregexp.MustCompile(`http://bato.to/comic/_/[^\"]+`)
-		this.rComicTitles = qregexp.MustCompile(`/> ([^(<]+)(?: \(([^)]+)\))?</a>`)
-
-		this.initialized = true
-		fmt.Println("Plugin", this.name, "initialized!")
-	}
-	return this
-}
-
-func (this *Batoto) fetcher() *Fetcher {
+func (this *batoto) fetcher() *fetcher {
 	if this.m_fetcher == nil {
 		panic("Fetcher is nil!")
 	}
 	return this.m_fetcher
 }
 
-func (this *Batoto) SetFetcher(parent *Fetcher) {
-	this.initialize()
+func (this *batoto) setFetcher(parent *fetcher) {
 	this.m_fetcher = parent
 }
 
-func (this *Batoto) PluginName() FetcherPluginName {
-	this.initialize()
+func (this *batoto) PluginName() FetcherPluginName {
 	return this.name
 }
 
-func (this *Batoto) Languages() []string {
+func (this *batoto) Languages() []string {
 	return []string{
 		"English", "Spanish", "French", "German", "Portuguese", "Turkish", "Indonesian", "Greek", "Filipino", "Italian",
 		"Polish", "Thai", "Malayan", "Hungarian", "Romanian", "Arabic", "Hebrew", "Russian", "Vietnamese", "Dutch",
 	}
 }
 
-func (this *Batoto) Capabilities() FetcherPluginCapabilities {
-	this.initialize()
+func (this *batoto) Capabilities() FetcherPluginCapabilities {
 	return FetcherPluginCapabilities{
 		ProvidesInfo: true,
 		ProvidesData: true,
 	}
 }
 
-func (this *Batoto) IsURLValid(url string) bool {
-	return this.rURLValidator.MatchString(url)
+func (this *batoto) IsURLValid(url string) bool {
+	return batoto_rURLValidator.MatchString(url)
 }
 
-func (this *Batoto) FindComicURL(title string) string {
-	this.initialize()
-	links, titles := this.FindComicURLList(title)
+func (this *batoto) findComicURL(title string) string {
+	links, titles := this.findComicURLList(title)
 	for i, ctitle := range titles {
 		if strings.EqualFold(title, ctitle) {
 			return links[i]
@@ -151,13 +105,12 @@ func (this *Batoto) FindComicURL(title string) string {
 	return ""
 }
 
-func (this *Batoto) FindComicURLList(title string) (links []string, titles []string) {
-	this.initialize()
+func (this *batoto) findComicURLList(title string) (links []string, titles []string) {
 	contents := this.fetcher().DownloadData("http://bato.to/search?name_cond=c&name=" + url.QueryEscape(title))
-	urlAndTitlesList := this.rResultsRegions.FindAll(contents, -1)
+	urlAndTitlesList := batoto_rResultsRegions.FindAll(contents, -1)
 	for _, urlAndTitles := range urlAndTitlesList {
-		url := string(this.rComicURL.Find(urlAndTitles))
-		ctitles := this.rComicTitles.FindSubmatch(urlAndTitles)
+		url := string(batoto_rComicURL.Find(urlAndTitles))
+		ctitles := batoto_rComicTitles.FindSubmatch(urlAndTitles)
 		/*
 			[0] is whole match
 			[1] is first title
@@ -173,24 +126,23 @@ func (this *Batoto) FindComicURLList(title string) (links []string, titles []str
 	return
 }
 
-func (this *Batoto) FetchComicInfo(comic *Comic) *ComicInfo {
-	this.initialize()
+func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	contents := this.fetcher().DownloadData(comic.GetSource(this.name).URL)
-	infoRegion := this.rInfoRegion.Find(contents)
-	title := string(this.rTitle.Find(infoRegion))
+	infoRegion := batoto_rInfoRegion.Find(contents)
+	title := string(batoto_rTitle.Find(infoRegion))
 	altTitles := make(map[string]struct{})
-	for _, altTitle := range this.rExtract.FindAll(this.rAltTitlesLine.Find(infoRegion), -1) {
+	for _, altTitle := range batoto_rExtract.FindAll(batoto_rAltTitlesLine.Find(infoRegion), -1) {
 		altTitles[string(altTitle)] = struct{}{}
 	}
-	authors, _ := Authors.AssignIdsBytes(this.rExtractStrict.FindAll(this.rAuthorsLine.Find(infoRegion), -1))
-	artists, _ := Artists.AssignIdsBytes(this.rExtractStrict.FindAll(this.rArtistsLine.Find(infoRegion), -1))
+	authors, _ := Authors.AssignIdsBytes(batoto_rExtractStrict.FindAll(batoto_rAuthorsLine.Find(infoRegion), -1))
+	artists, _ := Artists.AssignIdsBytes(batoto_rExtractStrict.FindAll(batoto_rArtistsLine.Find(infoRegion), -1))
 	genres := make(map[ComicGenreId]struct{})
-	genreNames := this.rExtract.FindAll(this.rGenresLine.Find(infoRegion), -1)
+	genreNames := batoto_rExtract.FindAll(batoto_rGenresLine.Find(infoRegion), -1)
 	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(genreNames))[0].([]ComicGenreId) {
 		genres[genre] = struct{}{}
 	}
 	cType := InvalidComic
-	switch string(this.rType.Find(infoRegion)) {
+	switch string(batoto_rType.Find(infoRegion)) {
 	case "Manga (Japanese)":
 		cType = Manga
 	case "Manhwa (Korean)":
@@ -202,7 +154,7 @@ func (this *Batoto) FetchComicInfo(comic *Comic) *ComicInfo {
 	}
 	status := ComicStatusInvalid
 	scanStatus := ScanlationStatusInvalid
-	switch string(this.rScanStatus.Find(infoRegion)) {
+	switch string(batoto_rScanStatus.Find(infoRegion)) {
 	case "Ongoing":
 		scanStatus = ScanlationOngoing
 		status = ComicOngoing
@@ -210,10 +162,10 @@ func (this *Batoto) FetchComicInfo(comic *Comic) *ComicInfo {
 		scanStatus = ScanlationComplete
 		status = ComicComplete
 	}
-	desc := html.UnescapeString(string(bytes.Replace(this.rDescriptionLine.Find(infoRegion), []byte("<br />"), []byte("\n"), -1)))
-	mature := this.rMature.Match(infoRegion)
-	rating, _ := strconv.ParseFloat(string(this.rRating.Find(infoRegion)), 32)
-	image, _, _ := image.Decode(bytes.NewReader(this.fetcher().DownloadData(string(this.rImageURL.Find(infoRegion)))))
+	desc := html.UnescapeString(string(bytes.Replace(batoto_rDescriptionLine.Find(infoRegion), []byte("<br />"), []byte("\n"), -1)))
+	mature := batoto_rMature.Match(infoRegion)
+	rating, _ := strconv.ParseFloat(string(batoto_rRating.Find(infoRegion)), 32)
+	image, _, _ := image.Decode(bytes.NewReader(this.fetcher().DownloadData(string(batoto_rImageURL.Find(infoRegion)))))
 	return &ComicInfo{
 		Title:            title,
 		AltTitles:        altTitles,
@@ -231,13 +183,12 @@ func (this *Batoto) FetchComicInfo(comic *Comic) *ComicInfo {
 	}
 }
 
-func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
-	this.initialize()
+func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	source := comic.GetSource(this.name)
 	link := source.URL
 	contents := this.fetcher().DownloadData(link) //TODO: cache
 
-	chaptersRegion := this.rChaptersRegion.Find(contents)
+	chaptersRegion := batoto_rChaptersRegion.Find(contents)
 
 	chaptersList := bytes.Split(chaptersRegion, []byte("</td></tr>"))
 	chaptersList = chaptersList[:len(chaptersList)-2] //Last two entries are garbage
@@ -252,15 +203,15 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 			continue // skip some bullshit they sometimes insert in the middle
 		}
 
-		lang := LangDict.Id(string(this.rLang.Find(chapterInfo)))
+		lang := Langs.Id(string(batoto_rLang.Find(chapterInfo)))
 		if !this.fetcher().settings.Languages[lang] {
 			continue // skip disabled languages
 		}
 
-		url := string(this.rChapterURL.Find(chapterInfo))
+		url := string(batoto_rChapterURL.Find(chapterInfo))
 
-		identityAndTitle := this.rIdentityAndTitle.FindSubmatch(chapterInfo)
-		identity, _ := this.parseIdentity(string(identityAndTitle[1])) //TODO: log error
+		identityAndTitle := batoto_rIdentityAndTitle.FindSubmatch(chapterInfo)
+		identity, _ := parseBatotoIdentity(string(identityAndTitle[1])) //TODO: log error
 		missingVolumes = missingVolumes || identity.Volume == 0
 		title := html.UnescapeString(string(identityAndTitle[2]))
 		if title == "" { //TODO: shared plugin logic?
@@ -271,13 +222,13 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 			title += "]"
 		}
 
-		scanlatorNames := this.rScanlator.FindAll(chapterInfo, -1)
+		scanlatorNames := batoto_rScanlator.FindAll(chapterInfo, -1)
 		for i, scanlator := range scanlatorNames {
 			scanlatorNames[i] = []byte(html.UnescapeString(string(scanlator)))
 		}
 		scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
 
-		chapter := Chapter{AlreadyRead: source.MarkAsRead}
+		chapter := NewChapter(source.MarkAsRead)
 		chapter.AddScanlation(ChapterScanlation{
 			Title:      title,
 			Language:   lang,
@@ -288,15 +239,14 @@ func (this *Batoto) FetchChapterList(comic *Comic) (identities []ChapterIdentity
 		})
 
 		identities = append(identities, identity)
-		chapters = append(chapters, chapter)
+		chapters = append(chapters, *chapter)
 	}
 	return
 }
 
-func (this *Batoto) FetchChapterPageLinks(url string) []string {
-	this.initialize()
+func (this *batoto) fetchChapterPageLinks(url string) []string {
 	firstContents := this.fetcher().DownloadData(url)
-	pageCount, _ := strconv.ParseUint(string(this.rPageCount.Find(firstContents)), 10, 8)
+	pageCount, _ := strconv.ParseUint(string(batoto_rPageCount.Find(firstContents)), 10, 8)
 	contentsSlice := make([][]byte, 0, pageCount)
 	contentsSlice = append(contentsSlice, firstContents)
 	for i := int64(3); i <= int64(pageCount); i += 2 {
@@ -304,8 +254,8 @@ func (this *Batoto) FetchChapterPageLinks(url string) []string {
 	}
 	pageLinks := make([]string, 0, pageCount)
 	for _, contents := range contentsSlice {
-		pageLinks = append(pageLinks, string(this.rImageLink1.Find(contents)))
-		imageLink2 := this.rImageLink2.Find(contents)
+		pageLinks = append(pageLinks, string(batoto_rImageLink1.Find(contents)))
+		imageLink2 := batoto_rImageLink2.Find(contents)
 		if len(imageLink2) > 0 {
 			pageLinks = append(pageLinks, string(imageLink2))
 		}
@@ -313,8 +263,8 @@ func (this *Batoto) FetchChapterPageLinks(url string) []string {
 	return pageLinks
 }
 
-func (this *Batoto) parseIdentity(str string) (identity ChapterIdentity, err error) {
-	parsing := this.rIdentityParse.FindStringSubmatch(str)
+func parseBatotoIdentity(str string) (identity ChapterIdentity, err error) {
+	parsing := batoto_rIdentityParse.FindStringSubmatch(str)
 	/*
 		[0] is whole match
 		[1] is volume number (optional)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"quasar/qutils"
-	"quasar/redshift/idbase"
+	"quasar/redshift/idsdict"
 	"quasar/redshift/qdb"
 	"strings"
 	"time"
@@ -219,12 +219,12 @@ func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicat
 		colName   string
 	}
 	for _, tuple := range []tuple{
-		{&idbase.LangDict, "langs", "lang"}, //TODO?: global state, hmm
-		{&idbase.Scanlators, "scanlators", "scanlator"},
-		{&idbase.Authors, "authors", "author"},
-		{&idbase.Artists, "artists", "artist"},
-		{&idbase.ComicGenres, "genres", "genre"},
-		{&idbase.ComicTags, "tags", "tag"},
+		{&idsdict.Langs, "langs", "lang"}, //TODO?: global state, hmm
+		{&idsdict.Scanlators, "scanlators", "scanlator"},
+		{&idsdict.Authors, "authors", "author"},
+		{&idsdict.Artists, "artists", "artist"},
+		{&idsdict.ComicGenres, "genres", "genre"},
+		{&idsdict.ComicTags, "tags", "tag"},
 	} {
 		transaction, _ := db.Begin()
 		rep := strings.NewReplacer("$tableName", tuple.tableName, "$colName", tuple.colName)
@@ -311,12 +311,12 @@ func LoadComicList() (list ComicList, err error) {
 		colName   string
 	}
 	for _, tuple := range []tuple{ //TODO?: dicts as function arguments? (global state side effects are not nice)
-		{&idbase.LangDict, "langs", "lang"},
-		{&idbase.Scanlators, "scanlators", "scanlator"},
-		{&idbase.Authors, "authors", "author"},
-		{&idbase.Artists, "artists", "artist"},
-		{&idbase.ComicGenres, "genres", "genre"},
-		{&idbase.ComicTags, "tags", "tag"},
+		{&idsdict.Langs, "langs", "lang"},
+		{&idsdict.Scanlators, "scanlators", "scanlator"},
+		{&idsdict.Authors, "authors", "author"},
+		{&idsdict.Artists, "artists", "artist"},
+		{&idsdict.ComicGenres, "genres", "genre"},
+		{&idsdict.ComicTags, "tags", "tag"},
 	} {
 		rep := strings.NewReplacer("$tableName", tuple.tableName, "$colName", tuple.colName)
 		idsQueryStmt, _ := transaction.Prepare(rep.Replace(idsQueryPreCmd))
@@ -355,9 +355,9 @@ func LoadComicList() (list ComicList, err error) {
 
 		authorsQueryStmt, _ := transaction.Prepare(authorsQueryCmd)
 		authorRows, _ := authorsQueryStmt.Query(comicId)
-		var authors []idbase.AuthorId
+		var authors []idsdict.AuthorId
 		for authorRows.Next() {
-			var author idbase.AuthorId
+			var author idsdict.AuthorId
 			authorRows.Scan(&author)
 			authors = append(authors, author)
 		}
@@ -365,9 +365,9 @@ func LoadComicList() (list ComicList, err error) {
 
 		artistsQueryStmt, _ := transaction.Prepare(artistsQueryCmd)
 		artistRows, _ := artistsQueryStmt.Query(comicId)
-		var artists []idbase.ArtistId
+		var artists []idsdict.ArtistId
 		for artistRows.Next() {
-			var artist idbase.ArtistId
+			var artist idsdict.ArtistId
 			artistRows.Scan(&artist)
 			artists = append(artists, artist)
 		}
@@ -375,9 +375,9 @@ func LoadComicList() (list ComicList, err error) {
 
 		genresQueryStmt, _ := transaction.Prepare(genresQueryCmd)
 		genreRows, _ := genresQueryStmt.Query(comicId)
-		genres := make(map[idbase.ComicGenreId]struct{})
+		genres := make(map[idsdict.ComicGenreId]struct{})
 		for genreRows.Next() {
-			var genre idbase.ComicGenreId
+			var genre idsdict.ComicGenreId
 			genreRows.Scan(&genre)
 			genres[genre] = struct{}{}
 		}
@@ -385,19 +385,18 @@ func LoadComicList() (list ComicList, err error) {
 
 		tagsQueryStmt, _ := transaction.Prepare(tagsQueryCmd)
 		tagRows, _ := tagsQueryStmt.Query(comicId)
-		tags := make(map[idbase.ComicTagId]struct{})
+		tags := make(map[idsdict.ComicTagId]struct{})
 		for tagRows.Next() {
-			var tag idbase.ComicTagId
+			var tag idsdict.ComicTagId
 			tagRows.Scan(&tag)
 			tags[tag] = struct{}{}
 		}
 		info.Categories = tags
 
-		comic := &Comic{
-			Info:     info,
-			Settings: stts,
-			sqlId:    comicId,
-		}
+		comic := NewComic()
+		comic.Info = info
+		comic.Settings = stts
+		comic.sqlId = comicId
 
 		sourcesQueryStmt, _ := transaction.Prepare(sourcesQueryCmd)
 		sourceRows, _ := sourcesQueryStmt.Query(comicId)
@@ -405,7 +404,6 @@ func LoadComicList() (list ComicList, err error) {
 			var sourceId int64
 			var source UpdateSource
 			sourceRows.Scan(&sourceId, &source.PluginName, &source.URL, &source.MarkAsRead)
-			//source.InDBMarkLoaded(sourceId)
 			source.sqlId = sourceId
 			comic.AddSource(source)
 		}
@@ -420,7 +418,7 @@ func LoadComicList() (list ComicList, err error) {
 		for chapterRows.Next() {
 			var chapterId int64
 			var identity ChapterIdentity
-			chapter := Chapter{}
+			chapter := NewChapter(false)
 			chapterRows.Scan(&chapterId, &identity, &chapter.AlreadyRead)
 			chapter.sqlId = chapterId
 
@@ -432,13 +430,13 @@ func LoadComicList() (list ComicList, err error) {
 				scanlation.sqlId = scanlationId
 
 				scanlatorRows, _ := scanlatorsQueryStmt.Query(scanlationId)
-				var scanlators []idbase.ScanlatorId
+				var scanlators []idsdict.ScanlatorId
 				for scanlatorRows.Next() {
-					var scanlator idbase.ScanlatorId
+					var scanlator idsdict.ScanlatorId
 					scanlatorRows.Scan(&scanlator)
 					scanlators = append(scanlators, scanlator)
 				}
-				scanlation.Scanlators = idbase.JoinScanlators(scanlators)
+				scanlation.Scanlators = idsdict.JoinScanlators(scanlators)
 
 				pageLinkRows, _ := pageLinksQueryStmt.Query(scanlationId)
 				for pageLinkRows.Next() {
@@ -453,7 +451,7 @@ func LoadComicList() (list ComicList, err error) {
 			}
 
 			identities = append(identities, identity)
-			chapters = append(chapters, chapter)
+			chapters = append(chapters, *chapter)
 		}
 		comic.AddMultipleChapters(identities, chapters)
 

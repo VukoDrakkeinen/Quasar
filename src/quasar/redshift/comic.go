@@ -5,7 +5,7 @@ import (
 	"math"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idbase"
+	. "quasar/redshift/idsdict"
 )
 
 type sourceIndex int
@@ -23,13 +23,18 @@ type Comic struct {
 	sqlId int64
 }
 
+func NewComic() *Comic { //TODO: set settings
+	return &Comic{
+		sourceIdxByPlugin: make(map[FetcherPluginName]sourceIndex),
+		chapters:          make(map[ChapterIdentity]Chapter),
+	}
+}
+
 func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
-	this.initialize()
 	return this.AddSourceAt(len(this.sources), source)
 }
 
 func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded bool) {
-	this.initialize()
 	existingIndex, alreadyAdded := this.sourceIdxByPlugin[source.PluginName]
 	if alreadyAdded {
 		source.sqlId = this.sources[existingIndex].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
@@ -48,7 +53,6 @@ func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded boo
 }
 
 func (this *Comic) RemoveSource(source UpdateSource) (success bool) {
-	this.initialize()
 	index, exists := this.sourceIdxByPlugin[source.PluginName]
 	if exists {
 		this.sources = append(this.sources[:index], this.sources[index+1:]...)
@@ -57,20 +61,17 @@ func (this *Comic) RemoveSource(source UpdateSource) (success bool) {
 }
 
 func (this *Comic) Sources() []UpdateSource {
-	this.initialize()
 	ret := make([]UpdateSource, len(this.sources))
 	copy(ret, this.sources)
 	return ret
 }
 
 func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO: not found -> error?
-	this.initialize()
 	index := this.sourceIdxByPlugin[pluginName]
 	return this.sources[index]
 }
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
-	this.initialize()
 	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
@@ -85,8 +86,6 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 }
 
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
-	this.initialize()
-	////this.InDBMarkModified()
 	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
@@ -125,20 +124,17 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 }
 
 func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //FIXME: bounds check?
-	this.initialize()
 	identity := this.chaptersOrder[index]
 	return this.chapters[identity], identity
 }
 
 func (this *Comic) ScanlatorsPriority() []JointScanlatorIds {
-	this.initialize()
 	ret := make([]JointScanlatorIds, len(this.sources))
 	copy(ret, this.scanlatorPriority)
 	return ret
 }
 
 func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) {
-	this.initialize()
 	this.scanlatorPriority = priority
 }
 
@@ -215,14 +211,6 @@ func (this *Comic) SQLInsert(stmts InsertionStmtGroup) (err error) {
 	return nil
 }
 
-func (this *Comic) initialize() *Comic {
-	if this.sourceIdxByPlugin == nil {
-		this.sourceIdxByPlugin = make(map[FetcherPluginName]sourceIndex)
-		this.chapters = make(map[ChapterIdentity]Chapter)
-	}
-	return this
-}
-
 type UpdateSource struct {
 	PluginName FetcherPluginName
 	URL        string
@@ -265,7 +253,12 @@ type ComicInfo struct {
 }
 
 func (this *ComicInfo) MergeWith(another *ComicInfo) {
-	this.initialize()
+	if this.AltTitles == nil {
+		this.AltTitles = make(map[string]struct{})
+		this.Genres = make(map[ComicGenreId]struct{})
+		this.Categories = make(map[ComicTagId]struct{})
+	}
+
 	if this.Title == "" {
 		this.Title = another.Title
 	}
@@ -338,15 +331,6 @@ func (this *ComicInfo) MergeWith(another *ComicInfo) {
 	if this.Thumbnail == nil {
 		this.Thumbnail = another.Thumbnail
 	}
-}
-
-func (this *ComicInfo) initialize() *ComicInfo {
-	if this.AltTitles == nil {
-		this.AltTitles = make(map[string]struct{})
-		this.Genres = make(map[ComicGenreId]struct{})
-		this.Categories = make(map[ComicTagId]struct{})
-	}
-	return this
 }
 
 type comicType int

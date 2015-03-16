@@ -3,7 +3,7 @@ package redshift
 import (
 	"quasar/qutils"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idbase"
+	. "quasar/redshift/idsdict"
 )
 
 const (
@@ -31,12 +31,19 @@ type ChapterScanlation struct {
 	URL        string
 	PageLinks  []string
 
-	sqlId    int64
 	plSQLIds []int64
+	sqlId    int64
+}
+
+func NewChapter(alreadyRead bool) *Chapter {
+	return &Chapter{
+		AlreadyRead: alreadyRead,
+		mapping:     make(map[FetcherPluginName]map[JointScanlatorIds]scanlationIndex),
+	}
+
 }
 
 func (this *Chapter) Scanlation(index int) ChapterScanlation {
-	this.initialize()
 	pluginName, scanlators := this.indexToPath(index)
 	return this.scanlations[this.mapping[pluginName][scanlators]]
 }
@@ -54,7 +61,6 @@ func (this *Chapter) MergeWith(another *Chapter) *Chapter {
 }
 
 func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool) {
-	this.initialize()
 	if mapped, pluginExists := this.mapping[scanlation.PluginName]; pluginExists {
 		if index, jointExists := mapped[scanlation.Scanlators]; jointExists {
 			scanlation.sqlId = this.scanlations[index].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
@@ -74,7 +80,6 @@ func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool)
 }
 
 func (this *Chapter) RemoveScanlation(index int) {
-	this.initialize()
 	pluginName, scanlators := this.indexToPath(index)
 	realIndex := this.mapping[pluginName][scanlators]
 
@@ -89,7 +94,6 @@ func (this *Chapter) RemoveScanlation(index int) {
 }
 
 func (this *Chapter) RemoveScanlationsForPlugin(pluginName FetcherPluginName) {
-	this.initialize()
 	for _, realIndex := range this.mapping[pluginName] {
 		this.scanlations = append(this.scanlations[:realIndex], this.scanlations[realIndex+1:]...)
 	}
@@ -99,7 +103,6 @@ func (this *Chapter) RemoveScanlationsForPlugin(pluginName FetcherPluginName) {
 }
 
 func (this *Chapter) Scanlators() (ret []JointScanlatorIds) {
-	this.initialize()
 	if this.parent != nil {
 		for _, pluginName := range this.usedPlugins {
 			perPlugin := this.mapping[pluginName]
@@ -118,7 +121,6 @@ func (this *Chapter) Scanlators() (ret []JointScanlatorIds) {
 }
 
 func (this *Chapter) SetParent(comic *Comic) {
-	this.initialize()
 	this.parent = comic
 }
 
@@ -186,12 +188,6 @@ func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorId
 	}
 
 	return pluginName, scanlators[index]
-}
-
-func (this *Chapter) initialize() {
-	if this.mapping == nil {
-		this.mapping = make(map[FetcherPluginName]map[JointScanlatorIds]scanlationIndex)
-	}
 }
 
 func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGroup) (err error) {

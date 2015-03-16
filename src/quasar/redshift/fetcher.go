@@ -5,22 +5,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	. "quasar/redshift/idbase"
+	. "quasar/redshift/idsdict"
 	"sort"
 )
 
 type FetcherPluginName string
 type FetcherPlugin interface {
-	SetFetcher(parent *Fetcher)
 	PluginName() FetcherPluginName
 	Languages() []string
 	Capabilities() FetcherPluginCapabilities
 	IsURLValid(url string) bool
-	FindComicURL(title string) string
-	FindComicURLList(title string) (links []string, titles []string)
-	FetchComicInfo(comic *Comic) *ComicInfo
-	FetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
-	FetchChapterPageLinks(url string) []string
+	findComicURL(title string) string
+	findComicURLList(title string) (links []string, titles []string)
+	fetchComicInfo(comic *Comic) *ComicInfo
+	fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
+	fetchChapterPageLinks(url string) []string
+	setFetcher(parent *fetcher)
 }
 
 type FetcherPluginCapabilities struct { //TODO: more detailed capabilities?
@@ -57,47 +57,51 @@ func (this correctiveSlice) Swap(i, j int) {
 	this.chapters[i], this.chapters[j] = this.chapters[j], this.chapters[i]
 }
 
-type Fetcher struct { //TODO: handle missing plugin errors gracefully
+type fetcher struct { //TODO: handle missing plugin errors gracefully
 	plugins   map[FetcherPluginName]FetcherPlugin
 	webClient *http.Client
 	settings  *GlobalSettings
 }
 
-func (this *Fetcher) initialize() {
-	if this.plugins == nil {
-		this.plugins = make(map[FetcherPluginName]FetcherPlugin)
-		this.webClient = &http.Client{
+func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
+	fet := &fetcher{
+		plugins: make(map[FetcherPluginName]FetcherPlugin),
+		webClient: &http.Client{
 			CheckRedirect: nil, //TODO: write the redirect handling function
-		}
-		this.settings = NewGlobalSettings()
+		},
+		settings: settings,
 	}
+	if fet.settings == nil {
+		fet.settings = NewGlobalSettings()
+	}
+	for _, plugin := range plugins {
+		fet.RegisterPlugin(plugin)
+	}
+	return fet
 }
 
-func (this *Fetcher) RegisterPlugin(plugin FetcherPlugin) (success, replaced bool) {
-	this.initialize()
+func (this *fetcher) RegisterPlugin(plugin FetcherPlugin) (success, replaced bool) {
 	name := plugin.PluginName()
 	oldPlugin, replaced := this.plugins[name]
 	if replaced {
-		oldPlugin.SetFetcher(nil)
+		oldPlugin.setFetcher(nil)
 	}
 	this.plugins[name] = plugin
-	plugin.SetFetcher(this)
-	LangDict.AssignIds(plugin.Languages())
+	plugin.setFetcher(this)
+	Langs.AssignIds(plugin.Languages())
 	success = true //TODO?
 	return
 }
 
-func (this *Fetcher) DownloadComicInfoFor(comic *Comic) {
-	this.initialize()
+func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 	for _, source := range comic.Sources() {
-		comic.Info.MergeWith(this.plugins[source.PluginName].FetchComicInfo(comic))
+		comic.Info.MergeWith(this.plugins[source.PluginName].fetchComicInfo(comic))
 	}
 }
 
 //TODO: proper error handling
 //TODO: parallelization?
-func (this *Fetcher) DownloadData(url string) []byte {
-	this.initialize()
+func (this *fetcher) DownloadData(url string) []byte {
 	response, err := this.webClient.Get(url)
 	fmt.Println("Response status:", response.Status)
 	if err != nil {
@@ -150,10 +154,9 @@ func (this *Fetcher) DownloadPageImage(index int, chapter comic.Chapter /*, com 
 	return binaryData
 }//*/
 
-func (this *Fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
-	this.initialize()
+func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
 	for _, source := range comic.Sources() {
-		identities, chapters, missingVolumes := this.plugins[source.PluginName].FetchChapterList(comic)
+		identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic)
 		if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
 			correctiveSlice := correctiveSlice{identities, chapters}
 			sort.Sort(correctiveSlice)
@@ -169,12 +172,11 @@ func (this *Fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 	}
 }
 
-func (this *Fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
-	this.initialize()
+func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
 	chapter, identity := comic.GetChapter(chapterIndex)
 	scanlation := chapter.Scanlation(scanlationIndex)
 	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
-		links := plugin.FetchChapterPageLinks(scanlation.URL)
+		links := plugin.fetchChapterPageLinks(scanlation.URL)
 		scanlation.PageLinks = links
 		chapter.AddScanlation(scanlation)    //reinsert after modifying
 		comic.AddChapter(identity, &chapter) //reinsert //TODO: use pointers instead?
@@ -182,8 +184,7 @@ func (this *Fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 	return
 }
 
-func (this *Fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
-	this.initialize()
+func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 	for pluginName, plugin := range this.plugins {
 		if plugin.IsURLValid(url) {
 			return pluginName, nil
@@ -192,10 +193,9 @@ func (this *Fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 	return "", errors.New("Plugin autodetect failed!")
 }
 
-func (this *Fetcher) TestFind(comic *Comic, pluginName FetcherPluginName, comicTitle string) {
-	this.initialize()
+func (this *fetcher) TestFind(comic *Comic, pluginName FetcherPluginName, comicTitle string) {
 	plugin := this.plugins[pluginName]
-	urlFound := plugin.FindComicURL(comicTitle)
+	urlFound := plugin.findComicURL(comicTitle)
 	if urlFound != "" {
 		comic.AddSource(UpdateSource{
 			PluginName: pluginName,

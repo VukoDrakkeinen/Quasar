@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	. "quasar/redshift/idbase"
+	. "quasar/redshift/idsdict"
 	"reflect"
 	"time"
 )
@@ -42,7 +42,7 @@ func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	}
 	proxy.Languages = make(map[string]LanguageEnabled)
 	for id, status := range this.Languages {
-		proxy.Languages[LangDict.NameOf(id)] = status
+		proxy.Languages[Langs.NameOf(id)] = status
 	}
 	return proxy
 }
@@ -56,7 +56,7 @@ func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 		Plugins:                       this.Plugins,
 	}
 	for lang, status := range this.Languages {
-		settings.Languages[LangDict.Id(lang)] = status
+		settings.Languages[Langs.Id(lang)] = status
 	}
 	return settings
 }

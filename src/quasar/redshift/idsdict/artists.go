@@ -1,4 +1,4 @@
-package idbase
+package idsdict
 
 import (
 	"database/sql/driver"
@@ -7,7 +7,7 @@ import (
 	"quasar/qutils"
 )
 
-var Artists ArtistsDict
+var Artists = NewArtistsDict()
 
 type ArtistsDict struct {
 	idAssigner
@@ -15,6 +15,10 @@ type ArtistsDict struct {
 
 type ArtistId struct {
 	ordinal Id
+}
+
+func NewArtistsDict() ArtistsDict {
+	return ArtistsDict{newIdAssigner()}
 }
 
 func (this *ArtistsDict) AssignIds(artists []string) (ids []ArtistId, added []bool) {

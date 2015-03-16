@@ -1,4 +1,4 @@
-package idbase
+package idsdict
 
 import (
 	"database/sql/driver"
@@ -7,7 +7,7 @@ import (
 	"quasar/qutils"
 )
 
-var ComicTags ComicTagsDict
+var ComicTags = NewComicTagsDict()
 
 type ComicTagsDict struct {
 	idAssigner
@@ -15,6 +15,10 @@ type ComicTagsDict struct {
 
 type ComicTagId struct {
 	ordinal Id
+}
+
+func NewComicTagsDict() ComicTagsDict {
+	return ComicTagsDict{newIdAssigner()}
 }
 
 func (this *ComicTagsDict) AssignIds(tags []string) (ids []ComicTagId, added []bool) {

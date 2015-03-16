@@ -1,4 +1,4 @@
-package idbase
+package idsdict
 
 import (
 	"database/sql/driver"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-var Scanlators ScanlatorsDict
+var Scanlators = NewScanlatorsDict()
 
 type ScanlatorsDict struct {
 	idAssigner
@@ -17,6 +17,10 @@ type ScanlatorsDict struct {
 
 type ScanlatorId struct {
 	ordinal Id
+}
+
+func NewScanlatorsDict() ScanlatorsDict {
+	return ScanlatorsDict{newIdAssigner()}
 }
 
 func (this *ScanlatorsDict) AssignIds(scanlators []string) (ids []ScanlatorId, added []bool) {
@@ -56,8 +60,6 @@ func (this ScanlatorId) Value() (driver.Value, error) {
 	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
-//////////////
-
 type JointScanlatorIds struct { //Can't have slices as keys in maps? Here's a dirty ha-, I mean, a workaround for you!
 	data  string
 	count int
@@ -81,10 +83,6 @@ func (this *JointScanlatorIds) ToSlice() []ScanlatorId {
 }
 
 func (this JointScanlatorIds) String() string {
-	ids := this.ToSlice() /*
-		paramsConf := strings.Repeat("%v ", len(ids))
-		paramsConf = paramsConf[:len(paramsConf)-1] //remove trailing space
-		paramsConf = fmt.Sprintf("[%s]", paramsConf)
-		return fmt.Sprintf(paramsConf, ids)	//*/
+	ids := this.ToSlice()
 	return fmt.Sprintf("%v", ids)
 }
