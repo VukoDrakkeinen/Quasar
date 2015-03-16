@@ -207,7 +207,7 @@ func (this ComicList) createDB(db *sql.DB) {
 	transaction.Commit()
 }
 
-func (this ComicList) SaveToDB() { //TODO: update db entries instead of duplicating them
+func (this ComicList) SaveToDB() {
 	log.SetFlags(log.Lshortfile | log.Ltime)
 	db := qdb.DB() //TODO: error out on nil
 	this.createDB(db)
