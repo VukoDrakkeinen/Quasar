@@ -234,8 +234,8 @@ func (this ComicList) SaveToDB() {
 		transaction.Commit()
 	}
 
-	for _, comic := range this { //TODO: do not reprepare statements every iteration. Make them transaction-specific instead.
-		transaction, _ := db.Begin()
+	for _, comic := range this { //we could make statements transaction-specific instead of repreparing them every time
+		transaction, _ := db.Begin() //but this actually doesn't work yet under the hood in the Go SQL API
 
 		comicInsertionStmt, _ := transaction.Prepare(comicsInsertionCmd)
 		altTitlesInsertionStmt, _ := transaction.Prepare(altTitlesInsertionCmd)
@@ -273,29 +273,12 @@ func (this ComicList) SaveToDB() {
 			pageLinksRelationStmt:   pageLinksRelationStmt,
 		}
 		err := comic.SQLInsert(stmts)
-		if err != nil {
+		if err != nil { // statements are closed by Commit() or Rollback()
 			fmt.Println(err)
 			transaction.Rollback()
 		} else {
 			transaction.Commit()
 		}
-
-		comicInsertionStmt.Close()
-		altTitlesInsertionStmt.Close()
-		altTitlesRelationStmt.Close()
-		authorsRelationStmt.Close()
-		artistsRelationStmt.Close()
-		genresRelationStmt.Close()
-		tagsRelationStmt.Close()
-		sourcesInsertionStmt.Close()
-		sourcesRelationStmt.Close()
-		chaptersInsertionStmt.Close()
-		chaptersRelationStmt.Close()
-		scanlationInsertionStmt.Close()
-		scanlationRelationStmt.Close()
-		scanlatorsRelationStmt.Close()
-		pageLinksInsertionStmt.Close()
-		pageLinksRelationStmt.Close()
 	}
 }
 
