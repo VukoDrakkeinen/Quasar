@@ -9,25 +9,6 @@ import (
 	"sort"
 )
 
-type FetcherPluginName string
-type FetcherPlugin interface {
-	PluginName() FetcherPluginName
-	Languages() []string
-	Capabilities() FetcherPluginCapabilities
-	IsURLValid(url string) bool
-	findComicURL(title string) string
-	findComicURLList(title string) (links []string, titles []string)
-	fetchComicInfo(comic *Comic) *ComicInfo
-	fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
-	fetchChapterPageLinks(url string) []string
-	setFetcher(parent *fetcher)
-}
-
-type FetcherPluginCapabilities struct { //TODO: more detailed capabilities?
-	ProvidesInfo bool
-	ProvidesData bool
-}
-
 type correctiveSlice struct {
 	identities []ChapterIdentity
 	chapters   []Chapter

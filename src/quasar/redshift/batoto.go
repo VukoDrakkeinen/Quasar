@@ -218,12 +218,8 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 		identity, _ := parseBatotoIdentity(string(identityAndTitle[1])) //TODO: log error
 		missingVolumes = missingVolumes || identity.Volume == 0
 		title := html.UnescapeString(string(identityAndTitle[2]))
-		if title == "" { //TODO: shared plugin logic?
-			title = "[Chapter #" + strconv.FormatInt(int64(identity.MajorNum), 10)
-			if identity.MinorNum != 0 {
-				title += "." + strconv.FormatInt(int64(identity.MinorNum), 10)
-			}
-			title += "]"
+		if title == "" {
+			title = titleFromIdentity(identity)
 		}
 
 		scanlatorNames := batoto_rScanlator.FindAll(chapterInfo, -1)

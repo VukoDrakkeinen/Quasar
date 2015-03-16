@@ -230,14 +230,9 @@ func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIde
 			}
 			prevIdentity = newIdentities[len(newIdentities)-1]
 			for _, identity := range newIdentities {
-				title := "[Chapter #" + strconv.FormatInt(int64(identity.MajorNum), 10)
-				if identity.MinorNum != 0 {
-					title += "." + strconv.FormatInt(int64(identity.MinorNum), 10)
-				}
-				title += "]"
 				chapter := NewChapter(source.MarkAsRead)
 				chapter.AddScanlation(ChapterScanlation{
-					Title:      title,
+					Title:      titleFromIdentity(identity),
 					Language:   ENGLISH_LANG(),
 					Scanlators: JoinScanlators(scanlators),
 					PluginName: this.name,
