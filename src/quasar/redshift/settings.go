@@ -2,11 +2,11 @@ package redshift
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
 	"reflect"
 	"time"
@@ -72,28 +72,24 @@ func NewGlobalSettings() *GlobalSettings {
 	}
 }
 
-func LoadGlobalSettings() (settings *GlobalSettings) { //TODO: refactor
+func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 	file, err := os.Open(filepath.Join(configDir, globalConfigFile))
 	defer file.Close()
 	if os.IsNotExist(err) {
 		settings = NewGlobalSettings()
 		settings.Save()
+		return
 	} else if err != nil {
-		//TODO: handle errors
-		panic("Cannot load global settings: " + err.Error())
-	} else {
-		jsonData, _ := ioutil.ReadAll(file) //TODO: handle errors
-		var proxy globalSettingsJSONProxy
-		err := json.Unmarshal(jsonData, &proxy)
-		if err != nil {
-			//TODO: proper logging
-			fmt.Println(err)
-			fmt.Println("json:", string(jsonData))
-			settings = NewGlobalSettings()
-		} else {
-			settings = proxy.toSettings()
-		}
+		return nil, err
 	}
+	jsonData, _ := ioutil.ReadAll(file)
+	var proxy globalSettingsJSONProxy
+	err = json.Unmarshal(jsonData, &proxy)
+	if err != nil {
+		return nil, qerr.NewParse("Error while unmarshaling settings", err, string(jsonData))
+	}
+	settings = proxy.toSettings()
+
 	return
 }
 
@@ -176,7 +172,6 @@ func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 //XP: + \Local Settings\Application Data\Quasar\
 //Win: + \AppData\Local\Quasar\
 //OSX: + /Library/Application Support/Quasar/
-//Linux: + /.config/quasar/
 var configDir string
 var downloadsPath string
 

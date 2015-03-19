@@ -15,6 +15,7 @@ func main() {
 
 	///return
 
+	globals, _ := redshift.LoadGlobalSettings()
 	fmt.Println("Creating Fetcher")
 	fet := redshift.NewFetcher(nil)
 	fmt.Println("Registering plugins")
@@ -24,7 +25,7 @@ func main() {
 	fet.RegisterPlugin(bupdates)
 	fmt.Println("Creating Comic")
 	comic := redshift.NewComic()
-	comic.Settings = *redshift.NewIndividualSettings(redshift.LoadGlobalSettings())
+	comic.Settings = *redshift.NewIndividualSettings(globals)
 	fmt.Println("Finding comic URL")
 	fet.TestFind(comic, batoto.PluginName(), "Kingdom")
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
