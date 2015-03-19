@@ -7,10 +7,14 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 )
+
+const dbFile = "quasar.db"
 
 var dataDir string
 var thumbsDir string
+var qdb *sql.DB
 
 func init() {
 	luser, _ := user.Current()
@@ -20,19 +24,44 @@ func init() {
 	os.Mkdir(thumbsDir, os.ModeDir|0755)
 }
 
-const dbFile = "quasar.db"
+type QDB struct {
+	*sql.DB
+}
 
-var qdb *sql.DB
+func (this *QDB) MustPrepare(query string) *sql.Stmt {
+	ret, err := this.Prepare(query)
+	if err != nil {
+		panic(`DB: Prepare(` + strconv.Quote(query) + `): ` + err.Error())
+	}
+	return ret
+}
 
-func DB() *sql.DB {
+func DB() *QDB {
 	if qdb == nil {
 		var err error //WORKAROUND: syntax analyzer complains
 		qdb, err = sql.Open("sqlite3", filepath.Join(dataDir, dbFile))
 		if err != nil {
 			//TODO: log error
 		}
+		qdb.Exec(`PRAGMA foreign_keys = ON;`) //enable foreign keys
 	}
-	return qdb
+	return &QDB{qdb}
+}
+
+type StmtGroup map[string]*sql.Stmt
+
+func (this StmtGroup) ToTransactionSpecific(transaction *sql.Tx) StmtGroup {
+	specific := StmtGroup(make(map[string]*sql.Stmt, len(this)))
+	for k, v := range this {
+		specific[k] = transaction.Stmt(v)
+	}
+	return specific
+}
+
+func (this StmtGroup) Close() {
+	for _, v := range this {
+		v.Close()
+	}
 }
 
 func SaveThumbnail(filename string, b []byte) {
@@ -49,4 +78,8 @@ type InsertionStmtExecutor interface {
 
 type QueryStmtExecutor interface {
 	ExecuteQueryStmt(stmt *sql.Stmt, additionalArgs ...interface{}) error
+}
+
+type SQLInsertable interface {
+	SQLInsert(stmt StmtGroup, additionalArgs ...interface{}) error
 }

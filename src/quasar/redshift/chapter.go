@@ -1,9 +1,26 @@
 package redshift
 
 import (
+	"database/sql"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
+	"quasar/redshift/qdb"
+)
+
+const ( //SQL Statements Group keys
+	chapterInsertion    = "chapterInsertion"
+	chapterRelation     = "chapterRelation"
+	scanlationInsertion = "scanlationInsertion"
+	scanlationRelation  = "scanlationRelation"
+	scanlatorRelation   = "scanlatorRelation"
+	pageLinkInsertion   = "pageLinkInsertion"
+	pageLinkRelation    = "pageLinkRelation"
+
+	chaptersQuery    = "chaptersQuery"
+	scanlationsQuery = "scanlationsQuery"
+	scanlatorsQuery  = "scanlatorsQuery"
+	pageLinksQuery   = "pageLinksQuery"
 )
 
 const (
@@ -21,18 +38,6 @@ type Chapter struct {
 	AlreadyRead bool
 
 	sqlId int64
-}
-
-type ChapterScanlation struct {
-	Title      string
-	Language   LangId
-	Scanlators JointScanlatorIds
-	PluginName FetcherPluginName
-	URL        string
-	PageLinks  []string
-
-	plSQLIds []int64
-	sqlId    int64
 }
 
 func NewChapter(alreadyRead bool) *Chapter {
@@ -124,33 +129,6 @@ func (this *Chapter) SetParent(comic *Comic) {
 	this.parent = comic
 }
 
-func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts InsertionStmtGroup) (err error) {
-	var newId int64
-	result, err := stmts.chaptersInsertionStmt.Exec(this.sqlId, identity.n(), this.AlreadyRead)
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
-	newId, err = result.LastInsertId()
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
-	this.sqlId = newId
-
-	result, err = stmts.chaptersRelationStmt.Exec(this.parent.sqlId, this.sqlId)
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
-
-	for i := range this.scanlations {
-		err = this.scanlations[i].SQLInsert(this.sqlId, stmts)
-		if err != nil {
-			return qerr.NewLocated(err)
-		}
-	}
-
-	return nil
-}
-
 func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorIds) {
 	if this.parent == nil { //We have no parent, so we can't access priority lists for plugins and scanlators
 		scanlation := this.scanlations[index]
@@ -190,9 +168,9 @@ func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorId
 	return pluginName, scanlators[index]
 }
 
-func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGroup) (err error) {
+func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts qdb.StmtGroup) (err error) {
 	var newId int64
-	result, err := stmts.scanlationInsertionStmt.Exec(this.sqlId, this.Title, this.Language, string(this.PluginName), this.URL)
+	result, err := stmts[chapterInsertion].Exec(this.sqlId, identity.n(), this.AlreadyRead)
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
@@ -202,13 +180,106 @@ func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGro
 	}
 	this.sqlId = newId
 
-	result, err = stmts.scanlationRelationStmt.Exec(chapterId, this.sqlId)
+	result, err = stmts[chapterRelation].Exec(this.parent.sqlId, this.sqlId)
+	if err != nil {
+		return qerr.NewLocated(err)
+	}
+
+	for i := range this.scanlations {
+		err = this.scanlations[i].SQLInsert(this.sqlId, stmts)
+		if err != nil {
+			return qerr.NewLocated(err)
+		}
+	}
+
+	return nil
+}
+
+func SQLChapterQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Chapter, ChapterIdentity, error) {
+	var identity ChapterIdentity
+	chapter := NewChapter(false)
+	err := rows.Scan(&chapter.sqlId, &identity, &chapter.AlreadyRead)
+	if err != nil {
+		return nil, identity, qerr.NewLocated(err)
+	}
+
+	scanlationRows, err := stmts[scanlationsQuery].Query(chapter.sqlId)
+	if err != nil {
+		return nil, identity, qerr.NewLocated(err)
+	}
+	for scanlationRows.Next() {
+		scanlation, err := SQLChapterScanlationQuery(scanlationRows, stmts)
+		if err != nil {
+			return nil, identity, qerr.NewLocated(err)
+		}
+		chapter.AddScanlation(*scanlation)
+	}
+
+	return chapter, identity, err
+}
+
+func SQLChapterSchema() string {
+	return `
+	CREATE TABLE IF NOT EXISTS chapters(
+		id INTEGER PRIMARY KEY,
+		identity INTEGER UNIQUE NOT NULL,
+		alreadyRead INTEGER NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS rel_Comic_Chapters(
+		comicId INTEGER NOT NULL REFERENCES comics(id) ON DELETE CASCADE,
+		chapterId INTEGER NOT NULL UNIQUE REFERENCES chapters(id) ON DELETE CASCADE,
+		CONSTRAINT pk_CO_CH PRIMARY KEY (comicId, chapterId)
+	);
+	` + SQLChapterScanlationSchema()
+}
+
+func sqlAddChapterInsertStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
+	stmts[chapterInsertion] = db.MustPrepare(`
+		INSERT OR REPLACE INTO chapters(id, identity, alreadyRead)
+		VALUES((SELECT id FROM chapters WHERE id = ?), ?, ?);`)
+	stmts[chapterRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Comic_Chapters(comicId, chapterId) VALUES(?, ?);`)
+	sqlAddChapterScanlationInsertStmts(db, stmts)
+}
+
+func sqlAddChapterQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
+	stmts[chaptersQuery] = db.MustPrepare(`
+		SELECT id, identity, alreadyRead
+		FROM chapters
+		WHERE id IN(SELECT chapterId FROM rel_Comic_Chapters WHERE comicId = ?);`)
+	sqlAddChapterScanlationQueryStmts(db, stmts)
+}
+
+type ChapterScanlation struct {
+	Title      string
+	Language   LangId
+	Scanlators JointScanlatorIds
+	PluginName FetcherPluginName
+	URL        string
+	PageLinks  []string
+
+	plSQLIds []int64
+	sqlId    int64
+}
+
+func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts qdb.StmtGroup) (err error) {
+	var newId int64
+	result, err := stmts[scanlationInsertion].Exec(this.sqlId, this.Title, this.Language, string(this.PluginName), this.URL)
+	if err != nil {
+		return qerr.NewLocated(err)
+	}
+	newId, err = result.LastInsertId()
+	if err != nil {
+		return qerr.NewLocated(err)
+	}
+	this.sqlId = newId
+
+	result, err = stmts[scanlationRelation].Exec(chapterId, this.sqlId)
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
 
 	for _, scanlator := range this.Scanlators.ToSlice() {
-		result, err = stmts.scanlatorsRelationStmt.Exec(this.sqlId, scanlator)
+		result, err = stmts[scanlatorRelation].Exec(this.sqlId, scanlator)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -219,7 +290,7 @@ func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGro
 	}
 	for i, pageLink := range this.PageLinks {
 		var pageLinkId int64 = this.plSQLIds[i] //WARNING: may go out of bounds (shouldn't ever; leaving it for the sake of experiment)
-		result, err = stmts.pageLinksInsertionStmt.Exec(pageLink)
+		result, err = stmts[pageLinkInsertion].Exec(pageLink)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -228,8 +299,100 @@ func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts InsertionStmtGro
 			return qerr.NewLocated(err)
 		}
 		this.plSQLIds[i] = pageLinkId
-		stmts.pageLinksRelationStmt.Exec(this.sqlId, pageLinkId)
+		stmts[pageLinkRelation].Exec(this.sqlId, pageLinkId)
 	}
 
 	return nil
+}
+
+func SQLChapterScanlationQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*ChapterScanlation, error) {
+	scanlation := &ChapterScanlation{}
+	err := rows.Scan(&scanlation.sqlId, &scanlation.Title, &scanlation.Language, &scanlation.PluginName, &scanlation.URL)
+	if err != nil {
+		return nil, qerr.NewLocated(err)
+	}
+
+	scanlatorRows, err := stmts[scanlatorsQuery].Query(scanlation.sqlId)
+	if err != nil {
+		return nil, qerr.NewLocated(err)
+	}
+	var scanlators []ScanlatorId
+	for scanlatorRows.Next() {
+		var scanlator ScanlatorId
+		err = scanlatorRows.Scan(&scanlator)
+		if err != nil {
+			return nil, qerr.NewLocated(err)
+		}
+		scanlators = append(scanlators, scanlator)
+	}
+	scanlation.Scanlators = JoinScanlators(scanlators)
+
+	pageLinkRows, err := stmts[pageLinksQuery].Query(scanlation.sqlId)
+	if err != nil {
+		return nil, qerr.NewLocated(err)
+	}
+	for pageLinkRows.Next() {
+		var pageLinkId int64
+		var pageLink string
+		err = pageLinkRows.Scan(&pageLinkId, &pageLink)
+		if err != nil {
+			return nil, qerr.NewLocated(err)
+		}
+		scanlation.PageLinks = append(scanlation.PageLinks, pageLink)
+		scanlation.plSQLIds = append(scanlation.plSQLIds, pageLinkId)
+	}
+
+	return scanlation, nil
+}
+
+func SQLChapterScanlationSchema() string {
+	return `
+	CREATE TABLE IF NOT EXISTS scanlations(
+		id INTEGER PRIMARY KEY,
+		title TEXT NOT NULL,
+		lang INTEGER NOT NULL DEFAULT 1 REFERENCES langs(id) ON DELETE SET DEFAULT,
+		pluginName TEXT NOT NULL,
+		url TEXT NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS rel_Chapter_Scanlations(
+		chapterId INTEGER NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
+		scanlationId INTEGER NOT NULL REFERENCES scanlations(id) ON DELETE CASCADE,
+		CONSTRAINT pk_CH_SC PRIMARY KEY (chapterId, scanlationId)
+	);
+	CREATE TABLE IF NOT EXISTS rel_Scanlation_Scanlators(
+		scanlationId INTEGER NOT NULL REFERENCES scanlations(id) ON DELETE CASCADE,
+		scanlatorId INTEGER NOT NULL REFERENCES scanlators(id) ON DELETE CASCADE,
+		CONSTRAINT pk_SC_SC PRIMARY KEY (scanlationId, scanlatorId)
+	);
+	CREATE TABLE IF NOT EXISTS pageLinks(
+		id INTEGER PRIMARY KEY,
+		url TEXT NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS rel_Scanlation_PageLinks(
+		scanlationId INTEGER NOT NULL REFERENCES scanlations(id) ON DELETE CASCADE,
+		pageLinkId INTEGER NOT NULL REFERENCES pageLinks(id) ON DELETE CASCADE,
+		CONSTRAINT pk_SC_PA PRIMARY KEY (scanlationId, pageLinkId)
+	);`
+}
+
+func sqlAddChapterScanlationInsertStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
+	stmts[scanlationInsertion] = db.MustPrepare(`
+		INSERT OR REPLACE INTO scanlations(id, title, lang, pluginName, url)
+		VALUES((SELECT id FROM scanlations WHERE id = ?), ?, ?, ?, ?);`)
+	stmts[scanlationRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Chapter_Scanlations(chapterId, scanlationid) VALUES(?, ?);`)
+	stmts[scanlatorRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Scanlation_Scanlators(scanlationId, scanlatorId) VALUES(?, ?);`)
+	stmts[pageLinkInsertion] = db.MustPrepare(`INSERT OR REPLACE INTO pageLinks(id, url) VALUES((SELECT id FROM pageLinks WHERE id = ?), ?);`)
+	stmts[pageLinkRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Scanlation_PageLinks(scanlationId, pageLinkId) VALUES(?, ?);`)
+}
+
+func sqlAddChapterScanlationQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
+	stmts[scanlationsQuery] = db.MustPrepare(`
+		SELECT id, title, lang, pluginName, url
+		FROM scanlations
+		WHERE id IN(SELECT scanlationId FROM rel_Chapter_Scanlations WHERE chapterId = ?);`)
+	stmts[scanlatorsQuery] = db.MustPrepare(`SELECT scanlatorId FROM rel_Scanlation_Scanlators WHERE scanlationId = ?;`)
+	stmts[pageLinksQuery] = db.MustPrepare(`
+		SELECT id, url
+		FROM pageLinks
+		WHERE id IN(SELECT pageLinkId FROM rel_Scanlation_PageLinks WHERE scanlationId = ?);`)
 }

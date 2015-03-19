@@ -54,7 +54,11 @@ func main() {
 	list.SaveToDB()
 	fmt.Println("Saved")
 	fmt.Println("Loading from DB")
-	list, _ = redshift.LoadComicList()
+	var err error
+	list, err = redshift.LoadComicList()
+	if err != nil {
+		fmt.Println(err)
+	}
 	fmt.Println("Loaded")
 
 	return
