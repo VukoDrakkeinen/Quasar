@@ -12,6 +12,7 @@ import (
 
 type comicType int
 type comicStatus int
+type ScanlationStatus int
 
 const (
 	InvalidComic comicType = iota
@@ -28,6 +29,14 @@ const (
 	ComicOngoing
 	ComicOnHiatus
 	ComicDiscontinued
+)
+const (
+	ScanlationStatusInvalid ScanlationStatus = iota
+	ScanlationComplete
+	ScanlationOngoing
+	ScanlationOnHiatus
+	ScanlationDropped
+	ScanlationInDesperateNeedOfMoreStaff
 )
 
 const ( //SQL Statements Group keys

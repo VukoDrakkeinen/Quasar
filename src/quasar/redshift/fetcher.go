@@ -38,6 +38,8 @@ func (this correctiveSlice) Swap(i, j int) {
 	this.chapters[i], this.chapters[j] = this.chapters[j], this.chapters[i]
 }
 
+//TODO: scheduler
+
 type fetcher struct { //TODO: handle missing plugin errors gracefully
 	plugins   map[FetcherPluginName]FetcherPlugin
 	webClient *http.Client

@@ -2,6 +2,7 @@ package redshift
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -9,6 +10,22 @@ import (
 	. "quasar/redshift/idsdict"
 	"reflect"
 	"time"
+)
+
+const (
+	hoursPerDay  time.Duration = 24
+	hoursPerWeek               = 7 * hoursPerDay
+	weekTime                   = time.Hour * hoursPerWeek
+	dayTime                    = time.Hour * hoursPerDay
+)
+
+type UpdateNotificationMode int
+
+const (
+	OnLaunch UpdateNotificationMode = iota
+	Accumulative
+	Delayed
+	Manual
 )
 
 type PluginEnabled bool
@@ -23,47 +40,30 @@ type GlobalSettings struct {
 	//TODO: default plugin priority?
 }
 
-type globalSettingsJSONProxy struct {
-	DefaultUpdateNotificationMode UpdateNotificationMode              `json:"updateNotificationMode"`
-	DefaultAccumulativeModeCount  int                                 `json:"accumulativeModeCount"`
-	DefaultDelayedModeDuration    time.Duration                       `json:"delayedModeDuration"` //TODO: serialize as hours:days:months:years?
-	DefaultDownloadsPath          string                              `json:"downloadsPath"`
-	Plugins                       map[FetcherPluginName]PluginEnabled `json:"pluginsEnabled"`
-	Languages                     map[string]LanguageEnabled          `json:"langsEnabled"`
+func (this *GlobalSettings) Save() {
+	jsonData, _ := json.MarshalIndent(this.toJSONProxy(), "", "\t")
+	WriteConfig(globalConfigFile, jsonData)
 }
 
 func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	proxy := &globalSettingsJSONProxy{
-		DefaultUpdateNotificationMode: this.DefaultUpdateNotificationMode,
+		ValidModeValues:               UpdateNotificationModeValueNames(),
+		DefaultUpdateNotificationMode: this.DefaultUpdateNotificationMode.String(),
 		DefaultAccumulativeModeCount:  this.DefaultAccumulativeModeCount,
-		DefaultDelayedModeDuration:    this.DefaultDelayedModeDuration,
+		DefaultDelayedModeDuration:    durationToSplit(this.DefaultDelayedModeDuration),
 		DefaultDownloadsPath:          this.DefaultDownloadsPath,
 		Plugins:                       this.Plugins,
+		Languages:                     make(map[string]LanguageEnabled),
 	}
-	proxy.Languages = make(map[string]LanguageEnabled)
 	for id, status := range this.Languages {
 		proxy.Languages[Langs.NameOf(id)] = status
 	}
 	return proxy
 }
 
-func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
-	settings := &GlobalSettings{
-		DefaultUpdateNotificationMode: this.DefaultUpdateNotificationMode,
-		DefaultAccumulativeModeCount:  this.DefaultAccumulativeModeCount,
-		DefaultDelayedModeDuration:    this.DefaultDelayedModeDuration,
-		DefaultDownloadsPath:          this.DefaultDownloadsPath,
-		Plugins:                       this.Plugins,
-	}
-	for lang, status := range this.Languages {
-		settings.Languages[Langs.Id(lang)] = status
-	}
-	return settings
-}
-
 func NewGlobalSettings() *GlobalSettings {
 	return &GlobalSettings{
-		DefaultUpdateNotificationMode: Immediate,
+		DefaultUpdateNotificationMode: OnLaunch,
 		DefaultAccumulativeModeCount:  10,
 		DefaultDelayedModeDuration:    time.Duration(time.Hour * 24 * 7),
 		DefaultDownloadsPath:          downloadsPath,
@@ -72,12 +72,86 @@ func NewGlobalSettings() *GlobalSettings {
 	}
 }
 
+func LoadGlobalSettings() (settings *GlobalSettings) { //TODO: refactor
+	file, err := os.Open(filepath.Join(configDir, globalConfigFile))
+	defer file.Close()
+	if os.IsNotExist(err) {
+		settings = NewGlobalSettings()
+		settings.Save()
+	} else if err != nil {
+		//TODO: handle errors
+		panic("Cannot load global settings: " + err.Error())
+	} else {
+		jsonData, _ := ioutil.ReadAll(file) //TODO: handle errors
+		var proxy globalSettingsJSONProxy
+		err := json.Unmarshal(jsonData, &proxy)
+		if err != nil {
+			//TODO: proper logging
+			fmt.Println(err)
+			fmt.Println("json:", string(jsonData))
+			settings = NewGlobalSettings()
+		} else {
+			settings = proxy.toSettings()
+		}
+	}
+	return
+}
+
+type globalSettingsJSONProxy struct {
+	ValidModeValues               []string                            //can't have comments in JSON, make it a dummy value instead
+	DefaultUpdateNotificationMode string                              `json:"UpdateNotificationMode"`
+	DefaultAccumulativeModeCount  int                                 `json:"AccumulativeModeCount"`
+	DefaultDelayedModeDuration    splitDuration                       `json:"DelayedModeDuration"`
+	DefaultDownloadsPath          string                              `json:"DownloadsPath"`
+	Plugins                       map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
+	Languages                     map[string]LanguageEnabled          `json:"LangsEnabled"`
+}
+
+func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
+	settings := &GlobalSettings{
+		DefaultUpdateNotificationMode: UpdateNotificationModeFromString(this.DefaultUpdateNotificationMode),
+		DefaultAccumulativeModeCount:  this.DefaultAccumulativeModeCount,
+		DefaultDelayedModeDuration:    this.DefaultDelayedModeDuration.toDuration(),
+		DefaultDownloadsPath:          this.DefaultDownloadsPath,
+		Plugins:                       this.Plugins,
+		Languages:                     make(map[LangId]LanguageEnabled, len(this.Languages)),
+	}
+	for lang, status := range this.Languages {
+		settings.Languages[Langs.Id(lang)] = status
+	}
+	return settings
+}
+
+type splitDuration struct {
+	Hours time.Duration `json:"hours"`
+	Days  time.Duration `json:"days"`
+	Weeks time.Duration `json:"weeks"`
+}
+
+func (this *splitDuration) toDuration() (d time.Duration) {
+	d += this.Hours * time.Hour
+	d += this.Days * dayTime
+	d += this.Weeks * weekTime
+	return
+}
+
+func durationToSplit(d time.Duration) (s splitDuration) {
+	s.Weeks, d = d/weekTime, d%weekTime
+	s.Days, d = d/dayTime, d%dayTime
+	s.Hours = d / time.Hour
+	return
+}
+
 type IndividualSettings struct {
 	UseDefaults            []bool
 	UpdateNotificationMode UpdateNotificationMode
 	AccumulativeModeCount  int
 	DelayedModeDuration    time.Duration
 	DownloadPath           string
+}
+
+func (this *IndividualSettings) Valid() bool {
+	return len(this.UseDefaults) != 0
 }
 
 func initDefaults() []bool {
@@ -96,10 +170,6 @@ func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 		DelayedModeDuration:    defaults.DefaultDelayedModeDuration,
 		DownloadPath:           defaults.DefaultDownloadsPath,
 	}
-}
-
-func (this *IndividualSettings) Valid() bool {
-	return len(this.UseDefaults) != 0
 }
 
 //TODO:
@@ -132,40 +202,3 @@ func ReadConfig(filename string) (contents []byte, err error) {
 	contents, err = ioutil.ReadAll(file)
 	return
 }
-
-func (this *GlobalSettings) Save() {
-	jsonData, _ := json.MarshalIndent(this.toJSONProxy(), "", "\t")
-	WriteConfig(globalConfigFile, jsonData)
-}
-
-func LoadGlobalSettings() (settings *GlobalSettings) { //TODO: refactor
-	file, err := os.Open(filepath.Join(configDir, globalConfigFile))
-	defer file.Close()
-	if os.IsNotExist(err) {
-		settings = NewGlobalSettings()
-		settings.Save()
-	} else if err != nil {
-		//TODO: handle errors
-		panic("Cannot load global settings: " + err.Error())
-	} else {
-		jsonData, _ := ioutil.ReadAll(file) //TODO: handle errors
-		var proxy *globalSettingsJSONProxy
-		err := json.Unmarshal(jsonData, proxy)
-		if err != nil {
-			//TODO: log error
-			settings = NewGlobalSettings()
-		} else {
-			settings = proxy.toSettings()
-		}
-	}
-	return
-}
-
-type UpdateNotificationMode int
-
-const (
-	Immediate UpdateNotificationMode = iota
-	Accumulative
-	Delayed
-	Manual
-)
