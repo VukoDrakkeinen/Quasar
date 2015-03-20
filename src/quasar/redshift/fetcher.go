@@ -1,12 +1,15 @@
 package redshift
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"errors"
-	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	. "quasar/redshift/idsdict"
 	"sort"
+	"time"
 )
 
 type correctiveSlice struct {
@@ -44,6 +47,7 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 	plugins   map[FetcherPluginName]FetcherPlugin
 	webClient *http.Client
 	settings  *GlobalSettings
+	cache     *DataCache
 }
 
 func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
@@ -53,6 +57,7 @@ func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
 			CheckRedirect: nil, //TODO: write the redirect handling function
 		},
 		settings: settings,
+		cache:    NewDataCache(),
 	}
 	if fet.settings == nil {
 		fet.settings = NewGlobalSettings()
@@ -82,60 +87,55 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 	}
 }
 
-//TODO: proper error handling
 //TODO: parallelization?
-func (this *fetcher) DownloadData(url string) []byte {
-	response, err := this.webClient.Get(url)
-	fmt.Println("Response status:", response.Status)
-	if err != nil {
-		panic("Error in Client.Get()")
+func (this *fetcher) DownloadData(url string, forceCaching bool) []byte {
+	if data, ok := this.cache.Get(url); ok {
+		return data
 	}
-	defer response.Body.Close()
+	request, err := http.NewRequest("GET", url, nil)
+	request.Header.Set("User-Agent", `Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:38.0) Gecko/20100101 Firefox/38.0`) //TODO: configurable
+	request.Header.Set("Accept", `text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`)
+	request.Header.Set("Accept-Encoding", `gzip, deflate`)
+	request.Header.Set("Accept-Language", `en-GB,en;q=0.5`)
+	request.Header.Set("DNT", `1`)
+	request.Header.Set("Connection", `keep-alive`)
+	request.Header.Set("Cache-Control", `max-age=0`)
+	response, _ := this.webClient.Do(request)
 
-	data, err := ioutil.ReadAll(response.Body)
+	switch response.StatusCode {
+	case 200: //OK, continue
+	case 301, 302:
+		return this.DownloadData(response.Header.Get("Location"), forceCaching)
+	case 502, 503, 504:
+		time.Sleep(2 * time.Second)
+		return this.DownloadData(url, forceCaching)
+	default:
+		return []byte{} //,errors.New(`Unhandled response status code "` + response.Status + `" received!`) TODO: return error?
+	}
+
+	var body io.ReadCloser = response.Body
+	defer body.Close()
+	switch response.Header.Get("Content-Encoding") {
+	case "gzip":
+		body, err = gzip.NewReader(body)
+		if err != nil {
+			return []byte{} //,qerr.Chain("Corrupted GZIP data!", err)
+		}
+		defer body.Close()
+	case "deflate":
+		body = flate.NewReader(body)
+		defer body.Close()
+	}
+
+	data, err := ioutil.ReadAll(body)
 	if err != nil {
+		return []byte{}
 		panic("Error in ioutil.ReadAll()")
+	} else if forceCaching {
+		this.cache.Add(url, data, time.Duration(0))
 	}
-	return data
+	return data //,nil
 }
-
-/*
-//TODO: proper error handling
-func (this *Fetcher) DownloadPageImage(index int, chapter comic.Chapter /*, com comic.Comic) image.Image {
-	request, err := http.NewRequest("GET", chapter.Data[pluginName].PageLinks[index], nil)
-	if err != nil {
-		fmt.Println("NewRequest error:", err)
-		return nil
-	}
-
-	response, err := this.theHTTPClient.Do(request)
-	if err != nil {
-		fmt.Println("ClientDo error:", err)
-		return nil
-	}
-
-	if sc := response.StatusCode; sc != 200 {
-		fmt.Println("Status Code invalid:", sc, "!")
-		return nil
-	}
-
-	reader := response.Body
-	if response.ContentLength == 0 {
-		fmt.Println("LENGTH 0")
-		return nil
-	}
-
-	binaryData, err := jpeg.Decode(reader)
-	if err != nil {
-		fmt.Println("Decoding error:", err)
-	}
-
-		//binaryData, err := ioutil.ReadAll(reader)
-		//if err != nil {
-		//	fmt.Println("ReadAll error:", err)
-		//}
-	return binaryData
-}//*/
 
 func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
 	for _, source := range comic.Sources() {

@@ -103,7 +103,7 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 	if this.m_fetcher == nil {
 		panic("Fetcher is nil!")
 	}
-	contents := this.fetcher().DownloadData("https://www.mangaupdates.com/series.html?page=1&stype=title&perpage=100&search=" + url.QueryEscape(title))
+	contents := this.fetcher().DownloadData("https://www.mangaupdates.com/series.html?page=1&stype=title&perpage=100&search="+url.QueryEscape(title), false)
 	urlAndTitleList := bakaUpdates_rURLAndTitleList.FindAllSubmatch(contents, -1)
 	for _, urlAndTitle := range urlAndTitleList {
 		links = append(links, string(urlAndTitle[1]))
@@ -114,7 +114,7 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 
 func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	url := comic.GetSource(this.name).URL
-	contents := this.fetcher().DownloadData(url)
+	contents := this.fetcher().DownloadData(url, false)
 	infoRegion := bakaUpdates_rInfoRegion.Find(contents)
 	title := string(bakaUpdates_rTitle.Find(infoRegion))
 	description := html.UnescapeString(string(bakaUpdates_rRemoveHTML.ReplaceAll(
@@ -161,15 +161,15 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	imageUrl := string(bakaUpdates_rImageURL.Find(infoRegion))
 	if imageUrl != "" {
 		thumbnailFilename = path.Base(imageUrl)
-		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(imageUrl))
+		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(imageUrl, false))
 	}
 	genres := make(map[ComicGenreId]struct{})
 	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(bytes.Split(bakaUpdates_rRemoveHTML.ReplaceAll(bakaUpdates_rGenres.Find(infoRegion), []byte{}), []byte("&nbsp; "))))[0].([]ComicGenreId) {
 		genres[genre] = struct{}{}
 	}
-	categoriesAjax := this.fetcher().DownloadData("https://www.mangaupdates.com/ajax/show_categories.php?type=1&s=" + bakaUpdates_rComicID.FindString(url))
+	ajax := this.fetcher().DownloadData("https://www.mangaupdates.com/ajax/show_categories.php?type=1&s="+bakaUpdates_rComicID.FindString(url), false)
 	categories := make(map[ComicTagId]struct{})
-	for _, tag := range qutils.Vals(ComicTags.AssignIdsBytes(bakaUpdates_rCategories.FindAll(categoriesAjax, -1)))[0].([]ComicTagId) {
+	for _, tag := range qutils.Vals(ComicTags.AssignIdsBytes(bakaUpdates_rCategories.FindAll(ajax, -1)))[0].([]ComicTagId) {
 		categories[tag] = struct{}{}
 	}
 	authors, _ := Authors.AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rAuthorsLine.Find(infoRegion), -1))
@@ -197,11 +197,11 @@ func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIde
 	source := comic.GetSource(this.name)
 	linkPrefix := "https://www.mangaupdates.com/releases.html?stype=series&perpage=100&search=" + bakaUpdates_rComicID.FindString(source.URL) + "&page="
 	regionsSlice := make([][]byte, 0, 20)
-	regionsSlice = append(regionsSlice, bakaUpdates_rChaptersRegion.Find(this.fetcher().DownloadData(linkPrefix+strconv.FormatInt(1, 10))))
+	regionsSlice = append(regionsSlice, bakaUpdates_rChaptersRegion.Find(this.fetcher().DownloadData(linkPrefix+strconv.FormatInt(1, 10), false)))
 	pageCountString := string(bakaUpdates_rChpListPageCount.Find(regionsSlice[0]))
 	pageCount, _ := strconv.ParseUint(pageCountString, 10, 32)
 	for i := 2; i <= int(pageCount); i++ {
-		regionsSlice = append(regionsSlice, bakaUpdates_rChaptersRegion.Find(this.fetcher().DownloadData(linkPrefix+strconv.FormatInt(int64(i), 10))))
+		regionsSlice = append(regionsSlice, bakaUpdates_rChaptersRegion.Find(this.fetcher().DownloadData(linkPrefix+strconv.FormatInt(int64(i), 10), false)))
 	}
 	identities = make([]ChapterIdentity, 0, pageCount*100)
 	chapters = make([]Chapter, 0, pageCount*100)

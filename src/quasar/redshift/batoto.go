@@ -105,7 +105,7 @@ func (this *batoto) findComicURL(title string) string {
 }
 
 func (this *batoto) findComicURLList(title string) (links []string, titles []string) {
-	contents := this.fetcher().DownloadData("http://bato.to/search?name_cond=c&name=" + url.QueryEscape(title))
+	contents := this.fetcher().DownloadData("http://bato.to/search?name_cond=c&name="+url.QueryEscape(title), false)
 	urlAndTitlesList := batoto_rResultsRegions.FindAll(contents, -1)
 	for _, urlAndTitles := range urlAndTitlesList {
 		url := string(batoto_rComicURL.Find(urlAndTitles))
@@ -126,7 +126,7 @@ func (this *batoto) findComicURLList(title string) (links []string, titles []str
 }
 
 func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
-	contents := this.fetcher().DownloadData(comic.GetSource(this.name).URL)
+	contents := this.fetcher().DownloadData(comic.GetSource(this.name).URL, true)
 	infoRegion := batoto_rInfoRegion.Find(contents)
 	title := string(batoto_rTitle.Find(infoRegion))
 	altTitles := make(map[string]struct{})
@@ -168,7 +168,7 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	thumbnailUrl := string(batoto_rImageURL.Find(infoRegion))
 	if thumbnailUrl != "" {
 		thumbnailFilename = path.Base(thumbnailUrl)
-		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(thumbnailUrl))
+		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(thumbnailUrl, false))
 	}
 	return &ComicInfo{
 		Title:             title,
@@ -189,8 +189,7 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 
 func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	source := comic.GetSource(this.name)
-	link := source.URL
-	contents := this.fetcher().DownloadData(link) //TODO: cache
+	contents := this.fetcher().DownloadData(source.URL, true)
 
 	chaptersRegion := batoto_rChaptersRegion.Find(contents)
 
@@ -245,12 +244,12 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 }
 
 func (this *batoto) fetchChapterPageLinks(url string) []string {
-	firstContents := this.fetcher().DownloadData(url)
+	firstContents := this.fetcher().DownloadData(url, false)
 	pageCount, _ := strconv.ParseUint(string(batoto_rPageCount.Find(firstContents)), 10, 8)
 	contentsSlice := make([][]byte, 0, pageCount)
 	contentsSlice = append(contentsSlice, firstContents)
 	for i := int64(3); i <= int64(pageCount); i += 2 {
-		contentsSlice = append(contentsSlice, this.fetcher().DownloadData(url+"/"+strconv.FormatInt(i, 10)))
+		contentsSlice = append(contentsSlice, this.fetcher().DownloadData(url+"/"+strconv.FormatInt(i, 10), false))
 	}
 	pageLinks := make([]string, 0, pageCount)
 	for _, contents := range contentsSlice {
