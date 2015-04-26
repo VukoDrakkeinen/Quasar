@@ -59,8 +59,6 @@ const ( //SQL Statements Group keys
 	sourcesQuery   = "sourcesQuery"
 )
 
-type sourceIndex int
-type priorityIndex int
 type Comic struct {
 	Info     ComicInfo
 	Settings IndividualSettings
@@ -70,14 +68,18 @@ type Comic struct {
 	chaptersOrder     ChapterIdentitiesSlice
 	chapters          map[ChapterIdentity]Chapter
 	scanlatorPriority []JointScanlatorIds
+	cachedReadCount   int
 
 	sqlId int64
 }
+type sourceIndex int
+type priorityIndex int
 
 func NewComic() *Comic { //TODO: set settings
 	return &Comic{
 		sourceIdxByPlugin: make(map[FetcherPluginName]sourceIndex),
 		chapters:          make(map[ChapterIdentity]Chapter),
+		cachedReadCount:   -1,
 	}
 }
 
@@ -123,6 +125,7 @@ func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO
 }
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
+	this.cachedReadCount = -1                                                                                          //TODO?: update instead of invalidating
 	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
@@ -137,6 +140,7 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 }
 
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
+	this.cachedReadCount = -1 //TODO?: update instead of invalidating
 	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
@@ -191,6 +195,21 @@ func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) {
 
 func (this *Comic) ChapterCount() int {
 	return len(this.chaptersOrder)
+}
+
+func (this *Comic) ChaptersReadCount() int {
+	if this.cachedReadCount != -1 {
+		return this.cachedReadCount
+	}
+	var readCount int
+	for i := 0; i < this.ChapterCount(); i++ {
+
+		if chapter, _ := this.GetChapter(i); chapter.AlreadyRead {
+			readCount++
+		}
+	}
+	this.cachedReadCount = readCount
+	return readCount
 }
 
 func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
