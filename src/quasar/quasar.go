@@ -2,18 +2,19 @@ package main
 
 import (
 	"fmt"
-	///"gopkg.in/qml.v1"
-	///"os"
+	"gopkg.in/qml.v1"
+	"os"
+	"quasar/gui"
 	"quasar/redshift"
 )
 
 func main() {
-	///if err := qml.Run(launchGUI); err != nil {
-	///	fmt.Fprintf(os.Stderr, "error: %v\n", err)
-	///	os.Exit(1)
-	///}
+	if err := qml.Run(launchGUI); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
-	///return
+	return
 
 	globals, _ := redshift.LoadGlobalSettings()
 	fmt.Println("Creating Fetcher")
@@ -29,14 +30,6 @@ func main() {
 	fmt.Println("Finding comic URL")
 	fet.TestFind(comic, batoto.PluginName(), "Kingdom")
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
-	/*fmt.Println("Adding UpdateSource")
-	comic.AddSource(redshift.UpdateSource{
-		PluginName: redshift.FetcherPluginName("BATOTO"),
-		//URL:        "http://bato.to/comic/_/comics/guilty-crown-r2323", //lel
-		//URL:        "http://bato.to/comic/_/comics/kimi-no-iru-machi-r29",
-		URL:        "http://bato.to/comic/_/comics/kingdom-r642",
-		MarkAsRead: false,
-	})	//*/
 	fmt.Println("Downloading ComicInfo")
 	fet.DownloadComicInfoFor(comic)
 	fmt.Println(comic.Info)
@@ -70,28 +63,30 @@ func main() {
 	fmt.Println(id, chapter)
 }
 
-///func launchGUI() error {
-///	engine := qml.NewEngine()
-///
-///	controls, err := engine.LoadFile("/home/vuko/Projects/QML/Fullerene-UI/Fullerene-UI.qml")
-///	if err != nil {
-///		return err
-///	}
-///	window := controls.CreateWindow(nil)
-///	var settings *redshift.GlobalSettings
-///	go func() {
-///		settings = redshift.LoadGlobalSettings()
-///		chooser := window.Object("optsWindow").Object("chooser")
-///		chooser.Call("setValues", int(settings.DefaultUpdateNotificationMode), settings.DefaultAccumulativeModeCount, nil) //TODO: duration
-///	}()
-//go initializeData(window)
+func launchGUI() error {
+	qml.RegisterTypes("QuasarGUI", 1, 0, []qml.TypeSpec{
+		{Init: gui.InitSplitDurationValidator},
+	})
 
-//wybieracz := window.Object("optsWindow").Object("chooser")
-//wybieracz.On("componentCompleted", func() { fmt.Println("Hello func") })
-//wybieracz.Call("setValues", int(redshift.Delayed), 88, nil)
+	engine := qml.NewEngine()
+	context := engine.Context()
+	modelCommon := qml.CommonOf(gui.NewModel(), engine)
+	context.SetVar("comicListModel", modelCommon)
+	//context.SetVar("notifModeChooser", 0)
 
-///	window.Show()
-///	window.Wait()
-///	settings.Save()
-///	return nil
-///}
+	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml")
+	if err != nil {
+		return err
+	}
+	window := controls.CreateWindow(nil)
+	//var settings *redshift.GlobalSettings
+	/*go func() {
+		chooser := window.ObjectByName("notifModeChooser")
+		chooser.Call("setValues", int(settings.DefaultUpdateNotificationMode), settings.DefaultAccumulativeModeCount, nil) //TODO: duration
+	}()//*/
+
+	window.Show()
+	window.Wait()
+	//settings.Save()
+	return nil
+}

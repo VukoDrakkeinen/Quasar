@@ -40,7 +40,7 @@ type GlobalSettings struct {
 	//TODO: default plugin priority?
 }
 
-func (this *GlobalSettings) Save() {
+func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
 	jsonData, _ := json.MarshalIndent(this.toJSONProxy(), "", "\t")
 	WriteConfig(globalConfigFile, jsonData)
 }
