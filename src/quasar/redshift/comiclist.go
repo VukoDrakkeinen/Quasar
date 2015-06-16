@@ -3,10 +3,12 @@ package redshift
 import (
 	"fmt"
 	"log"
+	"math"
 	"quasar/qutils/qerr"
 	"quasar/redshift/idsdict"
 	"quasar/redshift/qdb"
 	"strings"
+	"time"
 )
 
 var (
@@ -40,17 +42,127 @@ var (
 		tag TEXT UNIQUE NOT NULL
 	);
 	`
-	idsInsertionPreCmd = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
-	idsQueryPreCmd     = `SELECT $colName FROM $tableName;` //TODO?: use placeholders?
-
+	scheduleSchema = `
+	CREATE TABLE IF NOT EXISTS schedule(
+		comicId INTEGER PRIMARY KEY,
+		nextFetchTime TIMESTAMP NOT NULL
+	);
+	`
+	idsInsertionPreCmd   = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
+	idsQueryPreCmd       = `SELECT $colName FROM $tableName;` //TODO?: use placeholders?
+	scheduleInsertionCmd = `INSERT OR REPLACE INTO schedule(comicId, nextFetchTime) VALUES((SELECT id FROM comics WHERE id = ?), ?);`
+	scheduleQueryCmd     = `SELECT nextFetchTime FROM schedule WHERE comicId = ?;`
 )
 
-type ComicList []*Comic
+func NewComicList(fetcher *fetcher) ComicList {
+	return ComicList{
+		comics:         make([]*Comic, 0, 10),
+		interruptChans: make([]chan struct{}, 0, 10),
+		fetcher:        fetcher,
+	}
+}
+
+type ComicList struct {
+	comics         []*Comic
+	updatedAt      []time.Time
+	nextFetchTimes []time.Time
+	interruptChans []chan struct{}
+	fetcher        *fetcher
+}
+
+func (this *ComicList) AddComics(comics []*Comic) {
+	this.comics = append(this.comics, comics...)
+	interruptChans := make([]chan struct{}, len(comics))
+	for i := range interruptChans {
+		interruptChans[i] = make(chan struct{})
+	}
+	this.interruptChans = append(this.interruptChans, interruptChans...)
+	this.nextFetchTimes = append(this.nextFetchTimes, make([]time.Time, len(comics))...)
+	this.updatedAt = append(this.updatedAt, make([]time.Time, len(comics))...)
+}
+
+func (this *ComicList) RemoveComics(index, count int64) {
+	this.comics = append(this.comics[:index], this.comics[index+count:]...)
+	this.interruptChans = append(this.interruptChans[:index], this.interruptChans[index+count:]...)
+	this.nextFetchTimes = append(this.nextFetchTimes[:index], this.nextFetchTimes[index+count:]...)
+	this.updatedAt = append(this.updatedAt[:index], this.updatedAt[index+count:]...)
+}
+
+func (this ComicList) ComicLastUpdated(idx int) time.Time {
+	return this.updatedAt[idx]
+}
+
+//TODO: remove
+func (this ComicList) Hack_Comics() []*Comic {
+	return this.comics
+}
+
+func (this ComicList) ScheduleComicFetches() {
+	this.cancelSchedule()
+
+	for i, comic := range this.comics {
+		cSettings := comic.Settings()
+		fSettings := this.fetcher.settings
+		var duration time.Duration
+		if overrideFrequency := cSettings.OverrideDefaults[2]; overrideFrequency {
+			duration = cSettings.FetchFrequency
+		} else {
+			duration = fSettings.FetchFrequency
+		}
+		fetchOnStartup := fSettings.FetchOnStartup
+		intervalFetching := fSettings.IntervalFetching
+
+		go func() {
+			i := i
+			fmt.Println("  Old schedule", this.nextFetchTimes[i])
+			now := time.Now().UTC()
+			if fetchOnStartup {
+				fmt.Println("  Fetch On Startup: Enabled")
+				this.fetcher.DownloadChapterListFor(comic)
+				this.updatedAt[i] = now //TODO?: actual now?
+				this.nextFetchTimes[i] = now.Add(duration)
+			} else if this.nextFetchTimes[i].Before(now) {
+				fmt.Println("  Scheduled time in the past; adjusting...")
+				this.fetcher.DownloadChapterListFor(comic)
+				this.updatedAt[i] = now
+				multiplier := divThenCeil(now.Sub(this.nextFetchTimes[i]), duration)
+				this.nextFetchTimes[i].Add(multiplier * duration)
+			}
+			fmt.Println("  Scheduled fetch for", this.nextFetchTimes[i])
+
+			if intervalFetching {
+				fmt.Println("#  Interval Fetching Task Started")
+				for {
+					select {
+					case <-time.After(this.nextFetchTimes[i].Sub(now)):
+						this.fetcher.DownloadChapterListFor(comic)
+						now := time.Now().UTC()
+						this.updatedAt[i] = now
+						this.nextFetchTimes[i] = now.Add(duration)
+					case <-this.interruptChans[i]:
+						return
+					}
+				}
+			}
+		}()
+	}
+}
+
+/*
+func (this ComicList) RescheduleComicFetch(comicIdx int) {
+	close(this.interruptChans[comicIdx])
+	this.ScheduleComicFetches() //TODO: just one, jeez
+}
+//*/
 
 func CreateDB(db *qdb.QDB) (err error) {
 	transaction, _ := db.Begin()
 	defer transaction.Rollback()
 	_, err = transaction.Exec(idsSchema)
+	if err != nil {
+		return qerr.NewLocated(err)
+	}
+	_, err = transaction.Exec(scheduleSchema)
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
@@ -71,7 +183,7 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 	}
 	err := CreateDB(db)
 	if err != nil {
-		fmt.Println(err) //TODO: proper logging
+		fmt.Println(qerr.NewLocated(err)) //TODO: proper logging
 		//panic()	//TODO?
 		return
 	}
@@ -99,25 +211,36 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 		}
 		transaction.Commit()
 	}
+	fmt.Println("\tIds write complete.")
+	fmt.Println("\t Writing", len(this.comics), "comics")
 
+	scheduleInsertionStmt := db.MustPrepare(scheduleInsertionCmd)
 	dbStmts := SQLComicInsertStmts(db)
 	defer dbStmts.Close()
-	for _, comic := range this {
+	for i, comic := range this.comics {
 		transaction, _ := db.Begin()
 		stmts := dbStmts.ToTransactionSpecific(transaction)
 
 		err := comic.SQLInsert(stmts)
-		if err != nil { // statements are closed by Commit() or Rollback()
+		if err != nil { // no need to manually close statements, Commit() or Rollback() take care of that
+			fmt.Println("Error while saving, rolling back")
 			transaction.Rollback()
-			fmt.Println(err)
+			fmt.Println(qerr.NewLocated(err))
 		} else {
 			transaction.Commit()
+			fmt.Println("  Saving scheduled fetch time", this.nextFetchTimes[i])
+			_, err := scheduleInsertionStmt.Exec(comic.sqlId, this.nextFetchTimes[i])
+			if err != nil {
+				fmt.Println(qerr.NewLocated(err))
+			}
 		}
+
 	}
 }
 
-func LoadComicList() (list ComicList, err error) {
-	log.SetFlags(log.Ltime | log.Lshortfile)
+func (list ComicList) LoadFromDB() (err error) {
+	list.cancelSchedule()
+	log.SetFlags(log.Ltime | log.Lshortfile) //TODO: proper logging
 	db := qdb.DB()
 	CreateDB(db)
 	transaction, _ := db.Begin()
@@ -139,7 +262,7 @@ func LoadComicList() (list ComicList, err error) {
 		idsQueryStmt, _ := transaction.Prepare(rep.Replace(idsQueryPreCmd))
 		err := tuple.dict.ExecuteQueryStmt(idsQueryStmt)
 		if err != nil {
-			return list, err
+			return qerr.NewLocated(err)
 		}
 		idsQueryStmt.Close()
 	}
@@ -147,18 +270,40 @@ func LoadComicList() (list ComicList, err error) {
 	dbStmts := SQLComicQueryStmts(db)
 	defer dbStmts.Close()
 	stmts := dbStmts.ToTransactionSpecific(transaction)
+	scheduleQueryStmt := db.MustPrepare(scheduleQueryCmd)
 	comicRows, err := stmts[comicsQuery].Query()
 	if err != nil {
-		return list, qerr.NewLocated(err)
+		return qerr.NewLocated(err)
 	}
 	for comicRows.Next() {
 		comic, err := SQLComicQuery(comicRows, stmts)
 		if err != nil {
-			return list, err
+			return qerr.NewLocated(err)
 		}
-		list = append(list, comic)
+		list.comics = append(list.comics, comic)
+		var nextFetchTime time.Time
+		err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime)
+		nextFetchTime = nextFetchTime.UTC()
+		list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
+		fmt.Println("  Loaded scheduled fetch time", list.nextFetchTimes[len(list.nextFetchTimes)-1])
+		if err != nil {
+			return qerr.NewLocated(err)
+		}
 	}
 
 	transaction.Commit()
 	return
+}
+
+func (this *ComicList) cancelSchedule() {
+	for i, interrupt := range this.interruptChans {
+		close(interrupt)
+		this.interruptChans[i] = make(chan struct{})
+	}
+}
+
+func divThenCeil(divident, divisor time.Duration) (multiplier time.Duration) {
+	x := float64(divident)
+	y := float64(divisor)
+	return time.Duration(math.Ceil(x / y))
 }

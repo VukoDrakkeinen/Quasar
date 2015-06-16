@@ -52,6 +52,7 @@ var (
 
 type batoto struct {
 	name      FetcherPluginName
+	settings  PerPluginSettings
 	m_fetcher *fetcher
 }
 
@@ -90,6 +91,19 @@ func (this *batoto) Capabilities() FetcherPluginCapabilities {
 	}
 }
 
+func (this *batoto) Settings() PerPluginSettings {
+	return this.settings
+}
+
+func (this *batoto) SetSettings(new PerPluginSettings) {
+	if overrideMaxConns := new.OverrideDefaults[4]; overrideMaxConns {
+		this.fetcher().connLimits[this.name] = new.MaxConnectionsToHost
+	} else {
+		this.fetcher().connLimits[this.name] = 0
+	}
+	this.settings = new
+}
+
 func (this *batoto) IsURLValid(url string) bool {
 	return batoto_rURLValidator.MatchString(url)
 }
@@ -105,13 +119,16 @@ func (this *batoto) findComicURL(title string) string {
 }
 
 func (this *batoto) findComicURLList(title string) (links []string, titles []string) {
-	contents := this.fetcher().DownloadData("http://bato.to/search?name_cond=c&name="+url.QueryEscape(title), false)
+	contents, err := this.fetcher().DownloadData(this.name, "http://bato.to/search?name_cond=c&name="+url.QueryEscape(title), false)
+	if err != nil {
+		panic(err)
+	}
 	urlAndTitlesList := batoto_rResultsRegions.FindAll(contents, -1)
 	for _, urlAndTitles := range urlAndTitlesList {
 		url := string(batoto_rComicURL.Find(urlAndTitles))
 		ctitles := batoto_rComicTitles.FindSubmatch(urlAndTitles)
 		/*
-			[0] is whole match
+			[0] is entire match
 			[1] is first title
 			[2] is second title (optional)
 		*/
@@ -126,7 +143,10 @@ func (this *batoto) findComicURLList(title string) (links []string, titles []str
 }
 
 func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
-	contents := this.fetcher().DownloadData(comic.GetSource(this.name).URL, true)
+	contents, err := this.fetcher().DownloadData(this.name, comic.GetSource(this.name).URL, true)
+	if err != nil {
+		panic(err)
+	}
 	infoRegion := batoto_rInfoRegion.Find(contents)
 	title := string(batoto_rTitle.Find(infoRegion))
 	altTitles := make(map[string]struct{})
@@ -168,7 +188,11 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	thumbnailUrl := string(batoto_rImageURL.Find(infoRegion))
 	if thumbnailUrl != "" {
 		thumbnailFilename = path.Base(thumbnailUrl)
-		qdb.SaveThumbnail(thumbnailFilename, this.fetcher().DownloadData(thumbnailUrl, false))
+		thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
+		if err != nil {
+			panic(err)
+		}
+		qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 	}
 	return &ComicInfo{
 		Title:             title,
@@ -189,7 +213,10 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 
 func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	source := comic.GetSource(this.name)
-	contents := this.fetcher().DownloadData(source.URL, true)
+	contents, err := this.fetcher().DownloadData(this.name, source.URL, true)
+	if err != nil {
+		panic(err)
+	}
 
 	chaptersRegion := batoto_rChaptersRegion.Find(contents)
 
@@ -244,12 +271,19 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 }
 
 func (this *batoto) fetchChapterPageLinks(url string) []string {
-	firstContents := this.fetcher().DownloadData(url, false)
+	firstContents, err := this.fetcher().DownloadData(this.name, url, false)
+	if err != nil {
+		panic(err)
+	}
 	pageCount, _ := strconv.ParseUint(string(batoto_rPageCount.Find(firstContents)), 10, 8)
 	contentsSlice := make([][]byte, 0, pageCount)
 	contentsSlice = append(contentsSlice, firstContents)
 	for i := int64(3); i <= int64(pageCount); i += 2 {
-		contentsSlice = append(contentsSlice, this.fetcher().DownloadData(url+"/"+strconv.FormatInt(i, 10), false))
+		contents, err := this.fetcher().DownloadData(this.name, url+"/"+strconv.FormatInt(i, 10), false)
+		if err != nil {
+			panic(err)
+		}
+		contentsSlice = append(contentsSlice, contents)
 	}
 	pageLinks := make([]string, 0, pageCount)
 	for _, contents := range contentsSlice {

@@ -3,10 +3,12 @@ package redshift
 import "strconv"
 
 type FetcherPluginName string
-type FetcherPlugin interface {
+type FetcherPlugin interface { //TODO: shared implementation
 	PluginName() FetcherPluginName
 	Languages() []string
 	Capabilities() FetcherPluginCapabilities
+	Settings() PerPluginSettings
+	SetSettings(new PerPluginSettings)
 	IsURLValid(url string) bool
 	findComicURL(title string) string
 	findComicURLList(title string) (links []string, titles []string)

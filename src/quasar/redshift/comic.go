@@ -2,11 +2,15 @@ package redshift
 
 import (
 	"database/sql"
+	//"fmt"
 	"math"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
 	"quasar/redshift/qdb"
+	//"runtime"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -59,9 +63,9 @@ const ( //SQL Statements Group keys
 	sourcesQuery   = "sourcesQuery"
 )
 
-type Comic struct {
-	Info     ComicInfo
-	Settings IndividualSettings
+type Comic struct { //TODO: make it race-safe!
+	info     ComicInfo
+	settings IndividualSettings
 
 	sourceIdxByPlugin map[FetcherPluginName]sourceIndex //also pluginSet
 	sources           []UpdateSource                    //also pluginPriority
@@ -71,16 +75,72 @@ type Comic struct {
 	cachedReadCount   int
 
 	sqlId int64
+
+	lock sync.RWMutex
 }
 type sourceIndex int
 type priorityIndex int
 
-func NewComic() *Comic { //TODO: set settings
+/*
+type syncRWMutex struct {
+	internal sync.RWMutex
+}
+
+func (this *syncRWMutex) Lock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#+Locking at %s:%d\n", file, line)
+	this.internal.Lock()
+}
+
+func (this *syncRWMutex) Unlock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#-Unlocking at %s:%d\n", file, line)
+	this.internal.Unlock()
+}
+
+func (this *syncRWMutex) RLock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#+RLocking at %s:%d\n", file, line)
+	this.internal.RLock()
+}
+
+func (this *syncRWMutex) RUnlock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#-RUnlocking at %s:%d\n", file, line)
+	this.internal.RUnlock()
+} //*/
+
+func NewComic(settings IndividualSettings) *Comic {
 	return &Comic{
+		settings:          settings,
 		sourceIdxByPlugin: make(map[FetcherPluginName]sourceIndex),
 		chapters:          make(map[ChapterIdentity]Chapter),
 		cachedReadCount:   -1,
 	}
+}
+
+func (this *Comic) Info() ComicInfo {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	return this.info
+}
+
+func (this *Comic) SetInfo(info ComicInfo) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.info = info
+}
+
+func (this *Comic) Settings() IndividualSettings {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	return this.settings
+}
+
+func (this *Comic) SetSettings(stts IndividualSettings) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.settings = stts
 }
 
 func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
@@ -88,6 +148,8 @@ func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
 }
 
 func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded bool) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	existingIndex, alreadyAdded := this.sourceIdxByPlugin[source.PluginName]
 	if alreadyAdded {
 		source.sqlId = this.sources[existingIndex].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
@@ -106,6 +168,8 @@ func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded boo
 }
 
 func (this *Comic) RemoveSource(source UpdateSource) (success bool) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	index, exists := this.sourceIdxByPlugin[source.PluginName]
 	if exists {
 		this.sources = append(this.sources[:index], this.sources[index+1:]...)
@@ -114,18 +178,23 @@ func (this *Comic) RemoveSource(source UpdateSource) (success bool) {
 }
 
 func (this *Comic) Sources() []UpdateSource {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	ret := make([]UpdateSource, len(this.sources))
 	copy(ret, this.sources)
 	return ret
 }
 
 func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO: not found -> error?
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	index := this.sourceIdxByPlugin[pluginName]
 	return this.sources[index]
 }
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
-	this.cachedReadCount = -1                                                                                          //TODO?: update instead of invalidating
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
@@ -135,12 +204,16 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 		chapter.SetParent(this)
 		this.chapters[identity] = *chapter
 		this.chaptersOrder = this.chaptersOrder.Insert(this.chaptersOrder.vestedIndexOf(identity), identity)
+		if chapter.AlreadyRead {
+			this.cachedReadCount += 1
+		}
 	}
 	return
 }
 
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
-	this.cachedReadCount = -1 //TODO?: update instead of invalidating
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
@@ -160,6 +233,9 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		} else {
 			chapter.SetParent(this)
 			this.chapters[identity] = chapter
+			if chapter.AlreadyRead {
+				this.cachedReadCount += 1
+			}
 			if !newStart { //Sequence started, set starting index, set creation status to true
 				startIndex = i
 				newStart = true
@@ -171,55 +247,76 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		newStart = false
 	}
 
-	for i := 0; i < len(nonexistentSlices); i++ {
-		neSlice := nonexistentSlices[i]
+	for _, neSlice := range nonexistentSlices {
 		insertionIndex := int(this.chaptersOrder.vestedIndexOf(neSlice[0]))
 		this.chaptersOrder = this.chaptersOrder.InsertMultiple(insertionIndex, neSlice)
 	}
 }
 
 func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //FIXME: bounds check?
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	identity := this.chaptersOrder[index]
 	return this.chapters[identity], identity
 }
 
 func (this *Comic) ScanlatorsPriority() []JointScanlatorIds {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	ret := make([]JointScanlatorIds, len(this.sources))
 	copy(ret, this.scanlatorPriority)
 	return ret
 }
 
 func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	this.scanlatorPriority = priority
 }
 
 func (this *Comic) ChapterCount() int {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	return len(this.chaptersOrder)
 }
 
 func (this *Comic) ChaptersReadCount() int {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	if this.cachedReadCount != -1 {
 		return this.cachedReadCount
 	}
 	var readCount int
-	for i := 0; i < this.ChapterCount(); i++ {
+	chapterCount := this.ChapterCount() //IT'S CALLED EVERY ITERATION?! O_O
+	for i := 0; i < chapterCount; i++ {
 
 		if chapter, _ := this.GetChapter(i); chapter.AlreadyRead {
 			readCount++
 		}
 	}
+	this.lock.RUnlock()
+	this.lock.Lock()
 	this.cachedReadCount = readCount
+	this.lock.Unlock()
+	this.lock.RLock()
 	return readCount
 }
 
+func (this *Comic) SQLId() int64 {
+	return atomic.LoadInt64(&this.sqlId)
+}
+
 func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	var newId int64
 	result, err := stmts[comicInsertion].Exec(
 		this.sqlId,
-		this.Info.Title, this.Info.Type, this.Info.Status, this.Info.ScanlationStatus, this.Info.Description,
-		this.Info.Rating, this.Info.Mature, this.Info.ThumbnailFilename,
-		qutils.BoolsToBitfield(this.Settings.UseDefaults), this.Settings.UpdateNotificationMode,
-		this.Settings.AccumulativeModeCount, this.Settings.DelayedModeDuration,
+		this.info.Title, this.info.Type, this.info.Status, this.info.ScanlationStatus, this.info.Description,
+		this.info.Rating, this.info.Mature, this.info.ThumbnailFilename,
+		qutils.BoolsToBitfield(this.settings.OverrideDefaults), this.settings.FetchOnStartup,
+		this.settings.IntervalFetching, this.settings.FetchFrequency, this.settings.NotificationMode,
+		this.settings.AccumulativeModeCount, this.settings.DelayedModeDuration,
 	)
 	if err != nil {
 		return qerr.NewLocated(err)
@@ -228,14 +325,16 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
+	this.lock.RUnlock()
+	this.lock.Lock()
 	this.sqlId = newId
 
-	if this.Info.altSQLIds == nil {
-		this.Info.altSQLIds = make(map[string]int64)
+	if this.info.titlesSQLIds == nil {
+		this.info.titlesSQLIds = make(map[string]int64)
 	}
-	for title := range this.Info.AltTitles {
+	for title := range this.info.AltTitles {
 		var newATId int64
-		result, err = stmts[altTitleInsertion].Exec(this.Info.altSQLIds[title], title)
+		result, err = stmts[altTitleInsertion].Exec(this.info.titlesSQLIds[title], title)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -243,20 +342,22 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
-		this.Info.altSQLIds[title] = newATId
+		this.info.titlesSQLIds[title] = newATId
 		stmts[altTitleRelation].Exec(this.sqlId, newATId)
 	}
+	this.lock.Unlock()
+	this.lock.RLock()
 
-	for _, author := range this.Info.Authors {
+	for _, author := range this.info.Authors {
 		stmts[authorRelation].Exec(this.sqlId, author)
 	}
-	for _, artist := range this.Info.Artists {
+	for _, artist := range this.info.Artists {
 		stmts[artistRelation].Exec(this.sqlId, artist)
 	}
-	for genre := range this.Info.Genres {
+	for genre := range this.info.Genres {
 		stmts[genreRelation].Exec(this.sqlId, genre)
 	}
-	for tag := range this.Info.Categories {
+	for tag := range this.info.Categories {
 		stmts[tagRelation].Exec(this.sqlId, tag)
 	}
 
@@ -267,6 +368,8 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		}
 	}
 
+	this.lock.RUnlock()
+	this.lock.Lock()
 	for _, identity := range this.chaptersOrder {
 		chapter := this.chapters[identity] //can't take a pointer
 		err = chapter.SQLInsert(identity, stmts)
@@ -275,31 +378,36 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		}
 		this.chapters[identity] = chapter //so reinsert
 	}
+	this.lock.Unlock()
+	this.lock.RLock()
 
 	return nil
 }
 
 func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
-	comic := NewComic()
-	info := &comic.Info
-	info.altSQLIds = make(map[string]int64)
+	comic := NewComic(IndividualSettings{})
+	info := &comic.info
+	info.titlesSQLIds = make(map[string]int64)
 	stts := IndividualSettings{}
 	var comicId int64
 	var thumbnailFilename sql.NullString
-	var useDefaultsBitfield uint64
+	var overrideDefaultsBitfield uint64
+	var fetchFreq int64
 	var duration int64
 	err := rows.Scan(
 		&comic.sqlId,
 		&info.Title, &info.Type, &info.Status, &info.ScanlationStatus, &info.Description, &info.Rating, &info.Mature, &thumbnailFilename,
-		&useDefaultsBitfield, &stts.UpdateNotificationMode, &stts.AccumulativeModeCount, &duration,
+		&overrideDefaultsBitfield, &stts.FetchOnStartup, &stts.IntervalFetching, &fetchFreq, &stts.NotificationMode,
+		&stts.AccumulativeModeCount, &duration,
 	)
 	if err != nil {
 		return nil, qerr.NewLocated(err)
 	}
 	info.ThumbnailFilename = thumbnailFilename.String
 	stts.DelayedModeDuration = time.Duration(duration)
-	stts.UseDefaults = qutils.BitfieldToBools(useDefaultsBitfield)
-	comic.Settings = stts
+	stts.OverrideDefaults = qutils.BitfieldToBools(overrideDefaultsBitfield)
+	stts.FetchFrequency = time.Duration(fetchFreq)
+	comic.settings = stts
 
 	altTitleRows, err := stmts[altTitlesQuery].Query(comicId)
 	if err != nil {
@@ -314,7 +422,7 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 			return nil, qerr.NewLocated(err)
 		}
 		info.AltTitles[title] = struct{}{}
-		info.altSQLIds[title] = titleId
+		info.titlesSQLIds[title] = titleId
 	}
 
 	authorRows, err := stmts[authorsQuery].Query(comicId)
@@ -417,6 +525,9 @@ func SQLComicSchema() string {
 		thumbnailFilename TEXT,
 		-- settings
 		useDefaultsBits INTEGER NOT NULL,
+		fetchOnStartup INTEGER,
+		intervalFetching INTEGER,
+		fetchFrequency INTEGER,
 		notifMode INTEGER,
 		accumCount INTEGER,
 		delayDuration INTEGER,
@@ -456,8 +567,8 @@ func SQLComicInsertStmts(db *qdb.QDB) (stmts qdb.StmtGroup) {
 		INSERT OR REPLACE INTO comics(
 			id,
 			title, type, status, scanStatus, desc, rating, mature, thumbnailFilename,
-			useDefaultsBits, notifMode, accumCount, delayDuration
-		) VALUES((SELECT id FROM comics WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`)
+			useDefaultsBits, fetchOnStartup, intervalFetching, fetchFrequency, notifMode, accumCount, delayDuration
+		) VALUES((SELECT id FROM comics WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`)
 	stmts[altTitleInsertion] = db.MustPrepare(`INSERT OR REPLACE INTO altTitles(id, title) VALUES((SELECT id FROM altTitles WHERE id = ?), ?);`)
 	stmts[altTitleRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Comic_AltTitles(comicId, titleId) VALUES(?, ?);`)
 	stmts[authorRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Comic_Authors(comicId, authorId) VALUES(?, ?);`)
@@ -475,7 +586,7 @@ func SQLComicQueryStmts(db *qdb.QDB) (stmts qdb.StmtGroup) {
 		SELECT
 			id,
 			title, type, status, scanStatus, desc, rating, mature, thumbnailFilename,
-			useDefaultsBits, notifMode, accumCount, delayDuration
+			useDefaultsBits, fetchOnStartup, intervalFetching, fetchFrequency, notifMode, accumCount, delayDuration
 		FROM comics;`)
 	stmts[altTitlesQuery] = db.MustPrepare(`SELECT id, title FROM altTitles WHERE id IN (SELECT titleId FROM rel_Comic_AltTitles WHERE comicId = ?);`)
 	stmts[authorsQuery] = db.MustPrepare(`SELECT authorId FROM rel_Comic_Authors WHERE comicId = ?;`)
@@ -560,10 +671,11 @@ type ComicInfo struct {
 	Mature            bool
 	ThumbnailFilename string
 
-	altSQLIds map[string]int64
+	titlesSQLIds map[string]int64
 }
 
-func (this *ComicInfo) MergeWith(another *ComicInfo) {
+//func (this *ComicInfo) MergeWith(another *ComicInfo) (merged *ComicInfo) {
+func (this ComicInfo) MergeWith(another *ComicInfo) (merged *ComicInfo) {
 	if this.AltTitles == nil {
 		this.AltTitles = make(map[string]struct{})
 		this.Genres = make(map[ComicGenreId]struct{})
@@ -642,4 +754,6 @@ func (this *ComicInfo) MergeWith(another *ComicInfo) {
 	if this.ThumbnailFilename == "" {
 		this.ThumbnailFilename = another.ThumbnailFilename
 	}
+
+	return &this
 }

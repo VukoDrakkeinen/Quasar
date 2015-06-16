@@ -18,25 +18,29 @@ const (
 	weekTime                   = time.Hour * hoursPerWeek
 	dayTime                    = time.Hour * hoursPerDay
 )
-
-type UpdateNotificationMode int
-
 const (
-	OnLaunch UpdateNotificationMode = iota
+	Immediate NotificationMode = iota
 	Accumulative
 	Delayed
-	Manual
 )
 
-type PluginEnabled bool
-type LanguageEnabled bool
+type (
+	NotificationMode int
+	PluginEnabled    bool
+	LanguageEnabled  bool
+)
+
 type GlobalSettings struct {
-	DefaultUpdateNotificationMode UpdateNotificationMode
-	DefaultAccumulativeModeCount  int
-	DefaultDelayedModeDuration    time.Duration
-	DefaultDownloadsPath          string
-	Plugins                       map[FetcherPluginName]PluginEnabled
-	Languages                     map[LangId]LanguageEnabled
+	FetchOnStartup        bool
+	IntervalFetching      bool
+	FetchFrequency        time.Duration
+	MaxConnectionsToHost  int
+	NotificationMode      NotificationMode
+	AccumulativeModeCount int
+	DelayedModeDuration   time.Duration
+	DownloadsPath         string
+	Plugins               map[FetcherPluginName]PluginEnabled
+	Languages             map[LangId]LanguageEnabled
 	//TODO: default plugin priority?
 }
 
@@ -47,13 +51,14 @@ func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
 
 func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	proxy := &globalSettingsJSONProxy{
-		ValidModeValues:               UpdateNotificationModeValueNames(),
-		DefaultUpdateNotificationMode: this.DefaultUpdateNotificationMode.String(),
-		DefaultAccumulativeModeCount:  this.DefaultAccumulativeModeCount,
-		DefaultDelayedModeDuration:    durationToSplit(this.DefaultDelayedModeDuration),
-		DefaultDownloadsPath:          this.DefaultDownloadsPath,
-		Plugins:                       this.Plugins,
-		Languages:                     make(map[string]LanguageEnabled),
+		FetchFrequency:        durationToSplit(this.FetchFrequency),
+		ValidModeValues:       NotificationModeValueNames(),
+		NotificationMode:      this.NotificationMode.String(),
+		AccumulativeModeCount: this.AccumulativeModeCount,
+		DelayedModeDuration:   durationToSplit(this.DelayedModeDuration),
+		DownloadsPath:         this.DownloadsPath,
+		Plugins:               this.Plugins,
+		Languages:             make(map[string]LanguageEnabled),
 	}
 	for id, status := range this.Languages {
 		proxy.Languages[Langs.NameOf(id)] = status
@@ -63,12 +68,16 @@ func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 
 func NewGlobalSettings() *GlobalSettings {
 	return &GlobalSettings{
-		DefaultUpdateNotificationMode: OnLaunch,
-		DefaultAccumulativeModeCount:  10,
-		DefaultDelayedModeDuration:    time.Duration(time.Hour * 24 * 7),
-		DefaultDownloadsPath:          downloadsPath,
-		Plugins:                       make(map[FetcherPluginName]PluginEnabled),
-		Languages:                     map[LangId]LanguageEnabled{ENGLISH_LANG(): LanguageEnabled(true)},
+		FetchOnStartup:        true,
+		IntervalFetching:      true,
+		FetchFrequency:        time.Duration(time.Hour * 3),
+		MaxConnectionsToHost:  50,
+		NotificationMode:      Immediate,
+		AccumulativeModeCount: 10,
+		DelayedModeDuration:   time.Duration(time.Hour * 24 * 7),
+		DownloadsPath:         downloadsPath,
+		Plugins:               make(map[FetcherPluginName]PluginEnabled),
+		Languages:             map[LangId]LanguageEnabled{ENGLISH_LANG(): LanguageEnabled(true)},
 	}
 }
 
@@ -83,7 +92,7 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 		return nil, err
 	}
 	jsonData, _ := ioutil.ReadAll(file)
-	var proxy globalSettingsJSONProxy
+	var proxy globalSettingsJSONProxy = *NewGlobalSettings().toJSONProxy()
 	err = json.Unmarshal(jsonData, &proxy)
 	if err != nil {
 		return nil, qerr.NewParse("Error while unmarshaling settings", err, string(jsonData))
@@ -94,23 +103,31 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 }
 
 type globalSettingsJSONProxy struct {
-	ValidModeValues               []string                            //can't have comments in JSON, make it a dummy value instead
-	DefaultUpdateNotificationMode string                              `json:"UpdateNotificationMode"`
-	DefaultAccumulativeModeCount  int                                 `json:"AccumulativeModeCount"`
-	DefaultDelayedModeDuration    splitDuration                       `json:"DelayedModeDuration"`
-	DefaultDownloadsPath          string                              `json:"DownloadsPath"`
-	Plugins                       map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
-	Languages                     map[string]LanguageEnabled          `json:"LangsEnabled"`
+	FetchOnStartup        bool
+	IntervalFetching      bool
+	FetchFrequency        splitDuration
+	MaxConnectionsToHost  int
+	ValidModeValues       []string //can't have comments in JSON, make it a dummy value instead
+	NotificationMode      string
+	AccumulativeModeCount int
+	DelayedModeDuration   splitDuration
+	DownloadsPath         string
+	Plugins               map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
+	Languages             map[string]LanguageEnabled          `json:"LangsEnabled"`
 }
 
 func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 	settings := &GlobalSettings{
-		DefaultUpdateNotificationMode: UpdateNotificationModeFromString(this.DefaultUpdateNotificationMode),
-		DefaultAccumulativeModeCount:  this.DefaultAccumulativeModeCount,
-		DefaultDelayedModeDuration:    this.DefaultDelayedModeDuration.toDuration(),
-		DefaultDownloadsPath:          this.DefaultDownloadsPath,
-		Plugins:                       this.Plugins,
-		Languages:                     make(map[LangId]LanguageEnabled, len(this.Languages)),
+		FetchOnStartup:        this.FetchOnStartup,
+		IntervalFetching:      this.IntervalFetching,
+		FetchFrequency:        this.FetchFrequency.toDuration(),
+		MaxConnectionsToHost:  this.MaxConnectionsToHost,
+		NotificationMode:      NotificationModeFromString(this.NotificationMode),
+		AccumulativeModeCount: this.AccumulativeModeCount,
+		DelayedModeDuration:   this.DelayedModeDuration.toDuration(),
+		DownloadsPath:         this.DownloadsPath,
+		Plugins:               this.Plugins,
+		Languages:             make(map[LangId]LanguageEnabled, len(this.Languages)),
 	}
 	for lang, status := range this.Languages {
 		settings.Languages[Langs.Id(lang)] = status
@@ -138,33 +155,28 @@ func durationToSplit(d time.Duration) (s splitDuration) {
 	return
 }
 
-type IndividualSettings struct {
-	UseDefaults            []bool
-	UpdateNotificationMode UpdateNotificationMode
-	AccumulativeModeCount  int
-	DelayedModeDuration    time.Duration
-	DownloadPath           string
+type IndividualSettings struct { //TODO: rename -> PerComicSettings
+	OverrideDefaults      []bool
+	FetchOnStartup        bool
+	IntervalFetching      bool
+	FetchFrequency        time.Duration
+	NotificationMode      NotificationMode
+	AccumulativeModeCount int
+	DelayedModeDuration   time.Duration
+	DownloadPath          string
 }
 
 func (this *IndividualSettings) Valid() bool {
-	return len(this.UseDefaults) != 0
-}
-
-func initDefaults() []bool {
-	ret := make([]bool, 0, reflect.TypeOf(IndividualSettings{}).NumField()-1)
-	for i := 0; i < cap(ret); i++ {
-		ret = append(ret, true)
-	}
-	return ret
+	return len(this.OverrideDefaults) != 0
 }
 
 func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 	return &IndividualSettings{
-		UseDefaults:            initDefaults(),
-		UpdateNotificationMode: defaults.DefaultUpdateNotificationMode,
-		AccumulativeModeCount:  defaults.DefaultAccumulativeModeCount,
-		DelayedModeDuration:    defaults.DefaultDelayedModeDuration,
-		DownloadPath:           defaults.DefaultDownloadsPath,
+		OverrideDefaults:      make([]bool, reflect.TypeOf(IndividualSettings{}).NumField()-1),
+		NotificationMode:      defaults.NotificationMode,
+		AccumulativeModeCount: defaults.AccumulativeModeCount,
+		DelayedModeDuration:   defaults.DelayedModeDuration,
+		DownloadPath:          defaults.DownloadsPath,
 	}
 }
 
@@ -196,4 +208,30 @@ func ReadConfig(filename string) (contents []byte, err error) {
 	}
 	contents, err = ioutil.ReadAll(file)
 	return
+}
+
+type PerPluginSettings struct {
+	OverrideDefaults      []bool
+	FetchOnStartup        bool
+	IntervalFetching      bool
+	FetchFrequency        time.Duration
+	MaxConnectionsToHost  int
+	NotificationMode      NotificationMode
+	AccumulativeModeCount int
+	DelayedModeDuration   time.Duration
+	Languages             map[LangId]LanguageEnabled
+}
+
+func NewPerPluginSettings(defaults *GlobalSettings) PerPluginSettings {
+	return PerPluginSettings{
+		OverrideDefaults:      make([]bool, reflect.TypeOf(PerPluginSettings{}).NumField()-1),
+		FetchOnStartup:        defaults.FetchOnStartup,
+		IntervalFetching:      defaults.IntervalFetching,
+		FetchFrequency:        defaults.FetchFrequency,
+		MaxConnectionsToHost:  defaults.MaxConnectionsToHost,
+		NotificationMode:      defaults.NotificationMode,
+		AccumulativeModeCount: defaults.AccumulativeModeCount,
+		DelayedModeDuration:   defaults.DelayedModeDuration,
+		Languages:             defaults.Languages,
+	}
 }

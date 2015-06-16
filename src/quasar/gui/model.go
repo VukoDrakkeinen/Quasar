@@ -10,6 +10,7 @@ import "C"
 import (
 	"fmt"
 	"math/rand"
+	"quasar/redshift"
 	"strconv"
 	"time"
 	"unsafe"
@@ -36,7 +37,7 @@ type QList unsafe.Pointer
 
 func NewDummyData() QList {
 	gen := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
-	var slice []QInfoRow
+	var infoRows []QInfoRow
 	for i := 0; i < 10; i++ {
 		r := gen.Intn(9948)
 		row := QInfoRow{
@@ -50,35 +51,46 @@ func NewDummyData() QList {
 		if row.status == QNoUpdates {
 			row.chapRead = row.chapTotal
 		}
-		slice = append(slice, row)
+		infoRows = append(infoRows, row)
 	}
 	var Integer int
 	qlist := C.newList(
-		unsafe.Pointer(&slice[0]), C.int(unsafe.Sizeof(slice[0])), C.int(len(slice)),
-		C.int(unsafe.Offsetof(slice[0].title)), C.int(unsafe.Offsetof(slice[0].chapTotal)), C.int(unsafe.Offsetof(slice[0].chapRead)),
-		C.int(unsafe.Offsetof(slice[0].updated)), C.int(unsafe.Offsetof(slice[0].progress)), C.int(unsafe.Offsetof(slice[0].status)),
+		unsafe.Pointer(&infoRows[0]), C.int(unsafe.Sizeof(infoRows[0])), C.int(len(infoRows)),
+		C.int(unsafe.Offsetof(infoRows[0].title)), C.int(unsafe.Offsetof(infoRows[0].chapTotal)), C.int(unsafe.Offsetof(infoRows[0].chapRead)),
+		C.int(unsafe.Offsetof(infoRows[0].updated)), C.int(unsafe.Offsetof(infoRows[0].progress)), C.int(unsafe.Offsetof(infoRows[0].status)),
 		C.int(unsafe.Sizeof(&Integer)), C.int(unsafe.Sizeof(Integer)),
 	)
 	return QList(qlist)
 }
 
-func NewModel( /*list redshift.ComicList*/ ) unsafe.Pointer {
-	/*
-		for _, comic := range list {
-			info := comic.Info
-			info.Title
-			chapTotal := comic.ChapterCount()
-			chapRead := comic.ChaptersReadCount()
-			updated := time.Now()
-			progress := 30
-			status := QNoUpdates
-			if chapRead < chapTotal {
-				status = QNewChapters
-			}
-		}//*/
-	qlist := NewDummyData()
+func NewDummyModel() unsafe.Pointer {
+	var model unsafe.Pointer = C.newModel(unsafe.Pointer(NewDummyData()))
+	//fmt.Println(model)
+	return model
+}
+
+func NewModel(list redshift.ComicList) unsafe.Pointer {
+	var infoRows []QInfoRow
+	for i, comic := range list.Hack_Comics() {
+		info := comic.Info()
+		row := QInfoRow{
+			title:     info.Title,
+			chapTotal: comic.ChapterCount(),
+			chapRead:  comic.ChaptersReadCount(),
+			updated:   list.ComicLastUpdated(i).Unix(),
+			progress:  100,          //TODO
+			status:    QNewChapters, //TODO
+		}
+		infoRows = append(infoRows, row)
+	}
+	var Integer int
+	qlist := C.newList(
+		unsafe.Pointer(&infoRows[0]), C.int(unsafe.Sizeof(infoRows[0])), C.int(len(infoRows)),
+		C.int(unsafe.Offsetof(infoRows[0].title)), C.int(unsafe.Offsetof(infoRows[0].chapTotal)), C.int(unsafe.Offsetof(infoRows[0].chapRead)),
+		C.int(unsafe.Offsetof(infoRows[0].updated)), C.int(unsafe.Offsetof(infoRows[0].progress)), C.int(unsafe.Offsetof(infoRows[0].status)),
+		C.int(unsafe.Sizeof(&Integer)), C.int(unsafe.Sizeof(Integer)),
+	)
 	var model unsafe.Pointer = C.newModel(unsafe.Pointer(qlist))
-	//var model string = "asldjakld"
-	fmt.Println(model)
+	fmt.Println("Model:", model)
 	return model
 }
