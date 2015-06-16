@@ -6,9 +6,7 @@ import QuasarGUI 1.0
 Item {
 	implicitHeight: layout.height
 	implicitWidth: layout.width
-	
-	//objectName: "czuzer"
-	
+
 	signal componentCompleted()
 	Component.onCompleted: componentCompleted
 	
@@ -93,12 +91,6 @@ Item {
 				maximumValue: 290	//larger values overflow Go's time.Duration
 				validator: dateValidator
 			}
-		}
-		
-		DisablingRadioButton {
-			Layout.columnSpan: 2
-			text: qsTr("Manual")
-			disabler: notifmode
 		}
 	}
 }
