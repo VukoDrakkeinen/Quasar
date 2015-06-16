@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"quasar/qutils/qerr"
 	"strconv"
 )
 
@@ -31,7 +32,7 @@ type QDB struct {
 func (this *QDB) MustPrepare(query string) *sql.Stmt {
 	ret, err := this.Prepare(query)
 	if err != nil {
-		panic(`DB: Prepare(` + strconv.Quote(query) + `): ` + err.Error())
+		panic(`DB: Prepare(` + strconv.Quote(query) + `): ` + qerr.NewEmbeddedLocated(err).Error())
 	}
 	return ret
 }
