@@ -12,16 +12,11 @@ type locatedErr struct {
 }
 
 func NewLocated(parent error) error {
-	if parent == nil {
-		return nil
-	}
-	e := &locatedErr{parent: parent, file: "???", line: 0}
-	_, file, line, success := runtime.Caller(1)
-	if success {
-		e.file = file
-		e.line = line
-	}
-	return e
+	return newLocated(parent, 2)
+}
+
+func NewEmbeddedLocated(parent error) error {
+	return newLocated(parent, 3)
 }
 
 func (this locatedErr) Error() string {
@@ -30,4 +25,17 @@ func (this locatedErr) Error() string {
 
 func (this locatedErr) Parent() error {
 	return this.parent
+}
+
+func newLocated(parent error, ascendFrames int) error {
+	if parent == nil {
+		return nil
+	}
+	e := &locatedErr{parent: parent, file: "???", line: 0}
+	_, file, line, success := runtime.Caller(ascendFrames)
+	if success {
+		e.file = file
+		e.line = line
+	}
+	return e
 }
