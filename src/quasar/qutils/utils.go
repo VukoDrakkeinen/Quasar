@@ -19,7 +19,8 @@ func Contains(list interface{}, elem interface{}) bool {
 		panic("Contains: types do not match!")
 	}
 	slice := reflect.ValueOf(list)
-	for i := 0; i < slice.Len(); i++ {
+	sliceLen := slice.Len()
+	for i := 0; i < sliceLen; i++ {
 		if slice.Index(i).Interface() == elem {
 			return true
 		}
@@ -32,7 +33,8 @@ func IndexOf(list interface{}, elem interface{}) (int, error) {
 		panic("IndexOf: types do not match!")
 	}
 	slice := reflect.ValueOf(list)
-	for i := 0; i < slice.Len(); i++ {
+	sliceLen := slice.Len()
+	for i := 0; i < sliceLen; i++ {
 		if slice.Index(i).Interface() == elem {
 			return i, nil
 		}
@@ -55,7 +57,8 @@ func SetAppendSlice(list interface{}, elems interface{}) (newList interface{}) {
 	//TODO: type assert
 	listSlice := reflect.ValueOf(list)
 	elemsSlice := reflect.ValueOf(elems)
-	for i := 0; i < elemsSlice.Len(); i++ {
+	sliceLen := elemsSlice.Len()
+	for i := 0; i < sliceLen; i++ {
 		elem := elemsSlice.Index(i)
 		if !Contains(list, elem.Interface()) {
 			listSlice = reflect.Append(listSlice, elem)
@@ -82,7 +85,8 @@ func BoolsToBitfield(table []bool) (bitfield uint64) {
 
 func BitfieldToBools(bitfield uint64) (table []bool) {
 	elvisOp := map[uint64]bool{0: false, 1: true}
-	for i := 0; i < BitLen(bitfield); i++ {
+	bitLength := BitLen(bitfield)
+	for i := 0; i < bitLength; i++ {
 		table = append(table, elvisOp[(bitfield>>uint64(i))&^0xFFFFFFFFFFFFFFFE])
 	}
 	return
