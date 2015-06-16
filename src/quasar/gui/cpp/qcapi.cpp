@@ -10,7 +10,7 @@ using goint = quintptr;
 
 QList_* newList(void* data, int elemSize, int len, int titleOffset, int chapTotalOffset, int chapReadOffset, int dateTimeOffset, int progressOffset, int statusOffset, int ptrSize, int intSize) {
 	auto list = new QList<InfoRow>();
-	for (int i = 0; i < len; i++) {
+	for (int i = 0; i < len; i++) { //Jesus Christ, all that pointer magic *_*
 		quintptr elemPtr = (quintptr) data + (elemSize*i);
 		char* goStr = (char*)*(quintptr*)(elemPtr+titleOffset);
 		goint slen = *(goint*)(elemPtr+titleOffset+ptrSize);

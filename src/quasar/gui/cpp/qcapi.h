@@ -1,8 +1,8 @@
 #ifndef QCAPI_H
 #define QCAPI_H
 
-//#include "capi.h"
-#include "/home/vuko/Projects/GoLang/GoPath/src/gopkg.in/qml.v1/cpp/capi.h" //TODO: relative path!
+#include "capi.h"
+//#include "~/Projects/GoLang/GoPath/src/gopkg.in/qml.v1/cpp/capi.h"
 
 #ifdef __cplusplus
 extern "C" {
