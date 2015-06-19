@@ -35,7 +35,7 @@ var (
 	batoto_rExtractStrict   = qregexp.MustCompile(`(?<=">)[^<]+(?=<)`)
 
 	batoto_rChaptersRegion   = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
-	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")http://bato.to/read/_/[^"]+(?="><img src=)`)
+	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")http://bato.to/read/_/[^"]+(?=" title)`)
 	batoto_rIdentityAndTitle = qregexp.MustCompile(`/> ([^ ]* *[^ ]+)(?: Read Online|: ([^<]+))`)
 	batoto_rScanlator        = qregexp.MustCompile(`(?<=bato.to/group/_/[^"]+">)[^<]+`)
 	batoto_rLang             = qregexp.MustCompile(`(?<=<div title=")[^"]+`)
