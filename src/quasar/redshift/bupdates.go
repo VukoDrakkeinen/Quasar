@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
@@ -230,21 +231,28 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	source := comic.GetSource(this.name)
 	linkPrefix := "https://www.mangaupdates.com/releases.html?stype=series&perpage=100&search=" + bakaUpdates_rComicID.FindString(source.URL) + "&page="
-	regionsSlice := make([][]byte, 0, 20)
-	region, err := this.fetcher().DownloadData(this.name, linkPrefix+strconv.FormatInt(1, 10), false)
+	region, err := this.fetcher().DownloadData(this.name, linkPrefix+"1", false)
 	if err != nil {
 		panic(err)
 	}
-	regionsSlice = append(regionsSlice, bakaUpdates_rChaptersRegion.Find(region))
-	pageCountString := string(bakaUpdates_rChpListPageCount.Find(regionsSlice[0]))
+	firstRegion := bakaUpdates_rChaptersRegion.Find(region)
+	pageCountString := string(bakaUpdates_rChpListPageCount.Find(firstRegion))
 	pageCount, _ := strconv.ParseUint(pageCountString, 10, 32)
+	regionsSlice := make([][]byte, pageCount)
+	var wg sync.WaitGroup
 	for i := 2; i <= int(pageCount); i++ {
-		region, err := this.fetcher().DownloadData(this.name, linkPrefix+strconv.FormatInt(int64(i), 10), false)
-		if err != nil {
-			panic(err)
-		}
-		regionsSlice = append(regionsSlice, bakaUpdates_rChaptersRegion.Find(region))
+		i := i
+		wg.Add(1)
+		go func() {
+			region, err := this.fetcher().DownloadData(this.name, linkPrefix+strconv.FormatInt(int64(i), 10), false)
+			if err != nil {
+				panic(err)
+			}
+			regionsSlice[i-1] = bakaUpdates_rChaptersRegion.Find(region)
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 	identities = make([]ChapterIdentity, 0, pageCount*100)
 	chapters = make([]Chapter, 0, pageCount*100)
 

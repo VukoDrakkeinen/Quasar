@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
@@ -276,15 +277,23 @@ func (this *batoto) fetchChapterPageLinks(url string) []string {
 		panic(err)
 	}
 	pageCount, _ := strconv.ParseUint(string(batoto_rPageCount.Find(firstContents)), 10, 8)
-	contentsSlice := make([][]byte, 0, pageCount)
-	contentsSlice = append(contentsSlice, firstContents)
+	contentsSlice := make([][]byte, (pageCount+1)/2) //We don't have to download all the pages, they also contain a link to the next image
+	contentsSlice[0] = firstContents
+	idx := 1
+	var wg sync.WaitGroup
 	for i := int64(3); i <= int64(pageCount); i += 2 {
-		contents, err := this.fetcher().DownloadData(this.name, url+"/"+strconv.FormatInt(i, 10), false)
-		if err != nil {
-			panic(err)
-		}
-		contentsSlice = append(contentsSlice, contents)
+		wg.Add(1)
+		go func(sliceIdx int, pageIdx int64) {
+			defer wg.Done()
+			contents, err := this.fetcher().DownloadData(this.name, url+"/"+strconv.FormatInt(pageIdx, 10), false)
+			if err != nil {
+				panic(err)
+			}
+			contentsSlice[sliceIdx] = contents
+		}(idx, i)
+		idx++
 	}
+	wg.Wait()
 	pageLinks := make([]string, 0, pageCount)
 	for _, contents := range contentsSlice {
 		pageLinks = append(pageLinks, string(batoto_rImageLink1.Find(contents)))

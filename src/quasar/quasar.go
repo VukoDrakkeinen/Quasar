@@ -3,20 +3,20 @@ package main
 import (
 	"fmt"
 	"gopkg.in/qml.v1"
-	"os"
+	//"os"
 	"quasar/gui"
 	"quasar/redshift"
 	"time"
 )
 
 func main() {
+	/*
+		if err := qml.Run(launchGUI); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 
-	if err := qml.Run(launchGUI); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-
-	return
+		return//*/
 
 	globals, _ := redshift.LoadGlobalSettings()
 	fmt.Println("Creating Fetcher")
@@ -42,23 +42,23 @@ func main() {
 	}
 
 	//return
+	/*
+		fmt.Println("Saving to DB")
+		list := redshift.NewComicList(fet)
+		list.AddComics([]*redshift.Comic{comic})
+		list.ScheduleComicFetches()
+		time.Sleep(5 * time.Second) //Wait for the background tasks to complete
+		list.SaveToDB()
+		fmt.Println("Saved")
+		fmt.Println("Loading from DB")
+		err := list.LoadFromDB()
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("Loaded")
 
-	fmt.Println("Saving to DB")
-	list := redshift.NewComicList(fet)
-	list.AddComics([]*redshift.Comic{comic})
-	list.ScheduleComicFetches()
-	time.Sleep(5 * time.Second) //Wait for the background tasks to complete
-	list.SaveToDB()
-	fmt.Println("Saved")
-	fmt.Println("Loading from DB")
-	err := list.LoadFromDB()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("Loaded")
-
-	return
-
+		return
+	*/
 	fmt.Println("\nDownloading Page Links for Chapter:0 Scanlation:0")
 	fet.DownloadPageLinksFor(comic, 0, 0)
 	chapter, id := comic.GetChapter(0)

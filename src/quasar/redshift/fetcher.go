@@ -162,7 +162,10 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 		request.Header.Set("DNT", `1`)
 		request.Header.Set("Connection", `keep-alive`)
 		request.Header.Set("Cache-Control", `max-age=0`)
-		response, _ := this.webClient.Do(request)
+		response, err := this.webClient.Do(request)
+		if err != nil {
+			return nil, err
+		}
 
 		switch response.StatusCode {
 		case 200:
@@ -202,10 +205,10 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 			time.Sleep(2 * time.Second)
 			continue
 		default:
-			return []byte{}, errors.New(`Unhandled response status code "` + response.Status + `" received!`)
+			return nil, errors.New(`Unhandled response status code "` + response.Status + `" received!`)
 		}
 	}
-	return []byte{}, errors.New(`Maximum amount of retries exceeded!`)
+	return nil, errors.New(`Maximum amount of retries exceeded!`)
 }
 
 func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
