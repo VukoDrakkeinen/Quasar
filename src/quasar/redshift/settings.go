@@ -71,7 +71,7 @@ func NewGlobalSettings() *GlobalSettings {
 		FetchOnStartup:        true,
 		IntervalFetching:      true,
 		FetchFrequency:        time.Duration(time.Hour * 3),
-		MaxConnectionsToHost:  50,
+		MaxConnectionsToHost:  10,
 		NotificationMode:      Immediate,
 		AccumulativeModeCount: 10,
 		DelayedModeDuration:   time.Duration(time.Hour * 24 * 7),
