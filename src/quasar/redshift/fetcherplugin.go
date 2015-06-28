@@ -3,6 +3,8 @@ package redshift
 import "strconv"
 
 type FetcherPluginName string
+
+//TODO: also fetch adverts (we don't want to leech!)
 type FetcherPlugin interface { //TODO: shared implementation
 	PluginName() FetcherPluginName
 	Languages() []string

@@ -79,7 +79,7 @@ ApplicationWindow {
 				}
 
 				TableViewColumn {
-					title: "Unread"
+					title: "Read"
 					width: 90
 				}
 

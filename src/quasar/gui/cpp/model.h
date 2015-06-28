@@ -5,20 +5,20 @@
 #include <QDateTime>
 #include <QtQml>
 
-enum class ComicStatus {
+enum class UpdateStatus {
 	NoUpdates,
 	Updating,
 	NewChapters,
 	Error
 };
-Q_DECLARE_METATYPE(ComicStatus)
+Q_DECLARE_METATYPE(UpdateStatus)
 
-struct InfoRow {
-	QString title;
+struct UpdateInfoRow {
+	QString comicTitle;
 	int chapTotal, chapRead;
 	QDateTime updated;
 	int progress;
-	ComicStatus status;
+	UpdateStatus status;
 };
 
 class ComicListModel : public QAbstractTableModel
@@ -27,7 +27,7 @@ class ComicListModel : public QAbstractTableModel
 
 	public:
 		ComicListModel() {};
-		ComicListModel(QList<InfoRow> store);
+		ComicListModel(QList<UpdateInfoRow> store);
 		virtual ~ComicListModel();
 	public:
 		int rowCount(const QModelIndex& parent = QModelIndex()) const;
@@ -35,16 +35,16 @@ class ComicListModel : public QAbstractTableModel
 		QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const;
 		QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const;
 		QHash<int, QByteArray> roleNames() const;
-		void setStore(QList<InfoRow> store);
-		bool appendRow(const InfoRow& row);
-		bool appendRows(const QList<InfoRow> rows);
+		void setStore(QList<UpdateInfoRow> store);
+		bool appendRow(const UpdateInfoRow& row);
+		bool appendRows(const QList<UpdateInfoRow> rows);
 		bool removeRows(int row, int count, const QModelIndex& parent = QModelIndex());
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 		//bool insertRows(int row, int count, const QModelIndex& parent = QModelIndex());
 		//bool insertColumns(int column, int count, const QModelIndex & parent = QModelIndex());
 		//bool removeColumns(int column, int count, const QModelIndex & parent = QModelIndex());
 	private:
-		QList<InfoRow> store;
+		QList<UpdateInfoRow> store;
 	public:
 		enum DataRole {
 			CellTypeRole = Qt::UserRole,

@@ -9,10 +9,10 @@ import "C"
 
 import (
 	"fmt"
-	"math/rand"
 	"quasar/redshift"
-	"strconv"
-	"time"
+	. "quasar/redshift/idsdict"
+	"reflect"
+	"sort"
 	"unsafe"
 )
 
@@ -25,7 +25,7 @@ const (
 	QError
 )
 
-type QInfoRow struct {
+type QUpdateInfoRow struct {
 	title     string
 	chapTotal int
 	chapRead  int
@@ -33,47 +33,12 @@ type QInfoRow struct {
 	progress  int
 	status    QComicStatus
 }
-type QList unsafe.Pointer
 
-func NewDummyData() QList {
-	gen := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
-	var infoRows []QInfoRow
-	for i := 0; i < 10; i++ {
-		r := gen.Intn(9948)
-		row := QInfoRow{
-			title:     "Title " + strconv.FormatInt(int64(r), 10),
-			chapTotal: r,
-			chapRead:  r / 2,
-			updated:   time.Now().Add(-time.Duration(r) * time.Minute * time.Duration(3)).Unix(),
-			progress:  r % 101,
-			status:    QComicStatus(r % (int(QError) + 1)),
-		}
-		if row.status == QNoUpdates {
-			row.chapRead = row.chapTotal
-		}
-		infoRows = append(infoRows, row)
-	}
-	var Integer int
-	qlist := C.newList(
-		unsafe.Pointer(&infoRows[0]), C.int(unsafe.Sizeof(infoRows[0])), C.int(len(infoRows)),
-		C.int(unsafe.Offsetof(infoRows[0].title)), C.int(unsafe.Offsetof(infoRows[0].chapTotal)), C.int(unsafe.Offsetof(infoRows[0].chapRead)),
-		C.int(unsafe.Offsetof(infoRows[0].updated)), C.int(unsafe.Offsetof(infoRows[0].progress)), C.int(unsafe.Offsetof(infoRows[0].status)),
-		C.int(unsafe.Sizeof(&Integer)), C.int(unsafe.Sizeof(Integer)),
-	)
-	return QList(qlist)
-}
-
-func NewDummyModel() unsafe.Pointer {
-	var model unsafe.Pointer = C.newModel(unsafe.Pointer(NewDummyData()))
-	//fmt.Println(model)
-	return model
-}
-
-func NewModel(list redshift.ComicList) unsafe.Pointer {
-	var infoRows []QInfoRow
+func NewModel(list redshift.ComicList) (model unsafe.Pointer) {
+	var updateInfoRows []QUpdateInfoRow
 	for i, comic := range list.Hack_Comics() {
 		info := comic.Info()
-		row := QInfoRow{
+		row := QUpdateInfoRow{
 			title:     info.Title,
 			chapTotal: comic.ChapterCount(),
 			chapRead:  comic.ChaptersReadCount(),
@@ -81,16 +46,91 @@ func NewModel(list redshift.ComicList) unsafe.Pointer {
 			progress:  100,          //TODO
 			status:    QNewChapters, //TODO
 		}
-		infoRows = append(infoRows, row)
+		updateInfoRows = append(updateInfoRows, row)
 	}
-	var Integer int
+
+	var elem QUpdateInfoRow
 	qlist := C.newList(
-		unsafe.Pointer(&infoRows[0]), C.int(unsafe.Sizeof(infoRows[0])), C.int(len(infoRows)),
-		C.int(unsafe.Offsetof(infoRows[0].title)), C.int(unsafe.Offsetof(infoRows[0].chapTotal)), C.int(unsafe.Offsetof(infoRows[0].chapRead)),
-		C.int(unsafe.Offsetof(infoRows[0].updated)), C.int(unsafe.Offsetof(infoRows[0].progress)), C.int(unsafe.Offsetof(infoRows[0].status)),
-		C.int(unsafe.Sizeof(&Integer)), C.int(unsafe.Sizeof(Integer)),
+		arrayPtr(updateInfoRows), C.int(unsafe.Sizeof(elem)), C.int(len(updateInfoRows)),
+		C.int(unsafe.Offsetof(elem.title)), C.int(unsafe.Offsetof(elem.chapTotal)), C.int(unsafe.Offsetof(elem.chapRead)),
+		C.int(unsafe.Offsetof(elem.updated)), C.int(unsafe.Offsetof(elem.progress)), C.int(unsafe.Offsetof(elem.status)),
 	)
-	var model unsafe.Pointer = C.newModel(unsafe.Pointer(qlist))
+	model = C.newModel(unsafe.Pointer(qlist))
 	fmt.Println("Model:", model)
 	return model
+}
+
+type CoComicInfo struct {
+	Titles     []string
+	Genres     []ComicGenreId
+	Categories []ComicTagId
+}
+
+func NewComicInfoModel(list redshift.ComicList) (model unsafe.Pointer) {
+	var infos []redshift.ComicInfo
+	var coInfos []CoComicInfo
+	for _, comic := range list.Hack_Comics() {
+		info := comic.Info()
+		infos = append(infos, info)
+		var altTitles []string
+		var genres []ComicGenreId
+		var tags []ComicTagId
+		for altTitle := range info.AltTitles {
+			altTitles = append(altTitles, altTitle)
+		}
+		for genre := range info.Genres {
+			genres = append(genres, genre)
+		}
+		for tag := range info.Categories {
+			tags = append(tags, tag)
+		}
+		sort.Strings(altTitles)
+		var compileTimeTypeCheck int
+		var failurePoint Id
+		compileTimeTypeCheck = int(failurePoint) //Will fail if Id's underlying type will be ever changed from int
+		failurePoint = Id(compileTimeTypeCheck)  //I'm just too lazy to write sortable SomethingIdSlice structs :3
+		sort.Ints(*(*[]int)(unsafe.Pointer(&genres)))
+		sort.Ints(*(*[]int)(unsafe.Pointer(&tags)))
+		coinfo := CoComicInfo{
+			Titles:     altTitles,
+			Genres:     genres,
+			Categories: tags,
+		}
+		coInfos = append(coInfos, coinfo)
+	}
+
+	var elem1 redshift.ComicInfo
+	var elem2 CoComicInfo
+	offsets := [...]uintptr{
+		unsafe.Offsetof(elem1.Title),
+		unsafe.Offsetof(elem1.Authors),
+		unsafe.Offsetof(elem1.Artists),
+		unsafe.Offsetof(elem1.Type),
+		unsafe.Offsetof(elem1.Status),
+		unsafe.Offsetof(elem1.ScanlationStatus),
+		unsafe.Offsetof(elem1.Description),
+		unsafe.Offsetof(elem1.Rating),
+		unsafe.Offsetof(elem1.Mature),
+		unsafe.Offsetof(elem1.ThumbnailFilename),
+		unsafe.Offsetof(elem2.Titles),
+		unsafe.Offsetof(elem2.Genres),
+		unsafe.Offsetof(elem2.Categories),
+	}
+
+	qlist := C.newComicInfoList(
+		arrayPtr(infos), arrayPtr(coInfos),
+		C.int(len(infos)), C.int(unsafe.Sizeof(elem1)), C.int(unsafe.Sizeof(elem2)),
+		unsafe.Pointer(&offsets),
+	)
+	model = C.newInfoModel(unsafe.Pointer(qlist))
+	fmt.Println("IModel:", model)
+	return model
+}
+
+func arrayPtr(slice interface{}) (internal unsafe.Pointer) {
+	val := reflect.ValueOf(slice)
+	if val.Kind() == reflect.Slice {
+		return unsafe.Pointer(val.Pointer())
+	}
+	panic("arrayPtr: invalid type, expected Array or Slice, got " + val.Kind().String())
 }

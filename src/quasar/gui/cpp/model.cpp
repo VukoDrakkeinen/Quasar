@@ -4,7 +4,7 @@
 #include <QLocale>
 #include <QDebug>
 
-ComicListModel::ComicListModel(QList<InfoRow> store): QAbstractTableModel(), store(store) {}
+ComicListModel::ComicListModel(QList<UpdateInfoRow> store): QAbstractTableModel(), store(store) {}
 ComicListModel::~ComicListModel() {}
 
 int ComicListModel::rowCount(const QModelIndex& parent) const
@@ -33,19 +33,19 @@ QVariant ComicListModel::data(const QModelIndex& index, int role) const
 
 			switch (row.status)
 			{
-				case ComicStatus::Error:
+				case UpdateStatus::Error:
 					color = "red";
 					break;
 
-				case ComicStatus::NewChapters:
+				case UpdateStatus::NewChapters:
 					color = "green";
 					break;
 
-				case ComicStatus::NoUpdates:
+				case UpdateStatus::NoUpdates:
 					color = "gray";
 					break;
 
-				case ComicStatus::Updating:
+				case UpdateStatus::Updating:
 					color = "deepskyblue";
 					break;
 			}
@@ -58,7 +58,7 @@ QVariant ComicListModel::data(const QModelIndex& index, int role) const
 			switch (index.column())
 			{
 				case 0:
-					return row.title;
+					return row.comicTitle;
 					break;
 
 				case 1:
@@ -160,7 +160,7 @@ QVariant ComicListModel::headerData(int section, Qt::Orientation orientation, in
 	return QVariant();
 }
 
-bool ComicListModel::appendRow(const InfoRow& row)
+bool ComicListModel::appendRow(const UpdateInfoRow& row)
 {
 	this->beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount());
 	this->store.append(row);
@@ -168,14 +168,14 @@ bool ComicListModel::appendRow(const InfoRow& row)
 	return true;
 }
 
-void ComicListModel::setStore(QList<InfoRow> store)
+void ComicListModel::setStore(QList<UpdateInfoRow> store)
 {
 	this->beginResetModel();
 	this->store = store;
 	this->endResetModel();
 }
 
-bool ComicListModel::appendRows(const QList<InfoRow> rows)
+bool ComicListModel::appendRows(const QList<UpdateInfoRow> rows)
 {
 	this->beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount() + rows.count());
 	this->store.append(rows);
@@ -208,8 +208,8 @@ QVariant ComicListModel::qmlGet(int row, int column, const QString& roleName)
 {
 	auto role = this->roleNames().key(roleName.toLatin1(), -1);
 	auto var = this->data(this->createIndex(row, column), role);
-	if (QString(var.typeName()) == "ComicStatus") {    //WORKAROUND: QML shitty enumerator handling
-		return (uint) var.value<ComicStatus>();
+	if (QString(var.typeName()) == "UpdateStatus") {    //WORKAROUND: QML shitty enumerator handling
+		return (uint) var.value<UpdateStatus>();
 	}
 	return var;
 }

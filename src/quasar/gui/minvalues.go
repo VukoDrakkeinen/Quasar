@@ -27,7 +27,7 @@ func (this *ValuesValidator) UnbindObject(obj qml.Object) {
 func (this *ValuesValidator) Work() {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("ValuesValidator: provided function panicked:", err)
+			fmt.Println("ValuesValidator: provided function panicked:", err) //TODO: proper logging
 		}
 	}()
 	if len(this.children) == 0 {

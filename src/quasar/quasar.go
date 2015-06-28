@@ -3,20 +3,22 @@ package main
 import (
 	"fmt"
 	"gopkg.in/qml.v1"
-	//"os"
+	"os"
 	"quasar/gui"
 	"quasar/redshift"
 	"time"
 )
 
-func main() {
-	/*
-		if err := qml.Run(launchGUI); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
+var _ = time.Kitchen
 
-		return//*/
+func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
+
+	if err := qml.Run(launchGUI); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	return
 
 	globals, _ := redshift.LoadGlobalSettings()
 	fmt.Println("Creating Fetcher")
@@ -29,7 +31,7 @@ func main() {
 	fmt.Println("Creating Comic")
 	comic := redshift.NewComic(*redshift.NewIndividualSettings(globals))
 	fmt.Println("Finding comic URL")
-	fet.TestFind(comic, batoto.PluginName(), "Kingdom")
+	fet.TestFind(comic, batoto.PluginName(), "Kingdom") //Has lots of data to process, good for testing
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
 	fmt.Println("Downloading ComicInfo")
 	fet.DownloadComicInfoFor(comic)
@@ -84,7 +86,7 @@ func launchGUI() error {
 	fmt.Println("Creating Comic")
 	comic := redshift.NewComic(*redshift.NewIndividualSettings(globals))
 	fmt.Println("Finding comic URL")
-	fet.TestFind(comic, batoto.PluginName(), "Kingdom")
+	fet.TestFind(comic, batoto.PluginName(), "Kingdom") //Has lots of data to process, good for testing
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
 	fmt.Println("Downloading ComicInfo")
 	fet.DownloadComicInfoFor(comic)
@@ -93,13 +95,17 @@ func launchGUI() error {
 	fet.DownloadChapterListFor(comic)
 	list := redshift.NewComicList(fet)
 	list.AddComics([]*redshift.Comic{comic})
-	list.ScheduleComicFetches()
-	fmt.Println("Waiting 5 seconds for background tasks (cross-thread synchronization not done yet!)...")
-	time.Sleep(5 * time.Second)
+	//list.ScheduleComicFetches()
+	//fmt.Println("Waiting 5 seconds for background tasks (cross-thread synchronization not done yet!)...")
+	//time.Sleep(5 * time.Second)
 
+	fmt.Println("Crash nao!")
 	modelCommon := qml.CommonOf(gui.NewModel(list), engine)
+	infomodelCommon := qml.CommonOf(gui.NewComicInfoModel(list), engine)
+	fmt.Println("Crash niet")
 	//modelCommon := qml.CommonOf(gui.NewDummyModel(), engine)
 	context.SetVar("comicListModel", modelCommon)
+	context.SetVar("comicInfoModel", infomodelCommon)
 	//context.SetVar("notifModeChooser", 0)
 
 	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml")

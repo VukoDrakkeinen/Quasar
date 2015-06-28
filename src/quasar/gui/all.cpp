@@ -1,3 +1,5 @@
 #include "cpp/qcapi.cpp"
 #include "cpp/model.cpp"
 #include "cpp/moc_model.cpp"
+#include "cpp/infomodel.cpp"
+#include "cpp/moc_infomodel.cpp"

@@ -26,13 +26,6 @@ Window {
 
         GroupBox {
             Layout.fillWidth: true
-            title: qsTr("Update notification mode:")
-            NotificationModeChooser {
-            }
-        }
-
-        GroupBox {
-            Layout.fillWidth: true
             Layout.fillHeight: true
             title: qsTr("Sources:")
             GridLayout {
@@ -132,6 +125,13 @@ Window {
                 }
             }
         }
+        
+        GroupBox {
+			Layout.fillWidth: true
+			title: qsTr("Update notification mode:")
+			NotificationModeChooser {
+			}
+		}
 
         OptionsBottomButtons {
         }

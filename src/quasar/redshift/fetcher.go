@@ -44,8 +44,6 @@ func (this correctiveSlice) Swap(i, j int) {
 	this.chapters[i], this.chapters[j] = this.chapters[j], this.chapters[i]
 }
 
-//TODO: scheduler
-
 type fetcher struct { //TODO: handle missing plugin errors gracefully
 	plugins     map[FetcherPluginName]FetcherPlugin
 	webClient   *http.Client
@@ -223,8 +221,8 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 
 	for _, source := range comic.Sources() {
 		offender = source.PluginName
-		identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic)
-		if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
+		identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic) //TODO: parallelize!
+		if missingVolumes {                                                                             //some plugins return ChapterIdentities with no Volume data, correct it
 			correctiveSlice := correctiveSlice{identities, chapters}
 			sort.Sort(correctiveSlice)
 			prevVol := byte(1)
@@ -253,7 +251,7 @@ func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 	scanlation := chapter.Scanlation(scanlationIndex)
 	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
 		offender = scanlation.PluginName
-		links := plugin.fetchChapterPageLinks(scanlation.URL)
+		links := plugin.fetchChapterPageLinks(scanlation.URL) //TODO: parallelize!
 		scanlation.PageLinks = links
 		chapter.AddScanlation(scanlation)    //reinsert after modifying
 		comic.AddChapter(identity, &chapter) //reinsert //TODO: use pointers instead?
