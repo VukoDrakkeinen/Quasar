@@ -2,11 +2,11 @@ package redshift
 
 import (
 	"fmt"
-	"log"
 	"math"
+	"quasar/datadir/qdb"
+	"quasar/datadir/qlog"
 	"quasar/qutils/qerr"
 	"quasar/redshift/idsdict"
-	"quasar/redshift/qdb"
 	"strings"
 	"time"
 )
@@ -175,15 +175,15 @@ func CreateDB(db *qdb.QDB) (err error) {
 }
 
 func (this ComicList) SaveToDB() { //TODO: write a unit test
-	log.SetFlags(log.Lshortfile | log.Ltime)
 	db := qdb.DB()
 	if db == nil {
-		fmt.Println("Database handle is nil! Aborting save.") //TODO: proper logging
+		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
+		return
 		//panic()	//TODO?
 	}
 	err := CreateDB(db)
 	if err != nil {
-		fmt.Println(qerr.NewLocated(err)) //TODO: proper logging
+		qlog.Log(qlog.Error, "Creating database failed.", qerr.NewLocated(err))
 		//panic()	//TODO?
 		return
 	}
@@ -206,7 +206,7 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 		idsInsertionStmt, _ := transaction.Prepare(rep.Replace(idsInsertionPreCmd))
 		err = tuple.dict.ExecuteInsertionStmt(idsInsertionStmt)
 		if err != nil {
-			fmt.Println(err) //TODO: proper logging
+			qlog.Log(qlog.Error, "Error while inserting into", tuple.name, "table:", err)
 			return
 		}
 		transaction.Commit()
@@ -240,7 +240,6 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 
 func (list ComicList) LoadFromDB() (err error) {
 	list.cancelSchedule()
-	log.SetFlags(log.Ltime | log.Lshortfile) //TODO: proper logging
 	db := qdb.DB()
 	CreateDB(db)
 	transaction, _ := db.Begin()

@@ -5,11 +5,12 @@ import (
 	"html"
 	"net/url"
 	"path"
+	"quasar/datadir/qdb"
+	"quasar/datadir/qlog"
 	"quasar/qregexp"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
-	"quasar/redshift/qdb"
 	"reflect"
 	"strconv"
 	"strings"
@@ -242,7 +243,10 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 		url := string(batoto_rChapterURL.Find(chapterInfo))
 
 		identityAndTitle := batoto_rIdentityAndTitle.FindSubmatch(chapterInfo)
-		identity, _ := parseBatotoIdentity(string(identityAndTitle[1])) //TODO: log error
+		identity, err := parseBatotoIdentity(string(identityAndTitle[1]))
+		if err != nil {
+			qlog.Log(qlog.Error, `Identity parsing for comic "`+comic.Info().Title+`" (Batoto i:`+strconv.FormatInt(int64(i), 10)+`) failed. Err:`, err)
+		}
 		missingVolumes = missingVolumes || identity.Volume == 0
 		title := html.UnescapeString(string(identityAndTitle[2]))
 		if title == "" {

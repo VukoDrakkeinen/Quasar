@@ -2,13 +2,11 @@ package redshift
 
 import (
 	"database/sql"
-	//"fmt"
 	"math"
+	"quasar/datadir/qdb"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
-	"quasar/redshift/qdb"
-	//"runtime"
 	"sync"
 	"sync/atomic"
 	"time"

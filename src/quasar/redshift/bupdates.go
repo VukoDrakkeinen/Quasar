@@ -2,15 +2,15 @@ package redshift
 
 import (
 	"bytes"
-	"fmt"
 	"html"
 	"net/url"
 	"path"
+	"quasar/datadir/qdb"
+	"quasar/datadir/qlog"
 	"quasar/qregexp"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
-	"quasar/redshift/qdb"
 	"reflect"
 	"strconv"
 	"strings"
@@ -276,7 +276,7 @@ func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIde
 			scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
 			newIdentities, err := parseBakaIdentities(volumeString, numberString, prevIdentity)
 			if err != nil {
-				fmt.Printf("Parsing identity \"%s\"+\"%s\" failed: %v\n", volumeString, numberString, err) //TODO: proper logging
+				qlog.Logf(qlog.Error, "Parsing identity \"%s\"+\"%s\" failed: %v\n", volumeString, numberString, err)
 			}
 			prevIdentity = newIdentities[len(newIdentities)-1]
 			for _, identity := range newIdentities {

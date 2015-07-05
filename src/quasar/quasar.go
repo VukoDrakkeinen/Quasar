@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/qml.v1"
 	"os"
+	"quasar/datadir/qlog"
 	"quasar/gui"
 	"quasar/redshift"
 	"time"
@@ -12,6 +13,12 @@ import (
 var _ = time.Kitchen
 
 func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
+
+	qlog.Log(qlog.Info, "Creating Fetcher")
+	qlog.Log(qlog.Info, "Registering plugins")
+	qlog.Log(qlog.Info, "Creating Comic")
+	qlog.Log(qlog.Warning, "Retrying")
+	qlog.Log(qlog.Error, "Failed!")
 
 	if err := qml.Run(launchGUI); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

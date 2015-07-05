@@ -2,10 +2,10 @@ package redshift
 
 import (
 	"database/sql"
+	"quasar/datadir/qdb"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
-	"quasar/redshift/qdb"
 )
 
 const ( //SQL Statements Group keys

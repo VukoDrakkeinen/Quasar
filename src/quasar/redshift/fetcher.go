@@ -4,11 +4,11 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	neturl "net/url"
+	"quasar/datadir/qlog"
 	"quasar/qutils/qerr"
 	. "quasar/redshift/idsdict"
 	"sort"
@@ -92,8 +92,7 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
-			//TODO: logging
-			fmt.Println("Plugin", string(offender), "panicked!", err)
+			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
 			this.settings.Plugins[offender] = PluginEnabled(false)
 		}
 	}()
@@ -213,8 +212,7 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
-			//TODO: logging
-
+			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
 			this.settings.Plugins[offender] = PluginEnabled(false)
 		}
 	}()
@@ -241,8 +239,7 @@ func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
-			//TODO: logging
-			fmt.Println("Plugin", string(offender), "panicked!", err)
+			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
 			this.settings.Plugins[offender] = PluginEnabled(false)
 		}
 	}()
@@ -263,8 +260,7 @@ func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
-			//TODO: logging
-			fmt.Println("Plugin", string(offender), "panicked!", err)
+			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
 			this.settings.Plugins[offender] = PluginEnabled(false)
 		}
 	}()

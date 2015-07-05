@@ -1,8 +1,8 @@
 package gui
 
 import (
-	"fmt"
 	"gopkg.in/qml.v1"
+	"quasar/datadir/qlog"
 	"quasar/qutils"
 )
 
@@ -27,7 +27,7 @@ func (this *ValuesValidator) UnbindObject(obj qml.Object) {
 func (this *ValuesValidator) Work() {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("ValuesValidator: provided function panicked:", err) //TODO: proper logging
+			qlog.Log(qlog.Warning, "ValuesValidator: provided function panicked:", err)
 		}
 	}()
 	if len(this.children) == 0 {

@@ -39,33 +39,18 @@ Go_Slice GoSliceC(quintptr ptr) {
 	return *(Go_Slice*)(ptr);
 }
 
-QString authorNameByIdQ(int id) {   //TODO: code duplication, template this shit
-	auto cstr = authorNameById(id);
-	QString str(cstr);
-	free(cstr);
-	return str;
+#define declareNameByIdQFuncFor(entity) \
+QString entity ## NameByIdQ(int id) {   \
+	auto cstr = entity ## NameById(id); \
+	QString str(cstr);                  \
+	free(cstr);                         \
+	return str;                         \
 }
 
-QString artistNameByIdQ(int id) {
-	auto cstr = artistNameById(id);
-	QString str(cstr);
-	free(cstr);
-	return str;
-}
-
-QString genreNameByIdQ(int id) {
-	auto cstr = genreNameById(id);
-	QString str(cstr);
-	free(cstr);
-	return str;
-}
-
-QString categoryNameByIdQ(int id) {
-	auto cstr = categoryNameById(id);
-	QString str(cstr);
-	free(cstr);
-	return str;
-}
+declareNameByIdQFuncFor(author)
+declareNameByIdQFuncFor(artist)
+declareNameByIdQFuncFor(genre)
+declareNameByIdQFuncFor(category)
 
 QString getThumbnailPathQ(const QString& str) {
 	char* cstr = getThumbnailPath(str.toLatin1().data());

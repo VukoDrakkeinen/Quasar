@@ -5,23 +5,20 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path/filepath"
+	"quasar/datadir"
+	"quasar/datadir/qlog"
 	"quasar/qutils/qerr"
 	"strconv"
 )
 
 const dbFile = "quasar.db"
 
-var dataDir string
 var thumbsDir string
 var qdb *sql.DB
 
 func init() {
-	luser, _ := user.Current()
-	dataDir = filepath.Join(luser.HomeDir, ".local", "share", "quasar")
-	thumbsDir = filepath.Join(dataDir, "thumbnails")
-	os.MkdirAll(dataDir, os.ModeDir|0755) //TODO: move somewhere better?
+	thumbsDir = filepath.Join(datadir.Path(), "thumbnails")
 	os.Mkdir(thumbsDir, os.ModeDir|0755)
 }
 
@@ -40,9 +37,10 @@ func (this *QDB) MustPrepare(query string) *sql.Stmt {
 func DB() *QDB {
 	if qdb == nil {
 		var err error //WORKAROUND: syntax analyzer complains
-		qdb, err = sql.Open("sqlite3", filepath.Join(dataDir, dbFile))
+		qdb, err = sql.Open("sqlite3", filepath.Join(datadir.Path(), dbFile))
 		if err != nil {
-			//TODO: log error
+			qlog.Log(qlog.Error, "Opening database failed.", err)
+			return nil
 		}
 		qdb.Exec(`PRAGMA foreign_keys = ON;`) //enable foreign keys
 	}
