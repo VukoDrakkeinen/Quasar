@@ -36,7 +36,8 @@ type QUpdateInfoRow struct {
 
 func NewModel(list redshift.ComicList) (model unsafe.Pointer) {
 	var updateInfoRows []QUpdateInfoRow
-	for i, comic := range list.Hack_Comics() {
+	for i := 0; i < list.Len(); i++ {
+		comic := list.GetComic(i)
 		info := comic.Info()
 		row := QUpdateInfoRow{
 			title:     info.Title,
@@ -69,7 +70,8 @@ type CoComicInfo struct {
 func NewComicInfoModel(list redshift.ComicList) (model unsafe.Pointer) {
 	var infos []redshift.ComicInfo
 	var coInfos []CoComicInfo
-	for _, comic := range list.Hack_Comics() {
+	for i := 0; i < list.Len(); i++ {
+		comic := list.GetComic(i)
 		info := comic.Info()
 		infos = append(infos, info)
 		var altTitles []string

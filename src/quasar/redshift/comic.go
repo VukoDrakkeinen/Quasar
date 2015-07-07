@@ -61,7 +61,7 @@ const ( //SQL Statements Group keys
 	sourcesQuery   = "sourcesQuery"
 )
 
-type Comic struct { //TODO: make it race-safe!
+type Comic struct {
 	info     ComicInfo
 	settings IndividualSettings
 

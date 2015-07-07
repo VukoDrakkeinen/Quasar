@@ -92,9 +92,12 @@ func (this ComicList) ComicLastUpdated(idx int) time.Time {
 	return this.updatedAt[idx]
 }
 
-//TODO: remove
-func (this ComicList) Hack_Comics() []*Comic {
-	return this.comics
+func (this ComicList) GetComic(idx int) *Comic {
+	return this.comics[idx]
+}
+
+func (this ComicList) Len() int {
+	return len(this.comics)
 }
 
 func (this ComicList) ScheduleComicFetches() {
