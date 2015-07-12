@@ -1,6 +1,6 @@
-import QtQuick 2.0
-import QtQuick.Controls 1.1
-import QtQuick.Layouts 1.1
+import QtQuick 2.5
+import QtQuick.Controls 1.4
+import QtQuick.Layouts 1.2
 import QuasarGUI 1.0
 
 Item {
@@ -56,7 +56,7 @@ Item {
 				id: dateValidator
 			}
 			ValidatingSpinBox {
-				Layout.minimumWidth: 55	//FIXME: hardcoded values
+				Layout.minimumWidth: 55	//TODO FIXME:: hardcoded values
 				id: spinHours
 				suffix: "H"
 				maximumValue: 23

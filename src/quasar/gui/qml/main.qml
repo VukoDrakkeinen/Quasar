@@ -1,8 +1,8 @@
-﻿import QtQuick 2.1
-import QtQuick.Controls 1.1
-import QtQuick.Controls.Styles 1.1
-import QtQuick.Window 2.0
-import QtQuick.Layouts 1.1
+﻿import QtQuick 2.5
+import QtQuick.Controls 1.4
+import QtQuick.Controls.Styles 1.4
+import QtQuick.Window 2.2
+import QtQuick.Layouts 1.2
 import "Main"
 import "Options"
 import "Dialogs"
@@ -51,16 +51,63 @@ ApplicationWindow {
 
 		ColumnLayout {
 		Layout.fillWidth: true
-			TableView {
+		
+			TreeView {
+				Layout.fillHeight: true
+				Layout.fillWidth: true
+				implicitWidth: 500
+				model: chapterModel
+				//model: 600
+				
+				TableViewColumn {
+					role: "display"
+					title: "#"
+					width: 70
+				}
+				
+				TableViewColumn {
+					role: "title"
+					title: "Title"
+					width: 350
+					/*delegate: Item {
+						Label {
+							anchors.verticalCenter: parent.verticalCenter
+							text: chapterModel.qmlGet(styleData.row, styleData.column, "display")
+							color: chapterModel.qmlGet(styleData.row, styleData.column, "foreground")
+							elide: styleData.elideMode
+						}
+					}//*/
+				}
+				
+				TableViewColumn {
+					role: "scanlators"
+					title: "Scanlators"
+					width: 300
+				}
+				
+				TableViewColumn {
+					role: "lang"
+					title: "Language"
+					width: 100
+				}
+				
+				TableViewColumn {
+					role: "plugin"
+					title: "Plugin"
+					width: 100
+				}
+				
+			}//*/
+			/*TableView {
 				Layout.fillHeight: true
 				Layout.fillWidth: true
 				implicitWidth: 500
 				selectionMode: 2 //SelectionMode.ExtendedSelection
-				model: comicListModel
+				model: updateModel
 				itemDelegate: Label{
 					anchors.fill:parent
-					text: model.qmlGet(styleData.row, styleData.column, "display")
-					color: model.qmlGet(styleData.row, styleData.column, "foreground")
+					text: updateModel.qmlGet(styleData.row, styleData.column, "display")
+					color: updateModel.qmlGet(styleData.row, styleData.column, "foreground")
 					elide: styleData.elideMode
 				}
 
@@ -71,10 +118,6 @@ ApplicationWindow {
 
 				TableViewColumn {
 					title: "Chapters"
-					/*delegate: Label{
-							text: model.qmlGet(styleData.row, styleData.column, "display")
-							color: model.qmlGet(styleData.row, styleData.column, "foreground")
-						}*/
 					width: 70
 				}
 
@@ -89,31 +132,18 @@ ApplicationWindow {
 				}
 
 				TableViewColumn {
-					/*delegate: ProgressBar{
-						anchors.fill: parent
-						maximumValue: 100
-						value: model.qmlGet(styleData.row, styleData.column, "progress")
-					}//*/
 					delegate: Item {
 											anchors.fill: parent
 
 											ProgressBar {
 												anchors.fill: parent
 												maximumValue: 100
-												/*style: ProgressBarStyle {
-															background: Rectangle {
-																radius: 2
-																color: "transparent"
-																implicitWidth: 200
-																implicitHeight: 24
-															}
-														}//*/
 												value: {
-													var status = model.qmlGet(styleData.row, styleData.column, "status")
+													var status = updateModel.qmlGet(styleData.row, styleData.column, "status")
 													if (status == 0) return 0
 													if (status == 2) return 0
 													if (status == 3) return 0
-													return model.qmlGet(styleData.row, styleData.column, "progress")
+													return updateModel.qmlGet(styleData.row, styleData.column, "progress")
 												}
 											}
 											Label {
@@ -122,21 +152,21 @@ ApplicationWindow {
 												anchors.verticalCenter: parent.verticalCenter
 												anchors.margins: 4
 												text: {
-													var status = model.qmlGet(styleData.row, styleData.column, "status")
+													var status = updateModel.qmlGet(styleData.row, styleData.column, "status")
 													if (status == 0) return "No Updates"
 													if (status == 1) return "Updating..."
 													if (status == 2) return "New Chapters"
 													if (status == 3) return "ERROR"
 													return "???"
 												}
-												color: model.qmlGet(styleData.row, styleData.column, "foreground")
+												color: updateModel.qmlGet(styleData.row, styleData.column, "foreground")
 												elide: Text.ElideRight
 											}
 										}
 					title: "Status"
 					width: 200
 				}
-			}
+			}//*/
 
 			Item {
 				Layout.fillWidth: true

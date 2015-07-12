@@ -1,6 +1,6 @@
-import QtQuick 2.0
-import QtQuick.Layouts 1.1
-import QtQuick.Controls 1.1
+import QtQuick 2.5
+import QtQuick.Layouts 1.2
+import QtQuick.Controls 1.4
 
 ///Rectangle {
 Item {
@@ -24,13 +24,13 @@ Item {
 		Image {
 			Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
 			//source: "/home/vuko/Pictures/Misc/Azureus.png"
-			source: comicInfoModel.qmlGet(0, 0, "decoration")
+			source: infoModel.qmlGet(0, 0, "decoration")
 		}
 		
 		Label {
 			Layout.alignment: Qt.AlignHCenter | Qt.AlignTop
 			//text: "HorizontalSeparator.qml"
-			text: comicInfoModel.qmlGet(0, 0, "display")
+			text: infoModel.qmlGet(0, 0, "display")
 			font.bold: true
 			font.pointSize: 10
 		}
@@ -48,7 +48,7 @@ Item {
 			Label {
 				Layout.fillWidth: true
 				//text: "Also Known As Many Other Titles"
-				text: comicInfoModel.qmlGet(0, 1, "display")
+				text: infoModel.qmlGet(0, 1, "display")
 				wrapMode: Text.Wrap
 			}
 			
@@ -59,7 +59,7 @@ Item {
 			Label {
 				Layout.fillWidth: true
 				//text: "Authoring Author"
-				text: comicInfoModel.qmlGet(0, 2, "display")
+				text: infoModel.qmlGet(0, 2, "display")
 				wrapMode: Text.Wrap
 			}
 			
@@ -70,7 +70,7 @@ Item {
 			Label {
 				Layout.fillWidth: true
 				//text: "Artisting Artist"
-				text: comicInfoModel.qmlGet(0, 3, "display")
+				text: infoModel.qmlGet(0, 3, "display")
 				wrapMode: Text.Wrap
 			}
 			
@@ -81,7 +81,7 @@ Item {
 			Label {
 				Layout.fillWidth: true
 				//text: "[Action], [Mystery], [Drama]"
-				text: comicInfoModel.qmlGet(0, 4, "display")
+				text: infoModel.qmlGet(0, 4, "display")
 				wrapMode: Text.Wrap
 			}
 			
@@ -92,7 +92,7 @@ Item {
 			Label {
 				Layout.fillWidth: true
 				//text: "[Seinen]"
-				text: comicInfoModel.qmlGet(0, 5, "display")
+				text: infoModel.qmlGet(0, 5, "display")
 				wrapMode: Text.Wrap
 			}
 			
@@ -103,7 +103,7 @@ Item {
 			Label {
 				//text: "Manga"
 				text: {
-					var status = comicInfoModel.qmlGet(0, 6, "display")
+					var status = infoModel.qmlGet(0, 6, "display")
 					if (status == 0) return "Invalid Comic"
 					if (status == 1) return "Manga (Japanese)"
 					if (status == 2) return "Manhwa (Korean)"
@@ -122,7 +122,7 @@ Item {
 			Label {
 				//text: "Complete"
 				text: {
-					var status = comicInfoModel.qmlGet(0, 7, "display")
+					var status = infoModel.qmlGet(0, 7, "display")
 					if (status == 0) return "Invalid Status"
 					if (status == 1) return "Complete"
 					if (status == 2) return "Ongoing"
@@ -139,7 +139,7 @@ Item {
 			Label {
 				//text: "Ongoing"
 				text: {
-					var status = comicInfoModel.qmlGet(0, 6, "display")
+					var status = infoModel.qmlGet(0, 6, "display")
 					if (status == 0) return "Invalid Scanlation Status"
 					if (status == 1) return "Complete"
 					if (status == 2) return "Ongoing"
@@ -156,7 +156,7 @@ Item {
 			}
 			Label {
 				//text: "Yes"
-				text: comicInfoModel.qmlGet(0, 9, "display") ? "Yes" : "No"
+				text: infoModel.qmlGet(0, 9, "display") ? "Yes" : "No"
 			}
 			
 			Label {
@@ -165,7 +165,7 @@ Item {
 			}
 			Label {
 				//text: "9.2"
-				text: comicInfoModel.qmlGet(0, 10, "display")
+				text: infoModel.qmlGet(0, 10, "display")
 			}
 			
 			Label {
@@ -175,7 +175,7 @@ Item {
 			Label {
 				Layout.fillWidth: true
 				//text: "A very long description of what is essentially lorem ipsum shit"
-				text: comicInfoModel.qmlGet(0, 11, "display")
+				text: infoModel.qmlGet(0, 11, "display")
 				wrapMode: Text.Wrap
 			}
 		}
