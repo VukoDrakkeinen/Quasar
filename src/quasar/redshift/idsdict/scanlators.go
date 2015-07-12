@@ -60,6 +60,7 @@ func (this ScanlatorId) Value() (driver.Value, error) {
 	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
+//TODO: rework this hack
 type JointScanlatorIds struct { //Can't have slices as keys in maps? Here's a dirty ha-, I mean, a workaround for you!
 	data  string
 	count int

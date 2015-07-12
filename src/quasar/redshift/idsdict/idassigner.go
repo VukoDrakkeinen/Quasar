@@ -12,13 +12,13 @@ type idAssigner struct {
 	constantNames []string
 	lock          sync.RWMutex
 
-	replacer *strings.Replacer //FIXME: see bug #233830
+	replacer *strings.Replacer //TODO FIXME: see bug #233830
 }
 type Id int
 
 func newIdAssigner(constantNames ...string) idAssigner {
 	ret := idAssigner{
-		replacer:      strings.NewReplacer("/S", "/s", "'S", "'s"), //FIXME: see bug #233830
+		replacer:      strings.NewReplacer("/S", "/s", "'S", "'s"), //TODO FIXME: see bug #233830
 		constantNames: constantNames,
 	}
 	ret.reset()
@@ -95,6 +95,6 @@ func (this *idAssigner) nameOf(id Id) string {
 	if int(id) >= len(this.names) {
 		id = Id(0)
 	}
-	//FIXME: bug #233830: strings.Title() has a bug where it will occasionally capitalize wrong letters
+	//TODO FIXME: bug #233830: strings.Title() has a bug where it will occasionally capitalize wrong letters
 	return this.replacer.Replace(strings.Title(this.names[id]))
 }

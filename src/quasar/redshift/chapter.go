@@ -252,7 +252,7 @@ func sqlAddChapterQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
 type ChapterScanlation struct {
 	Title      string
 	Language   LangId
-	Scanlators JointScanlatorIds
+	Scanlators JointScanlatorIds //TODO: see scanlators.go
 	PluginName FetcherPluginName
 	URL        string
 	PageLinks  []string

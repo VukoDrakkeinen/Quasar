@@ -42,7 +42,7 @@ func IndexOf(list interface{}, elem interface{}) (int, error) {
 	return -1, errors.New("IndexOf: element not found")
 }
 
-func SetAppend(list interface{}, elems ...interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
+func SetAppend(list interface{}, elems ...interface{}) (newList interface{}) { //TODO FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
 	//TODO: type assert
 	slice := reflect.ValueOf(list)
 	for _, elem := range elems {
@@ -53,7 +53,7 @@ func SetAppend(list interface{}, elems ...interface{}) (newList interface{}) { /
 	return slice.Interface()
 }
 
-func SetAppendSlice(list interface{}, elems interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
+func SetAppendSlice(list interface{}, elems interface{}) (newList interface{}) { //TODO FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
 	//TODO: type assert
 	listSlice := reflect.ValueOf(list)
 	elemsSlice := reflect.ValueOf(elems)

@@ -53,7 +53,7 @@ var (
 )
 
 type batoto struct {
-	name      FetcherPluginName
+	name      FetcherPluginName //TODO?: string -> id?
 	settings  PerPluginSettings
 	m_fetcher *fetcher
 }

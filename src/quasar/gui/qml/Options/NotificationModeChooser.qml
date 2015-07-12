@@ -56,7 +56,7 @@ Item {
 				id: dateValidator
 			}
 			ValidatingSpinBox {
-				Layout.minimumWidth: 55	//TODO FIXME:: hardcoded values
+				Layout.minimumWidth: 55	//TODO FIXME: hardcoded values
 				id: spinHours
 				suffix: "H"
 				maximumValue: 23

@@ -193,7 +193,7 @@ func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
+	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if merged {
 		existingChapter.MergeWith(chapter)
@@ -220,7 +220,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		identity := identities[i]
 		chapter := chapters[i]
 		existingChapter, exists := this.chapters[identity]
-		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //FIXME: purge this hack
+		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 		if exists {
 			existingChapter.MergeWith(&chapter)
 			if newStart { //Sequence ended, add newly created slice to the list, set creation status to false
@@ -251,7 +251,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 	}
 }
 
-func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //FIXME: bounds check?
+func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //TODO FIXME: bounds check?
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	identity := this.chaptersOrder[index]
@@ -272,7 +272,7 @@ func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) {
 	this.scanlatorPriority = priority
 }
 
-func (this *Comic) ChapterCount() int {
+func (this *Comic) ChapterCount() int { //TODO: rename ChaptersCount()
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	return len(this.chaptersOrder)

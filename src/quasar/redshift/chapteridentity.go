@@ -76,36 +76,6 @@ func (this ChapterIdentitiesSlice) Swap(i, j int) {
 	this[i], this[j] = this[j], this[i]
 }
 
-func (this ChapterIdentitiesSlice) overflowingSearch(ci ChapterIdentity) (index int64) {
-	low := int64(0)
-	mid := int64(0)
-	high := int64(0)
-	if this.Len() > 0 {
-		high = int64(this.Len() - 1)
-	}
-
-	if high == 0 || ci.More(this[high]) {
-		return int64(this.Len())
-	}
-	for this[low].LessEq(ci) && this[high].MoreEq(ci) {
-		mid = low + ((ci.n()-this[low].n())*(high-low))/(this[high].n()-this[low].n())
-		if this[mid].Less(ci) {
-			low = mid + 1
-		} else if this[mid].More(ci) {
-			high = mid - 1
-		} else {
-			return mid
-		}
-	}
-	if this[low].Equals(ci) {
-		return low
-	} else if ci.More(this[low]) {
-		return mid
-	} else {
-		return low
-	}
-}
-
 func (this ChapterIdentitiesSlice) vestedIndexOf(ci ChapterIdentity) (index int) {
 	low := int64(0)
 	mid := int64(0)
@@ -117,6 +87,9 @@ func (this ChapterIdentitiesSlice) vestedIndexOf(ci ChapterIdentity) (index int)
 		return this.Len()
 	}
 	for this[low].n() <= ci.n() && this[high].n() >= ci.n() {
+		//The following four lines are equivalent to
+		//mid = low + ((ci.n()-this[low].n())*(high-low))/(this[high].n()-this[low].n())
+		//(except the longer implementation doesn't overflow int64)
 		diff0 := ci.n() - this[low].n()
 		diff1 := high - low
 		diff2 := this[high].n() - this[low].n()
