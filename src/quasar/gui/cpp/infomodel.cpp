@@ -1,16 +1,16 @@
-#include "model.h"
+#include "infomodel.h"
 
 #include <QBrush>
 #include <QLocale>
 #include <QDebug>
 
-ComicInfoModel::ComicInfoModel(QList<ComicInfoRow> store): QAbstractTableModel(), store(store) {}
+ComicInfoModel::ComicInfoModel(void* goComicList): QAbstractTableModel(), goComicList(goComicList) {}
 ComicInfoModel::~ComicInfoModel() {}
 
 int ComicInfoModel::rowCount(const QModelIndex& parent) const
 {
 	Q_UNUSED(parent)
-	return this->store.length();
+	return go_ComicList_Len(this->goComicList);
 }
 
 int ComicInfoModel::columnCount(const QModelIndex& parent) const
@@ -23,13 +23,17 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 {
 	if (!index.isValid()) return QVariant();
 
-	auto row = this->store.at(index.row());
+	auto goComic = go_ComicList_GetComic(this->goComicList, index.row());
+	auto goInfo = go_Comic_Info(goComic);
+	//go_GC();
+	auto info = convertComicInfo(goInfo);
+	go_collectGarbage(goComic); //TODO: wrapper
 
 	switch (role)
 	{
 		case Qt::DecorationRole:
 		{
-			return getThumbnailPathQ(row.thumbnailFilename);
+			return go_getThumbnailPathQ(info.thumbnailFilename);
 		}
 		break;
 
@@ -37,19 +41,19 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 			switch (index.column())	//TODO: roles, not column ids?
 			{
 				case 0:
-					return row.mainTitle;
+					return info.mainTitle;
 				break;
 
 				case 1:
-					return row.titles.join(", ");
+					return info.titles.join(", ");
 				break;
 
 				case 2:
 				{
 					QStringList authors;
-					authors.reserve(row.authorIds.size());
-					for (auto id : row.authorIds) {
-						authors.append(authorNameByIdQ(id));
+					authors.reserve(info.authorIds.size());
+					for (auto id : info.authorIds) {
+						authors.append(go_authorNameByIdQ(id));
 					}
 					return authors.join(", ");
 				}
@@ -58,9 +62,9 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 				case 3:
 				{
 					QStringList artists;
-					artists.reserve(row.artistIds.size());
-					for (auto id : row.artistIds) {
-						artists.append(artistNameByIdQ(id));
+					artists.reserve(info.artistIds.size());
+					for (auto id : info.artistIds) {
+						artists.append(go_artistNameByIdQ(id));
 					}
 					return artists.join(", ");	//TODO: nah, don't join. shit must be separate to be clickable
 				}
@@ -69,9 +73,9 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 				case 4:
 				{
 					QStringList genres;
-					genres.reserve(row.genreIds.size());
-					for (auto id : row.genreIds) {
-						genres.append(genreNameByIdQ(id));
+					genres.reserve(info.genreIds.size());
+					for (auto id : info.genreIds) {
+						genres.append(go_genreNameByIdQ(id));
 					}
 					return genres.join(", ");
 				}
@@ -80,36 +84,36 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 				case 5:
 				{
 					QStringList tags;
-					tags.reserve(row.categoryIds.size());
-					for (auto id : row.categoryIds) {
-						tags.append(categoryNameByIdQ(id));
+					tags.reserve(info.categoryIds.size());
+					for (auto id : info.categoryIds) {
+						tags.append(go_categoryNameByIdQ(id));
 					}
 					return tags.join(", ");
 				}
 				break;
 					
 				case 6:
-					return QVariant::fromValue(row.type);
+					return QVariant::fromValue(info.type);
 				break;
 				
 				case 7:
-					return QVariant::fromValue(row.status);
+					return QVariant::fromValue(info.status);
 				break;
 				
 				case 8:
-					return QVariant::fromValue(row.scanlationStatus);
+					return QVariant::fromValue(info.scanlationStatus);
 				break;
 				
 				case 9:
-					return row.mature;
+					return info.mature;
 				break;
 				
 				case 10:
-					return row.rating;
+					return info.rating;
 				break;
 				
 				case 11:
-					return row.desc;
+					return info.desc;
 				break;
 			}
 	}
@@ -188,37 +192,10 @@ QVariant ComicInfoModel::headerData(int section, Qt::Orientation orientation, in
 	return QVariant();
 }
 
-bool ComicInfoModel::appendRow(const ComicInfoRow& row)
-{
-	this->beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount());
-	this->store.append(row);
-	this->endInsertRows();
-	return true;
-}
-
-void ComicInfoModel::setStore(QList<ComicInfoRow> store)
-{
+void ComicInfoModel::setGoData(void* goComicList) {
 	this->beginResetModel();
-	this->store = store;
+	this->goComicList = goComicList;
 	this->endResetModel();
-}
-
-bool ComicInfoModel::appendRows(const QList<ComicInfoRow> rows)
-{
-	this->beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount() + rows.count());
-	this->store.append(rows);
-	this->endInsertRows();
-	return true;
-}
-
-
-bool ComicInfoModel::removeRows(int row, int count, const QModelIndex& parent)
-{
-	Q_UNUSED(parent)
-	this->beginRemoveRows(QModelIndex(), row, count);
-	this->store.erase(this->store.begin()+row, this->store.begin()+row+count);
-	this->endRemoveRows();
-	return true;
 }
 
 QHash<int, QByteArray> ComicInfoModel::roleNames() const

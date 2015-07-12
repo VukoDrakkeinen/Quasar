@@ -35,7 +35,7 @@ Q_DECLARE_METATYPE(ComicType)
 Q_DECLARE_METATYPE(ComicStatus)
 Q_DECLARE_METATYPE(ScanlationStatus)
 
-struct ComicInfoRow {
+typedef struct {
 	QString mainTitle;
 	QStringList titles; 
 	QList<int> authorIds;
@@ -49,7 +49,16 @@ struct ComicInfoRow {
 	float rating;
 	bool mature;
 	QString thumbnailFilename;
-};
+} ComicInfoRow;
+
+typedef struct {
+	QString title;
+	int languageId;
+	QList<int> scanlatorIds;
+	QString pluginName;
+	QString url;
+	QStringList pageLinks;
+} QScanlation;
 
 class ComicInfoModel : public QAbstractTableModel
 {
@@ -57,7 +66,7 @@ class ComicInfoModel : public QAbstractTableModel
 
 	public:
 		ComicInfoModel() {};
-		ComicInfoModel(QList<ComicInfoRow> store);
+		ComicInfoModel(void* goComicList);
 		virtual ~ComicInfoModel();
 	public:
 		int rowCount(const QModelIndex& parent = QModelIndex()) const;
@@ -65,16 +74,10 @@ class ComicInfoModel : public QAbstractTableModel
 		QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const;
 		QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const;
 		QHash<int, QByteArray> roleNames() const;
-		void setStore(QList<ComicInfoRow> store);
-		bool appendRow(const ComicInfoRow& row);
-		bool appendRows(const QList<ComicInfoRow> rows);
-		bool removeRows(int row, int count, const QModelIndex& parent = QModelIndex());
+		void setGoData(void* goComicList);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
-		//bool insertRows(int row, int count, const QModelIndex& parent = QModelIndex());
-		//bool insertColumns(int column, int count, const QModelIndex & parent = QModelIndex());
-		//bool removeColumns(int column, int count, const QModelIndex & parent = QModelIndex());
 	private:
-		QList<ComicInfoRow> store;
+		void* goComicList;
 };
 
 QML_DECLARE_TYPE(ComicInfoModel)

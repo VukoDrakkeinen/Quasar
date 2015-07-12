@@ -7,26 +7,42 @@
 extern "C" {
 #endif
 
-typedef void QModel_;
-typedef void QList_;
+typedef void QUpdateModel_;
 typedef void QInfoModel_;
-typedef void QComicInfoList_;
+typedef void QChapterModel_;
+typedef void GoComicList_;
 
-QList_* newList(void* data, int elemSize, int len, int titleOffset, int chapTotalOffset, int chapReadOffset, int dateTimeOffset, int progressOffset, int statusOffset);
-QComicInfoList_* newComicInfoList(void* infoSlice, void* coInfoSlice, int len, int infoSize, int sInfoSize, void* voffsets);
+QInfoModel_* newInfoModel(GoComicList_* data);
+QUpdateModel_* newUpdateModel(GoComicList_* data);
+QChapterModel_* newChapterModel(GoComicList_* data);
 
-QModel_* newModel(QList_* data);
-QInfoModel_* newInfoModel(QComicInfoList_* data);
-void modelSetStore(QModel_* model, QList_* data);
-//int modelAppendRow(QModel_* model, QVariant_* data);
-int modelAppendRows(QModel_* model, QList_* data);
-int modelRemoveRows(QModel_* model, int row, int count);
+void* go_Offsets_ComicInfo;
+void* go_Offsets_Scanlation;
+void* go_Offsets_UpdateInfo;
 
-extern char* authorNameById(int);
-extern char* artistNameById(int);
-extern char* genreNameById(int);
-extern char* categoryNameById(int);
-extern char* getThumbnailPath(char*);
+//TODO: wrap all Go pointers in classes (RAII ftw)
+//TODO: automatically include from _cgo_export.h
+typedef unsigned char GoUint8;
+typedef __SIZE_TYPE__ GoUintptr;
+extern char* go_authorNameById(int);
+extern char* go_artistNameById(int);
+extern char* go_genreNameById(int);
+extern char* go_categoryNameById(int);
+extern char* go_scanlatorNameById(int);
+extern char* go_langNameById(int);
+extern char* go_getThumbnailPath(char*);
+extern void* go_ComicList_GetComic(void*, int);
+extern int   go_ComicList_Len(void*);
+extern void* go_ComicList_ComicUpdateInfo(void*, int);
+extern int   go_Comic_ChaptersCount(void*);
+extern int   go_Comic_ChaptersReadCount(void*);
+extern void* go_Comic_Info(void*);
+extern void* go_Comic_GetChapter(void*, int);
+extern GoUint8 go_Chapter_AlreadyRead(void*);
+extern int   go_Chapter_ScanlationsCount(void*);
+extern void* go_Chapter_GetScanlation(void*, int);
+extern void  go_collectGarbage(void*);
+extern GoUintptr go_JointScanlators_ToSlice(GoUintptr);
 
 #ifdef __cplusplus
 } // extern "C"

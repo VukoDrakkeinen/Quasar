@@ -1,24 +1,33 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"gopkg.in/qml.v1"
+	"log"
 	"os"
-	"quasar/datadir/qlog"
 	"quasar/gui"
 	"quasar/redshift"
+	"runtime/pprof"
 	"time"
 )
 
 var _ = time.Kitchen
+var _ = os.DevNull
+
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
 
-	qlog.Log(qlog.Info, "Creating Fetcher")
-	qlog.Log(qlog.Info, "Registering plugins")
-	qlog.Log(qlog.Info, "Creating Comic")
-	qlog.Log(qlog.Warning, "Retrying")
-	qlog.Log(qlog.Error, "Failed!")
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	if err := qml.Run(launchGUI); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -45,12 +54,13 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	fmt.Println(comic.Info)
 	fmt.Println("Downloading Chapter List")
 	fet.DownloadChapterListFor(comic)
-	for _, i := range []int{0, 1, 62} {
+	for i := 0; i < comic.ChapterCount(); i++ {
 		chapter, id := comic.GetChapter(i)
-		fmt.Printf("%v %+v\n", id, chapter)
+		sc0 := chapter.Scanlation(0)
+		fmt.Printf("%v %v (%v)\n", id, sc0.Title, sc0.Scanlators)
 	}
 
-	//return
+	return
 	/*
 		fmt.Println("Saving to DB")
 		list := redshift.NewComicList(fet)
@@ -73,6 +83,8 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	chapter, id := comic.GetChapter(0)
 	fmt.Println(id, chapter)
 }
+
+var dontGC *redshift.ComicList //TODO: It's a tra- I mean, a HACK! Remove it!
 
 func launchGUI() error {
 	qml.RegisterTypes("QuasarGUI", 1, 0, []qml.TypeSpec{
@@ -97,22 +109,24 @@ func launchGUI() error {
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
 	fmt.Println("Downloading ComicInfo")
 	fet.DownloadComicInfoFor(comic)
-	fmt.Println(comic.Info)
 	fmt.Println("Downloading Chapter List")
 	fet.DownloadChapterListFor(comic)
 	list := redshift.NewComicList(fet)
 	list.AddComics([]*redshift.Comic{comic})
+	dontGC = &list
 	//list.ScheduleComicFetches()
-	//fmt.Println("Waiting 5 seconds for background tasks (cross-thread synchronization not done yet!)...")
+	//fmt.Println("Waiting 5 seconds for background tasks (model notification not done yet!)...")
 	//time.Sleep(5 * time.Second)
 
 	fmt.Println("Crash nao!")
-	modelCommon := qml.CommonOf(gui.NewModel(list), engine)
-	infomodelCommon := qml.CommonOf(gui.NewComicInfoModel(list), engine)
+	updatemodelCommon := qml.CommonOf(gui.NewComicUpdateModel(&list), engine)
+	infomodelCommon := qml.CommonOf(gui.NewComicInfoModel(&list), engine)
+	chaptermodelCommon := qml.CommonOf(gui.NewComicChapterModel(&list), engine)
 	fmt.Println("Crash niet")
 	//modelCommon := qml.CommonOf(gui.NewDummyModel(), engine)
-	context.SetVar("comicListModel", modelCommon)
-	context.SetVar("comicInfoModel", infomodelCommon)
+	context.SetVar("updateModel", updatemodelCommon)
+	context.SetVar("infoModel", infomodelCommon)
+	context.SetVar("chapterModel", chaptermodelCommon)
 	//context.SetVar("notifModeChooser", 0)
 
 	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml")

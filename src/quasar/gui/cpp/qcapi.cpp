@@ -1,7 +1,8 @@
 #include "qcapi.h"
 #include "_cgo_export.h"
-#include "model.h"
+#include "updatemodel.h"
 #include "infomodel.h"
+#include "chaptermodel.h"
 #include <QModelIndex>
 #include <QList>
 #include <cstdlib>
@@ -9,39 +10,43 @@
 #include <QDebug>
 
 typedef struct {
-	quintptr ptr;
+	GoUintptr ptr;
 	GoInt size;
 	GoInt cap;
 } Go_Slice;
 
 typedef struct {
-	quintptr ptr;
+	GoUintptr ptr;
 	GoInt size;
 } Go_String;
 
-char* GoStringC(quintptr ptr) {
-	char* goStr = (char*)*(quintptr*)(ptr);
-	GoInt slen = *(GoInt*)(ptr+sizeof(GoInt));
+void go_collectGarbage(GoUintptr ptr) {
+	go_collectGarbage(reinterpret_cast<void*>(ptr));
+}
+
+char* GoStringC(GoUintptr ptr) {
+	char* goStr = (char*)*(GoUintptr*)(ptr);
+	GoInt slen = *(GoInt*)(ptr+sizeof(GoUintptr));
 	char* cstr = (char*) malloc(slen+1);
 	memcpy(cstr, goStr, slen+1);
 	cstr[slen] = '\0';
 	return cstr;
 }
 
-QString GoStringQ(quintptr ptr) {
+QString GoStringQ(GoUintptr ptr) {
 	char* cstr = GoStringC(ptr);
 	QString qstr(cstr);
 	free(cstr);
 	return qstr;
 }
 
-Go_Slice GoSliceC(quintptr ptr) {
+Go_Slice GoSliceC(GoUintptr ptr) {
 	return *(Go_Slice*)(ptr);
 }
 
 #define declareNameByIdQFuncFor(entity) \
-QString entity ## NameByIdQ(int id) {   \
-	auto cstr = entity ## NameById(id); \
+QString go_ ## entity ## NameByIdQ(int id) {   \
+	auto cstr = go_ ## entity ## NameById(id); \
 	QString str(cstr);                  \
 	free(cstr);                         \
 	return str;                         \
@@ -51,9 +56,11 @@ declareNameByIdQFuncFor(author)
 declareNameByIdQFuncFor(artist)
 declareNameByIdQFuncFor(genre)
 declareNameByIdQFuncFor(category)
+declareNameByIdQFuncFor(scanlator)
+declareNameByIdQFuncFor(lang)
 
-QString getThumbnailPathQ(const QString& str) {
-	char* cstr = getThumbnailPath(str.toLatin1().data());
+QString go_getThumbnailPathQ(const QString& str) {
+	char* cstr = go_getThumbnailPath(str.toLatin1().data());
 	QString qstr(cstr);
 	free(cstr);
 	return qstr;
@@ -83,101 +90,143 @@ SliceQ(Go_Slice slice) {
 	return list;
 }
 
-QList_* newList(void* data, int elemSize, int len, int titleOffset, int chapTotalOffset, int chapReadOffset, int dateTimeOffset, int progressOffset, int statusOffset) {
-	auto list = new QList<UpdateInfoRow>();
-	list->reserve(len);
-	for (int i = 0; i < len; i++) {
-		quintptr elemPtr = (quintptr) data + (elemSize*i);
-		QString title = GoStringQ(elemPtr+titleOffset);
-		GoInt chapTotal = *(GoInt*)(elemPtr+chapTotalOffset);
-		GoInt chapRead = *(GoInt*)(elemPtr+chapReadOffset);
-		qint64 dateTime = 1000 * *(qint64*)(elemPtr+dateTimeOffset);
-		GoInt progress = *(GoInt*)(elemPtr+progressOffset);
-		char status = *(char*)(elemPtr+statusOffset);
-		list->append(UpdateInfoRow{title, (int)chapTotal, (int)chapRead, QDateTime::fromMSecsSinceEpoch(dateTime), (int)progress, (UpdateStatus) status});
-	}
-	return list;
+QInfoModel_* newInfoModel(GoComicList_* data) {
+	return reinterpret_cast<QInfoModel_*>(new ComicInfoModel(data));
 }
 
-QComicInfoList_* newComicInfoList(void* infoSlice, void* coInfoSlice, int len, int infoSize, int sInfoSize, void* voffsets) {
+QUpdateModel_* newUpdateModel(GoComicList_* data) {
+	return reinterpret_cast<QUpdateModel_*>(new UpdateInfoModel(data));
+}
+
+QChapterModel_* newChapterModel(GoComicList_* data) {
+	return reinterpret_cast<QChapterModel_*>(new ChapterModel(data));
+}
+
+ComicInfoRow convertComicInfo(void* info) {
 	typedef struct {
-		quintptr mainTitle;
-		quintptr authors;
-		quintptr artists;
-		quintptr type;
-		quintptr status;
-		quintptr scanlationStatus;
-		quintptr description;
-		quintptr rating;
-		quintptr mature;
-		quintptr thumbnailFilename;
-		quintptr titles;
-		quintptr genres;
-		quintptr tags;
+		GoUintptr mainTitle;
+		GoUintptr titles;
+		GoUintptr authors;
+		GoUintptr artists;
+		GoUintptr genres;
+		GoUintptr tags;
+		GoUintptr type;
+		GoUintptr status;
+		GoUintptr scanlationStatus;
+		GoUintptr description;
+		GoUintptr rating;
+		GoUintptr mature;
+		GoUintptr thumbnailFilename;
 	} infoOffsets;
-	auto offsets = (infoOffsets*) voffsets;
+	auto offsets = (infoOffsets*) go_Offsets_ComicInfo;
 
-	auto list = new QList<ComicInfoRow>();
-	list->reserve(len);
-	for (int i = 0; i < len; i++) {
-		quintptr infoPtr = (quintptr) infoSlice + (infoSize * i);
-		quintptr coInfoPtr = (quintptr) coInfoSlice + (sInfoSize * i);
+	GoUintptr infoPtr = (GoUintptr) info;
 
-		QString title = GoStringQ(infoPtr + offsets->mainTitle);
-        auto authors = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->authors));
-        auto artists = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->artists));
-        auto type = (ComicType)*(GoInt*)(infoPtr + offsets->type);
-        auto status = (ComicStatus)*(GoInt*)(infoPtr + offsets->status);
-        auto scanStatus = (ScanlationStatus)*(GoInt*)(infoPtr + offsets->scanlationStatus);
-        QString desc = GoStringQ(infoPtr + offsets->description);
-        float rating = *(float*)(infoPtr + offsets->rating);
-        bool mature = *(GoInt*)(infoPtr + offsets->mature);
-        QString thumbnail = GoStringQ(infoPtr + offsets->thumbnailFilename);
+	QString mainTitle = GoStringQ(infoPtr + offsets->mainTitle);
+    auto titles = SliceQ<Go_String, QString>(GoSliceC(infoPtr + offsets->titles));
+    auto authors = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->authors));
+    auto artists = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->artists));
+    auto genres = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->genres));
+    auto tags = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->tags));
+    auto type = (ComicType)*(GoInt*)(infoPtr + offsets->type);
+    auto status = (ComicStatus)*(GoInt*)(infoPtr + offsets->status);
+    auto scanStatus = (ScanlationStatus)*(GoInt*)(infoPtr + offsets->scanlationStatus);
+    auto desc = GoStringQ(infoPtr + offsets->description);
+    auto rating = *(float*)(infoPtr + offsets->rating);
+    bool mature = *(GoInt*)(infoPtr + offsets->mature);
+    QString thumbnail = GoStringQ(infoPtr + offsets->thumbnailFilename);
 
-        auto altTitles = SliceQ<Go_String, QString>(GoSliceC(coInfoPtr + offsets->titles));
-        auto genres = SliceQ<GoInt, int>(GoSliceC(coInfoPtr + offsets->genres));
-        auto tags = SliceQ<GoInt, int>(GoSliceC(coInfoPtr + offsets->tags));
+    go_collectGarbage(info);
 
-		auto row = ComicInfoRow{
-			title, altTitles, authors, artists, genres, tags, type, status, scanStatus, desc, rating, mature,
-            thumbnail
-		};
-		list->append(row);
-	}
-	return list;
+	return ComicInfoRow{
+        mainTitle, titles, authors, artists, genres, tags, type, status, scanStatus, desc, rating, mature, thumbnail
+    };
 }
 
-QModel_* newModel(QList_* data) {
-	return reinterpret_cast<QModel_*>(new ComicListModel(*reinterpret_cast<QList<UpdateInfoRow>*>(data)));
+ScanlationRow convertScanlation(void* scanlation) {
+	typedef struct {
+		GoUintptr title;
+		GoUintptr language;
+		GoUintptr scanlators;
+		GoUintptr pluginName;
+		GoUintptr url;
+		GoUintptr pageLinks;
+	} scanlationOffsets;
+	auto offsets = (scanlationOffsets*) go_Offsets_Scanlation;
+
+	GoUintptr scanlationPtr = (GoUintptr) scanlation;
+
+	auto title = GoStringQ(scanlationPtr + offsets->title);
+	auto language = (int)*(GoInt*)(scanlationPtr + offsets->language);
+	auto scanlatorsPtr = go_JointScanlators_ToSlice(scanlationPtr + offsets->scanlators); //TODO: don't convert every time (see scanlators.go)
+    auto scanlators = SliceQ<GoInt, int>(GoSliceC(scanlatorsPtr));
+	//auto scanlators = SliceQ<GoInt, int>(GoSliceC(scanlationPtr + offsets->scanlators));
+	auto pluginName = GoStringQ(scanlationPtr + offsets->pluginName);
+	auto url = GoStringQ(scanlationPtr + offsets->url);
+	auto pageLinks = SliceQ<Go_String, QString>(GoSliceC(scanlationPtr + offsets->pageLinks));
+
+	go_collectGarbage(scanlation);
+	go_collectGarbage(scanlatorsPtr);
+
+	return ScanlationRow{title, language, scanlators, pluginName, url, pageLinks};
 }
 
-QInfoModel_* newInfoModel(QComicInfoList_* data) {
-	return reinterpret_cast<QInfoModel_*>(new ComicInfoModel(*reinterpret_cast<QList<ComicInfoRow>*>(data)));
+UpdateInfoRow convertUpdateInfo(void* updateInfo) {
+	typedef struct {
+		GoUintptr title;
+        GoUintptr chaptersCount;
+        GoUintptr chaptersRead;
+        GoUintptr updated;
+        GoUintptr progress;
+        GoUintptr status;
+	} updateInfoOffsets;
+	auto offsets = (updateInfoOffsets*) go_Offsets_UpdateInfo;
+
+	GoUintptr updateInfoPtr = (GoUintptr) updateInfo;
+
+	auto title = GoStringQ(updateInfoPtr + offsets->title);
+	auto chaptersCount = (int)*(GoInt*)(updateInfoPtr + offsets->chaptersCount);
+	auto chaptersRead = (int)*(GoInt*)(updateInfoPtr + offsets->chaptersRead);
+	auto updated = QDateTime::fromMSecsSinceEpoch(1000 * *(GoInt64*)(updateInfoPtr + offsets->updated));
+	auto progress = (int)*(GoInt8*)(updateInfoPtr + offsets->progress);
+	auto status = (UpdateStatus)*(GoInt8*)(updateInfoPtr + offsets->status);
+
+	go_collectGarbage(updateInfo);
+
+	return UpdateInfoRow{title, chaptersCount, chaptersRead, updated, progress, status};
 }
 
-void modelSetStore(QModel_* model, QList_* data) {
-	reinterpret_cast<ComicListModel*>(model)->setStore(*reinterpret_cast<QList<UpdateInfoRow>*>(data));
+void* copyRawGoData(void* data, int size) {
+	auto copy = malloc(size);
+	memcpy(copy, data, size);
+	return copy;
 }
 
 /*
+void modelSetStore(QModel_* model, QList_* data) {
+	reinterpret_cast<UpdateInfoModel*>(model)->setStore(*reinterpret_cast<QList<UpdateInfoRow>*>(data));
+}
+
+
 int modelAppendRow(QModel_* model, QVariantList_* data) {
-	if (reinterpret_cast<ComicListModel*>(model)->appendRow()) {
+	if (reinterpret_cast<UpdateInfoModel*>(model)->appendRow()) {
 		return 1;
 	}
 	return 0;
 }
-*/
+
 
 int modelAppendRows(QModel_* model, QList_* data) {
-	if (reinterpret_cast<ComicListModel*>(model)->appendRows(*reinterpret_cast<QList<UpdateInfoRow>*>(data))) {
+	if (reinterpret_cast<UpdateInfoModel*>(model)->appendRows(*reinterpret_cast<QList<UpdateInfoRow>*>(data))) {
 		return 1;
     }
     return 0;
 }
 
 int modelRemoveRows(QModel_* model, int row, int count) {
-	if (reinterpret_cast<ComicListModel*>(model)->removeRows(row, count, QModelIndex())) {
+	if (reinterpret_cast<UpdateInfoModel*>(model)->removeRows(row, count, QModelIndex())) {
 		return 1;
     }
     return 0;
 }
+*/

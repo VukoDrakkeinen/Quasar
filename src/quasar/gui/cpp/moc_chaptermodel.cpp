@@ -1,16 +1,16 @@
 /****************************************************************************
-** Meta object code from reading C++ file 'infomodel.h'
+** Meta object code from reading C++ file 'chaptermodel.h'
 **
 ** Created by: The Qt Meta Object Compiler version 67 (Qt 5.5.0)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
 
-#include "infomodel.h"
+#include "chaptermodel.h"
 #include <QtCore/qbytearray.h>
 #include <QtCore/qmetatype.h>
 #if !defined(Q_MOC_OUTPUT_REVISION)
-#error "The header file 'infomodel.h' doesn't include <QObject>."
+#error "The header file 'chaptermodel.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 67
 #error "This file was generated using the moc from 5.5.0. It"
 #error "cannot be used with the include files from this version of Qt."
@@ -18,31 +18,31 @@
 #endif
 
 QT_BEGIN_MOC_NAMESPACE
-struct qt_meta_stringdata_ComicInfoModel_t {
+struct qt_meta_stringdata_ChapterModel_t {
     QByteArrayData data[6];
-    char stringdata0[43];
+    char stringdata0[41];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
-    qptrdiff(offsetof(qt_meta_stringdata_ComicInfoModel_t, stringdata0) + ofs \
+    qptrdiff(offsetof(qt_meta_stringdata_ChapterModel_t, stringdata0) + ofs \
         - idx * sizeof(QByteArrayData)) \
     )
-static const qt_meta_stringdata_ComicInfoModel_t qt_meta_stringdata_ComicInfoModel = {
+static const qt_meta_stringdata_ChapterModel_t qt_meta_stringdata_ChapterModel = {
     {
-QT_MOC_LITERAL(0, 0, 14), // "ComicInfoModel"
-QT_MOC_LITERAL(1, 15, 6), // "qmlGet"
-QT_MOC_LITERAL(2, 22, 0), // ""
-QT_MOC_LITERAL(3, 23, 3), // "row"
-QT_MOC_LITERAL(4, 27, 6), // "column"
-QT_MOC_LITERAL(5, 34, 8) // "roleName"
+QT_MOC_LITERAL(0, 0, 12), // "ChapterModel"
+QT_MOC_LITERAL(1, 13, 6), // "qmlGet"
+QT_MOC_LITERAL(2, 20, 0), // ""
+QT_MOC_LITERAL(3, 21, 3), // "row"
+QT_MOC_LITERAL(4, 25, 6), // "column"
+QT_MOC_LITERAL(5, 32, 8) // "roleName"
 
     },
-    "ComicInfoModel\0qmlGet\0\0row\0column\0"
+    "ChapterModel\0qmlGet\0\0row\0column\0"
     "roleName"
 };
 #undef QT_MOC_LITERAL
 
-static const uint qt_meta_data_ComicInfoModel[] = {
+static const uint qt_meta_data_ChapterModel[] = {
 
  // content:
        7,       // revision
@@ -64,10 +64,10 @@ static const uint qt_meta_data_ComicInfoModel[] = {
        0        // eod
 };
 
-void ComicInfoModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+void ChapterModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
 {
     if (_c == QMetaObject::InvokeMetaMethod) {
-        ComicInfoModel *_t = static_cast<ComicInfoModel *>(_o);
+        ChapterModel *_t = static_cast<ChapterModel *>(_o);
         Q_UNUSED(_t)
         switch (_id) {
         case 0: { QVariant _r = _t->qmlGet((*reinterpret_cast< int(*)>(_a[1])),(*reinterpret_cast< int(*)>(_a[2])),(*reinterpret_cast< const QString(*)>(_a[3])));
@@ -77,28 +77,28 @@ void ComicInfoModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
     }
 }
 
-const QMetaObject ComicInfoModel::staticMetaObject = {
-    { &QAbstractTableModel::staticMetaObject, qt_meta_stringdata_ComicInfoModel.data,
-      qt_meta_data_ComicInfoModel,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
+const QMetaObject ChapterModel::staticMetaObject = {
+    { &QAbstractItemModel::staticMetaObject, qt_meta_stringdata_ChapterModel.data,
+      qt_meta_data_ChapterModel,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
 };
 
 
-const QMetaObject *ComicInfoModel::metaObject() const
+const QMetaObject *ChapterModel::metaObject() const
 {
     return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
 }
 
-void *ComicInfoModel::qt_metacast(const char *_clname)
+void *ChapterModel::qt_metacast(const char *_clname)
 {
     if (!_clname) return Q_NULLPTR;
-    if (!strcmp(_clname, qt_meta_stringdata_ComicInfoModel.stringdata0))
-        return static_cast<void*>(const_cast< ComicInfoModel*>(this));
-    return QAbstractTableModel::qt_metacast(_clname);
+    if (!strcmp(_clname, qt_meta_stringdata_ChapterModel.stringdata0))
+        return static_cast<void*>(const_cast< ChapterModel*>(this));
+    return QAbstractItemModel::qt_metacast(_clname);
 }
 
-int ComicInfoModel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+int ChapterModel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 {
-    _id = QAbstractTableModel::qt_metacall(_c, _id, _a);
+    _id = QAbstractItemModel::qt_metacall(_c, _id, _a);
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
