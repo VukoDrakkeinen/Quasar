@@ -6,6 +6,7 @@ import (
 	"gopkg.in/qml.v1"
 	"log"
 	"os"
+	"quasar/datadir/qlog"
 	"quasar/gui"
 	"quasar/redshift"
 	"runtime/pprof"
@@ -19,65 +20,67 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
 
-	flag.Parse()
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal(err)
+	if false {
+		flag.Parse()
+		if *cpuprofile != "" {
+			f, err := os.Create(*cpuprofile)
+			if err != nil {
+				log.Fatal(err)
+			}
+			pprof.StartCPUProfile(f)
+			defer pprof.StopCPUProfile()
 		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 
-	if err := qml.Run(launchGUI); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+		if err := qml.Run(launchGUI); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 
-	return
+		return
+	}
 
 	globals, _ := redshift.LoadGlobalSettings()
-	fmt.Println("Creating Fetcher")
+	qlog.Log(qlog.Info, "Creating Fetcher")
 	fet := redshift.NewFetcher(nil)
-	fmt.Println("Registering plugins")
+	qlog.Log(qlog.Info, "Registering plugins")
 	batoto := redshift.NewBatoto()
 	bupdates := redshift.NewBakaUpdates()
 	fet.RegisterPlugin(batoto)
 	fet.RegisterPlugin(bupdates)
-	fmt.Println("Creating Comic")
+	qlog.Log(qlog.Info, "Creating Comic")
 	comic := redshift.NewComic(*redshift.NewIndividualSettings(globals))
-	fmt.Println("Finding comic URL")
+	qlog.Log(qlog.Info, "Finding comic URL")
 	fet.TestFind(comic, batoto.PluginName(), "Kingdom") //Has lots of data to process, good for testing
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
-	fmt.Println("Downloading ComicInfo")
+	qlog.Log(qlog.Info, "Downloading ComicInfo")
 	fet.DownloadComicInfoFor(comic)
-	fmt.Println(comic.Info)
-	fmt.Println("Downloading Chapter List")
+	qlog.Log(qlog.Info, "Downloading Chapter List")
 	fet.DownloadChapterListFor(comic)
-	for i := 0; i < comic.ChapterCount(); i++ {
+	/*for i := 0; i < comic.ChapterCount(); i++ {
 		chapter, id := comic.GetChapter(i)
 		sc0 := chapter.Scanlation(0)
 		fmt.Printf("%v %v (%v)\n", id, sc0.Title, sc0.Scanlators)
+	}//*/
+
+	//return
+
+	qlog.Log(qlog.Info, "Saving to DB")
+	list := redshift.NewComicList(fet)
+	list.AddComics([]*redshift.Comic{comic})
+	//list.ScheduleComicFetches()
+	//time.Sleep(5 * time.Second) //Wait for the background tasks to complete
+	list.SaveToDB()
+	qlog.Log(qlog.Info, "Saved")
+	qlog.Log(qlog.Info, "Loading from DB")
+	err := list.LoadFromDB()
+	if err != nil {
+		qlog.Log(qlog.Error, err)
+		return
 	}
+	qlog.Log(qlog.Info, "Loaded")
 
 	return
-	/*
-		fmt.Println("Saving to DB")
-		list := redshift.NewComicList(fet)
-		list.AddComics([]*redshift.Comic{comic})
-		list.ScheduleComicFetches()
-		time.Sleep(5 * time.Second) //Wait for the background tasks to complete
-		list.SaveToDB()
-		fmt.Println("Saved")
-		fmt.Println("Loading from DB")
-		err := list.LoadFromDB()
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println("Loaded")
 
-		return
-	*/
 	fmt.Println("\nDownloading Page Links for Chapter:0 Scanlation:0")
 	fet.DownloadPageLinksFor(comic, 0, 0)
 	chapter, id := comic.GetChapter(0)

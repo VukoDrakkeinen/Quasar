@@ -103,7 +103,7 @@ func NewFileLog(filename string) LogWriter {
 		fmt.Println(`Unable to open log file "`, filename, `".`)
 		return NullLog{}
 	}
-	ret := FileLog{file}
+	ret := FileLog{file: file}
 	cache[filename] = ret
 	return ret
 }
