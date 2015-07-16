@@ -46,45 +46,39 @@ func go_collectGarbage(ptr unsafe.Pointer) {
 ///Ids
 
 //export go_authorNameById
-func go_authorNameById(id C.int) *C.char {
-	var gid idsdict.AuthorId
-	gid.Scan(int64(id + 1))
-	return C.CString(idsdict.Authors.NameOf(gid))
+func go_authorNameById(id int) *C.char {
+	authorId := *(*idsdict.AuthorId)(unsafe.Pointer(&id))
+	return C.CString(idsdict.Authors.NameOf(authorId))
 }
 
 //export go_artistNameById
-func go_artistNameById(id C.int) *C.char {
-	var gid idsdict.ArtistId
-	gid.Scan(int64(id + 1))
-	return C.CString(idsdict.Artists.NameOf(gid))
+func go_artistNameById(id int) *C.char {
+	artistId := *(*idsdict.ArtistId)(unsafe.Pointer(&id))
+	return C.CString(idsdict.Artists.NameOf(artistId))
 }
 
 //export go_genreNameById
-func go_genreNameById(id C.int) *C.char {
-	var gid idsdict.ComicGenreId
-	gid.Scan(int64(id + 1))
-	return C.CString(idsdict.ComicGenres.NameOf(gid))
+func go_genreNameById(id int) *C.char {
+	comicGenreId := *(*idsdict.ComicGenreId)(unsafe.Pointer(&id))
+	return C.CString(idsdict.ComicGenres.NameOf(comicGenreId))
 }
 
 //export go_categoryNameById
-func go_categoryNameById(id C.int) *C.char {
-	var gid idsdict.ComicTagId
-	gid.Scan(int64(id + 1))
-	return C.CString(idsdict.ComicTags.NameOf(gid))
+func go_categoryNameById(id int) *C.char {
+	comicTagId := *(*idsdict.ComicTagId)(unsafe.Pointer(&id))
+	return C.CString(idsdict.ComicTags.NameOf(comicTagId))
 }
 
 //export go_scanlatorNameById
-func go_scanlatorNameById(id C.int) *C.char {
-	var gid idsdict.ScanlatorId
-	gid.Scan(int64(id + 1))
-	return C.CString(idsdict.Scanlators.NameOf(gid))
+func go_scanlatorNameById(id int) *C.char {
+	scanlatorId := *(*idsdict.ScanlatorId)(unsafe.Pointer(&id))
+	return C.CString(idsdict.Scanlators.NameOf(scanlatorId))
 }
 
 //export go_langNameById
-func go_langNameById(id C.int) *C.char {
-	var gid idsdict.LangId
-	gid.Scan(int64(id + 1))
-	return C.CString(idsdict.Langs.NameOf(gid))
+func go_langNameById(id int) *C.char {
+	langId := *(*idsdict.LangId)(unsafe.Pointer(&id))
+	return C.CString(idsdict.Langs.NameOf(langId))
 }
 
 //export go_getThumbnailPath
