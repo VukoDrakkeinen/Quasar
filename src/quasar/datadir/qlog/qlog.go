@@ -49,13 +49,18 @@ type QLogger struct {
 }
 
 type FileLog struct {
-	file *os.File
+	file     *os.File
+	newLined bool
 }
 
 type StdLog struct{}
 type NullLog struct{}
 
 func (this FileLog) Write(msg logMessage) {
+	if !this.newLined {
+		this.file.WriteString("\n")
+		this.newLined = true
+	}
 	bstr := []byte(msg.t.Format(logTimeFormat))
 	bstr = append(bstr, []byte(" "+msg.s.String()+": [")...)
 	bstr = append(bstr, []byte(msg.m+"]\n")...)
@@ -98,8 +103,6 @@ func NewFileLog(filename string) LogWriter {
 		fmt.Println(`Unable to open log file "`, filename, `".`)
 		return NullLog{}
 	}
-	file.WriteString("\n")
-
 	ret := FileLog{file}
 	cache[filename] = ret
 	return ret
