@@ -1,6 +1,10 @@
 package redshift
 
-import "strconv"
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
 
 type FetcherPluginName string
 
@@ -32,4 +36,17 @@ func titleFromIdentity(identity ChapterIdentity) string {
 	}
 	title += "]"
 	return title
+}
+
+func (this *FetcherPluginName) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case string: //yeah, can't do "case string, []byte" for some reason. o_O Google fix pls
+		*this = FetcherPluginName(s)
+		return nil
+	case []byte:
+		*this = FetcherPluginName(s)
+		return nil
+	default:
+		return errors.New(fmt.Sprintf("%T.Scan: type assert failed (must be a string or []uint8, got %T!)", *this, src))
+	}
 }
