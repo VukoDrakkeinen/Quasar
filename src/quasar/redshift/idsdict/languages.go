@@ -49,7 +49,7 @@ func (this LangId) String() string {
 func (this *LangId) Scan(src interface{}) error {
 	n, ok := src.(int64)
 	if !ok || src == nil {
-		return errors.New("LangId.Scan: type assert failed (must be an int64!)")
+		return errors.New(fmt.Sprintf("%T.Scan: type assert failed (must be an int64, got %T!)", *this, src))
 	}
 	this.ordinal = Id(n - 1) //RDBMSes start counting at 1, not 0
 	return nil
