@@ -56,7 +56,7 @@ type FileLog struct {
 type StdLog struct{}
 type NullLog struct{}
 
-func (this FileLog) Write(msg logMessage) {
+func (this *FileLog) Write(msg logMessage) {
 	if !this.newLined {
 		this.file.WriteString("\n")
 		this.newLined = true
@@ -67,7 +67,7 @@ func (this FileLog) Write(msg logMessage) {
 	this.file.Write(bstr)
 }
 
-func (this StdLog) Write(msg logMessage) {
+func (this *StdLog) Write(msg logMessage) {
 	if msg.s == Error {
 		fmt.Fprintln(os.Stderr, msg.m)
 	} else {
@@ -75,7 +75,7 @@ func (this StdLog) Write(msg logMessage) {
 	}
 }
 
-func (this NullLog) Write(msg logMessage) { _ = msg }
+func (this *NullLog) Write(msg logMessage) { _ = msg }
 
 var logsDir string
 var defaultLogger QLogger
@@ -86,14 +86,15 @@ func init() {
 	logsDir = filepath.Join(datadir.Path(), "logs")
 	os.Mkdir(logsDir, os.ModeDir|0755)
 	cache = make(map[string]FileLog)
-	defaultLogger = *New(NewFileLog("debug.log"), StdLog{})
+	defaultLogger = *New(NewFileLog("debug.log"), &StdLog{})
 }
 
 func NewFileLog(filename string) LogWriter {
 	cLock.Lock()
 	defer cLock.Unlock()
 	if _, exists := cache[filename]; exists {
-		return NullLog{}
+		Log(Warning, "Attempted to create another LogWriter for file", filename) //...we won't hit an infinite recurrence, will we?
+		return &NullLog{}
 	}
 
 	path := filepath.Join(logsDir, filename)
@@ -101,10 +102,10 @@ func NewFileLog(filename string) LogWriter {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0755)
 	if err != nil {
 		fmt.Println(`Unable to open log file "`, filename, `".`)
-		return NullLog{}
+		return &NullLog{}
 	}
-	ret := FileLog{file: file}
-	cache[filename] = ret
+	ret := &FileLog{file: file}
+	cache[filename] = *ret
 	return ret
 }
 
@@ -113,15 +114,15 @@ func New(writers ...LogWriter) *QLogger {
 		writers: make([]LogWriter, 0, len(writers)),
 	}
 	for _, writer := range writers {
-		if _, isNull := writer.(NullLog); !isNull {
-			ret.writers = append(ret.writers, writer)
-		}
+		ret.AddWriter(writer)
 	}
 	return ret
 }
 
 func (this *QLogger) AddWriter(writer LogWriter) {
-	this.writers = append(this.writers, writer)
+	if _, isNull := writer.(*NullLog); !isNull {
+		this.writers = append(this.writers, writer)
+	}
 } //TODO?: RemoveWriter?
 
 func rotateLogs(path string) {
