@@ -241,7 +241,7 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 	}
 }
 
-func (list ComicList) LoadFromDB() (err error) {
+func (list *ComicList) LoadFromDB() (err error) {
 	list.cancelSchedule()
 	db := qdb.DB()
 	CreateDB(db)
@@ -269,6 +269,11 @@ func (list ComicList) LoadFromDB() (err error) {
 		idsQueryStmt.Close()
 	}
 
+	comicSqlIds := make(map[int64]struct{}) //TODO: not satisfied with this part, rewrite
+	for _, comic := range list.comics {
+		comicSqlIds[comic.sqlId] = struct{}{}
+	}
+
 	dbStmts := SQLComicQueryStmts(db)
 	defer dbStmts.Close()
 	stmts := dbStmts.ToTransactionSpecific(transaction)
@@ -282,12 +287,17 @@ func (list ComicList) LoadFromDB() (err error) {
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
+		if _, exists := comicSqlIds[comic.sqlId]; exists { //TODO: don't skip, merge
+			qlog.Logf(qlog.Info, "Skipped one comic while loading from DB (already exists). Id: %d\n", comic.sqlId)
+			continue
+		}
 		list.comics = append(list.comics, comic)
 		var nextFetchTime time.Time
 		err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime)
 		nextFetchTime = nextFetchTime.UTC()
 		list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
-		fmt.Println("  Loaded scheduled fetch time", list.nextFetchTimes[len(list.nextFetchTimes)-1])
+		list.interruptChans = append(list.interruptChans, make(chan struct{}))
+		list.updatedAt = append(list.updatedAt, time.Time{}) //TODO: actually load
 		if err != nil {
 			return qerr.NewLocated(err)
 		}

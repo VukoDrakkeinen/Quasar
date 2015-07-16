@@ -401,11 +401,12 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 	if err != nil {
 		return nil, qerr.NewLocated(err)
 	}
+	comicId = comic.sqlId
 	info.ThumbnailFilename = thumbnailFilename.String
 	stts.DelayedModeDuration = time.Duration(duration)
 	stts.OverrideDefaults = qutils.BitfieldToBools(overrideDefaultsBitfield)
 	stts.FetchFrequency = time.Duration(fetchFreq)
-	comic.settings = stts
+	comic.settings = stts //TODO?: merge settings, so loaded won't overwrite new defaults?
 
 	altTitleRows, err := stmts[altTitlesQuery].Query(comicId)
 	if err != nil {
