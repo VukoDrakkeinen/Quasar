@@ -1,16 +1,16 @@
-package redshift
+package core
 
 import (
 	"bytes"
 	"html"
 	"net/url"
 	"path"
+	. "quasar/core/idsdict"
 	"quasar/datadir/qdb"
 	"quasar/datadir/qlog"
 	"quasar/qregexp"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idsdict"
 	"reflect"
 	"strconv"
 	"strings"

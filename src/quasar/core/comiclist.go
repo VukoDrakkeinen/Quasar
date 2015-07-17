@@ -1,12 +1,12 @@
-package redshift
+package core
 
 import (
 	"fmt"
 	"math"
+	"quasar/core/idsdict"
 	"quasar/datadir/qdb"
 	"quasar/datadir/qlog"
 	"quasar/qutils/qerr"
-	"quasar/redshift/idsdict"
 	"strings"
 	"time"
 )

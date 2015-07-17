@@ -1,4 +1,4 @@
-package redshift
+package core
 
 import "fmt"
 

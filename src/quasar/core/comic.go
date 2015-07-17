@@ -1,12 +1,12 @@
-package redshift
+package core
 
 import (
 	"database/sql"
 	"math"
+	. "quasar/core/idsdict"
 	"quasar/datadir/qdb"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idsdict"
 	"sync"
 	"sync/atomic"
 	"time"

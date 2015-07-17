@@ -1,4 +1,4 @@
-package redshift
+package core
 
 import (
 	"encoding/json"
@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	. "quasar/core/idsdict"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idsdict"
 	"reflect"
 	"time"
 )

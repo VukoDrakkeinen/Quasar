@@ -1,4 +1,4 @@
-package redshift
+package core
 
 import (
 	"compress/flate"
@@ -8,9 +8,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	neturl "net/url"
+	. "quasar/core/idsdict"
 	"quasar/datadir/qlog"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idsdict"
 	"sort"
 	"time"
 )

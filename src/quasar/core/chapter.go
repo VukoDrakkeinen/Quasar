@@ -1,11 +1,11 @@
-package redshift
+package core
 
 import (
 	"database/sql"
+	. "quasar/core/idsdict"
 	"quasar/datadir/qdb"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
-	. "quasar/redshift/idsdict"
 )
 
 const ( //SQL Statements Group keys

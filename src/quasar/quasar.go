@@ -6,9 +6,9 @@ import (
 	"gopkg.in/qml.v1"
 	"log"
 	"os"
+	"quasar/core"
 	"quasar/datadir/qlog"
 	"quasar/gui"
-	"quasar/redshift"
 	"runtime/pprof"
 	"time"
 )
@@ -20,35 +20,33 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
 
-	if false {
-		flag.Parse()
-		if *cpuprofile != "" {
-			f, err := os.Create(*cpuprofile)
-			if err != nil {
-				log.Fatal(err)
-			}
-			pprof.StartCPUProfile(f)
-			defer pprof.StopCPUProfile()
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
 		}
-
-		if err := qml.Run(launchGUI); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-
-		return
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
 	}
 
-	globals, _ := redshift.LoadGlobalSettings()
+	if err := qml.Run(launchGUI); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	return
+
+	globals, _ := core.LoadGlobalSettings()
 	qlog.Log(qlog.Info, "Creating Fetcher")
-	fet := redshift.NewFetcher(nil)
+	fet := core.NewFetcher(nil)
 	qlog.Log(qlog.Info, "Registering plugins")
-	batoto := redshift.NewBatoto()
-	bupdates := redshift.NewBakaUpdates()
+	batoto := core.NewBatoto()
+	bupdates := core.NewBakaUpdates()
 	fet.RegisterPlugin(batoto)
 	fet.RegisterPlugin(bupdates)
 	qlog.Log(qlog.Info, "Creating Comic")
-	comic := redshift.NewComic(*redshift.NewIndividualSettings(globals))
+	comic := core.NewComic(*core.NewIndividualSettings(globals))
 	qlog.Log(qlog.Info, "Finding comic URL")
 	fet.TestFind(comic, batoto.PluginName(), "Kingdom") //Has lots of data to process, good for testing
 	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
@@ -65,8 +63,8 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	//return
 
 	qlog.Log(qlog.Info, "Saving to DB")
-	list := redshift.NewComicList(fet)
-	list.AddComics([]*redshift.Comic{comic})
+	list := core.NewComicList(fet)
+	list.AddComics([]*core.Comic{comic})
 	//list.ScheduleComicFetches()
 	//time.Sleep(5 * time.Second) //Wait for the background tasks to complete
 	list.SaveToDB()
@@ -87,7 +85,7 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	fmt.Println(id, chapter)
 }
 
-var dontGC *redshift.ComicList //TODO: It's a tra- I mean, a HACK! Remove it!
+var dontGC *core.ComicList //TODO: It's a tra- I mean, a HACK! Remove it!
 
 func launchGUI() error {
 	qml.RegisterTypes("QuasarGUI", 1, 0, []qml.TypeSpec{
@@ -97,26 +95,22 @@ func launchGUI() error {
 	engine := qml.NewEngine()
 	context := engine.Context()
 
-	globals, _ := redshift.LoadGlobalSettings()
-	fmt.Println("Creating Fetcher")
-	fet := redshift.NewFetcher(nil)
-	fmt.Println("Registering plugins")
-	batoto := redshift.NewBatoto()
-	bupdates := redshift.NewBakaUpdates()
+	qlog.Log(qlog.Info, "Creating Fetcher")
+	fet := core.NewFetcher(nil)
+	qlog.Log(qlog.Info, "Registering plugins")
+	batoto := core.NewBatoto()
+	bupdates := core.NewBakaUpdates()
 	fet.RegisterPlugin(batoto)
 	fet.RegisterPlugin(bupdates)
-	fmt.Println("Creating Comic")
-	comic := redshift.NewComic(*redshift.NewIndividualSettings(globals))
-	fmt.Println("Finding comic URL")
-	fet.TestFind(comic, batoto.PluginName(), "Kingdom") //Has lots of data to process, good for testing
-	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
-	fmt.Println("Downloading ComicInfo")
-	fet.DownloadComicInfoFor(comic)
-	fmt.Println("Downloading Chapter List")
-	fet.DownloadChapterListFor(comic)
-	list := redshift.NewComicList(fet)
-	list.AddComics([]*redshift.Comic{comic})
+	list := core.NewComicList(fet)
 	dontGC = &list
+	qlog.Log(qlog.Info, "Loading from DB")
+	err := list.LoadFromDB()
+	err = list.LoadFromDB()
+	if err != nil {
+		qlog.Log(qlog.Error, err)
+		os.Exit(1)
+	}
 	//list.ScheduleComicFetches()
 	//fmt.Println("Waiting 5 seconds for background tasks (model notification not done yet!)...")
 	//time.Sleep(5 * time.Second)
@@ -137,7 +131,7 @@ func launchGUI() error {
 		return err
 	}
 	window := controls.CreateWindow(nil)
-	//var settings *redshift.GlobalSettings
+	//var settings *core.GlobalSettings
 	/*go func() {
 		chooser := window.ObjectByName("notifModeChooser")
 		chooser.Call("setValues", int(settings.DefaultNotificationMode), settings.DefaultAccumulativeModeCount, nil) //TODO: duration

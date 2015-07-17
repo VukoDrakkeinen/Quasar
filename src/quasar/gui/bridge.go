@@ -8,9 +8,9 @@ package gui
 import "C"
 
 import (
+	"quasar/core"
+	"quasar/core/idsdict"
 	"quasar/datadir/qdb"
-	"quasar/redshift"
-	"quasar/redshift/idsdict"
 	"reflect"
 	"sort"
 	"sync"
@@ -27,7 +27,7 @@ func init() {
 	disableGcFor(ptr)
 	C.go_Offsets_ComicInfo = ptr
 
-	ptr = offsets(&redshift.ChapterScanlation{})
+	ptr = offsets(&core.ChapterScanlation{})
 	disableGcFor(ptr)
 	C.go_Offsets_Scanlation = ptr
 
@@ -90,7 +90,7 @@ func go_getThumbnailPath(str *C.char) *C.char {
 
 //export go_ComicList_GetComic
 func go_ComicList_GetComic(goComicList unsafe.Pointer, idx C.int) unsafe.Pointer {
-	list := (*redshift.ComicList)(goComicList)
+	list := (*core.ComicList)(goComicList)
 	comic := unsafe.Pointer(list.GetComic(int(idx)))
 	disableGcFor(comic)
 	return comic
@@ -98,13 +98,13 @@ func go_ComicList_GetComic(goComicList unsafe.Pointer, idx C.int) unsafe.Pointer
 
 //export go_ComicList_Len
 func go_ComicList_Len(goComicList unsafe.Pointer) C.int {
-	list := (*redshift.ComicList)(goComicList)
+	list := (*core.ComicList)(goComicList)
 	return C.int(list.Len())
 }
 
 //export go_ComicList_ComicLastUpdated
 func go_ComicList_ComicLastUpdated(goComicList unsafe.Pointer, idx C.int) int64 {
-	list := (*redshift.ComicList)(goComicList)
+	list := (*core.ComicList)(goComicList)
 	return list.ComicLastUpdated(int(idx)).Unix()
 }
 
@@ -128,7 +128,7 @@ type updateInfoBridged struct {
 
 //export go_ComicList_ComicUpdateInfo
 func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.Pointer {
-	list := (*redshift.ComicList)(goComicList)
+	list := (*core.ComicList)(goComicList)
 	comic := list.GetComic(int(idx))
 
 	bridged := unsafe.Pointer(&updateInfoBridged{
@@ -152,13 +152,13 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 
 //export go_Comic_ChaptersCount
 func go_Comic_ChaptersCount(goComic unsafe.Pointer) C.int {
-	comic := (*redshift.Comic)(goComic)
+	comic := (*core.Comic)(goComic)
 	return C.int(comic.ChapterCount())
 }
 
 //export go_Comic_ChaptersReadCount
 func go_Comic_ChaptersReadCount(goComic unsafe.Pointer) C.int {
-	comic := (*redshift.Comic)(goComic)
+	comic := (*core.Comic)(goComic)
 	return C.int(comic.ChaptersReadCount())
 }
 
@@ -180,7 +180,7 @@ type comicInfoBridged struct {
 
 //export go_Comic_Info
 func go_Comic_Info(goComic unsafe.Pointer) unsafe.Pointer {
-	comic := (*redshift.Comic)(goComic)
+	comic := (*core.Comic)(goComic)
 	info := comic.Info()
 
 	bridged := &comicInfoBridged{
@@ -219,7 +219,7 @@ func go_Comic_Info(goComic unsafe.Pointer) unsafe.Pointer {
 
 //export go_Comic_GetChapter
 func go_Comic_GetChapter(goComic unsafe.Pointer, idx C.int) unsafe.Pointer {
-	comic := (*redshift.Comic)(goComic)
+	comic := (*core.Comic)(goComic)
 	chapter, _ := comic.GetChapter(int(idx))
 	disableGcFor(unsafe.Pointer(&chapter))
 	return unsafe.Pointer(&chapter)
@@ -229,19 +229,19 @@ func go_Comic_GetChapter(goComic unsafe.Pointer, idx C.int) unsafe.Pointer {
 
 //export go_Chapter_AlreadyRead
 func go_Chapter_AlreadyRead(goChapter unsafe.Pointer) bool {
-	chapter := (*redshift.Chapter)(goChapter)
+	chapter := (*core.Chapter)(goChapter)
 	return chapter.AlreadyRead
 }
 
 //export go_Chapter_ScanlationsCount
 func go_Chapter_ScanlationsCount(goChapter unsafe.Pointer) C.int {
-	chapter := *(*redshift.Chapter)(goChapter)
+	chapter := *(*core.Chapter)(goChapter)
 	return C.int(chapter.ScanlationsCount())
 }
 
 //export go_Chapter_GetScanlation
 func go_Chapter_GetScanlation(goChapter unsafe.Pointer, idx C.int) unsafe.Pointer {
-	chapter := (*redshift.Chapter)(goChapter)
+	chapter := (*core.Chapter)(goChapter)
 	scanlation := chapter.Scanlation(int(idx))
 	disableGcFor(unsafe.Pointer(&scanlation))
 	return unsafe.Pointer(&scanlation)

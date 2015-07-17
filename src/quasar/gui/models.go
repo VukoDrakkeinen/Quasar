@@ -8,20 +8,20 @@ package gui
 import "C"
 
 import (
-	"quasar/redshift"
+	"quasar/core"
 	"unsafe"
 )
 
 //TODO: notify models of changes in Go data
 
-func NewComicInfoModel(list *redshift.ComicList) (model unsafe.Pointer) {
+func NewComicInfoModel(list *core.ComicList) (model unsafe.Pointer) {
 	return C.newInfoModel(unsafe.Pointer(list))
 }
 
-func NewComicUpdateModel(list *redshift.ComicList) (model unsafe.Pointer) {
+func NewComicUpdateModel(list *core.ComicList) (model unsafe.Pointer) {
 	return C.newUpdateModel(unsafe.Pointer(list))
 }
 
-func NewComicChapterModel(list *redshift.ComicList) (model unsafe.Pointer) {
+func NewComicChapterModel(list *core.ComicList) (model unsafe.Pointer) {
 	return C.newChapterModel(unsafe.Pointer(list))
 }
