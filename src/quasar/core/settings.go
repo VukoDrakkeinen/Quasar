@@ -136,22 +136,22 @@ func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 }
 
 type splitDuration struct {
-	Hours time.Duration `json:"hours"`
-	Days  time.Duration `json:"days"`
-	Weeks time.Duration `json:"weeks"`
+	Hours uint8 `json:"hours"`
+	Days  uint8 `json:"days"`
+	Weeks uint8 `json:"weeks"`
 }
 
 func (this *splitDuration) toDuration() (d time.Duration) {
-	d += this.Hours * time.Hour
-	d += this.Days * dayTime
-	d += this.Weeks * weekTime
+	d += time.Duration(this.Hours) * time.Hour
+	d += time.Duration(this.Days) * dayTime
+	d += time.Duration(this.Weeks) * weekTime
 	return
 }
 
 func durationToSplit(d time.Duration) (s splitDuration) {
-	s.Weeks, d = d/weekTime, d%weekTime
-	s.Days, d = d/dayTime, d%dayTime
-	s.Hours = d / time.Hour
+	s.Weeks, d = uint8(d/weekTime), d%weekTime
+	s.Days, d = uint8(d/dayTime), d%dayTime
+	s.Hours = uint8(d / time.Hour)
 	return
 }
 

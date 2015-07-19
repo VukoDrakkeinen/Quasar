@@ -33,9 +33,11 @@ class ChapterModel : public QAbstractItemModel
 		bool hasChildren(const QModelIndex& parent = QModelIndex()) const;
 		QHash<int, QByteArray> roleNames() const;
 		void setGoData(void* goComicList);
+		Q_INVOKABLE void setComicIdx(int comicIdx);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 	private:
 		void* goComicList;
+		int comicIdx;
 	public:
 		enum DataRole {
 			TitleRole = Qt::UserRole,

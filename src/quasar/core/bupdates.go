@@ -76,6 +76,10 @@ func (this *bakaUpdates) PluginName() FetcherPluginName {
 	return this.name
 }
 
+func (this *bakaUpdates) HumanReadableName() string {
+	return "Baka-Updates"
+}
+
 func (this *bakaUpdates) Languages() []string {
 	return []string{"English"}
 }

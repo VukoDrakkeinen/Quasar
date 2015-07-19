@@ -116,7 +116,7 @@ func launchGUI() error {
 	//time.Sleep(5 * time.Second)
 
 	fmt.Println("Crash nao!")
-	updatemodelCommon := qml.CommonOf(gui.NewComicUpdateModel(&list), engine)
+	updatemodelCommon := qml.CommonOf(gui.NewComicUpdateModel(&list), engine) //TODO: investigate possibility of replacing with pure Go code
 	infomodelCommon := qml.CommonOf(gui.NewComicInfoModel(&list), engine)
 	chaptermodelCommon := qml.CommonOf(gui.NewComicChapterModel(&list), engine)
 	fmt.Println("Crash niet")
@@ -124,9 +124,10 @@ func launchGUI() error {
 	context.SetVar("updateModel", updatemodelCommon)
 	context.SetVar("infoModel", infomodelCommon)
 	context.SetVar("chapterModel", chaptermodelCommon)
+	context.SetVar("quasarCore", &gui.CoreToQML{&list})
 	//context.SetVar("notifModeChooser", 0)
 
-	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml")
+	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml") //TODO: load from resources
 	if err != nil {
 		return err
 	}

@@ -88,6 +88,14 @@ func (this *fetcher) RegisterPlugin(plugin FetcherPlugin) (success, replaced boo
 	return
 }
 
+func (this *fetcher) Plugins() (names []FetcherPluginName, humanReadableNames []string) {
+	for pluginName, plugin := range this.plugins {
+		names = append(names, pluginName)
+		humanReadableNames = append(humanReadableNames, plugin.HumanReadableName())
+	}
+	return
+}
+
 func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 	var offender FetcherPluginName
 	defer func() {

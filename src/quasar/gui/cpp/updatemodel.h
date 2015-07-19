@@ -26,8 +26,7 @@ class UpdateInfoModel : public QAbstractTableModel
 		Q_OBJECT
 
 	public:
-		UpdateInfoModel() {};
-		UpdateInfoModel(QList<UpdateInfoRow> store);
+		//UpdateInfoModel(QList<UpdateInfoRow> store);
 		UpdateInfoModel(void* goComicList);
 		virtual ~UpdateInfoModel();
 	public:

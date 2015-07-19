@@ -65,7 +65,6 @@ class ComicInfoModel : public QAbstractTableModel
 		Q_OBJECT
 
 	public:
-		ComicInfoModel() {};
 		ComicInfoModel(void* goComicList);
 		virtual ~ComicInfoModel();
 	public:

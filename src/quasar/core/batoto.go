@@ -79,6 +79,10 @@ func (this *batoto) PluginName() FetcherPluginName {
 	return this.name
 }
 
+func (this *batoto) HumanReadableName() string {
+	return "Batoto"
+}
+
 func (this *batoto) Languages() []string {
 	return []string{
 		"English", "Spanish", "French", "German", "Portuguese", "Turkish", "Indonesian", "Greek", "Filipino", "Italian",

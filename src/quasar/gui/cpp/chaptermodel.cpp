@@ -4,7 +4,7 @@
 #include <QLocale>
 #include <QDebug>
 
-ChapterModel::ChapterModel(void* goComicList): QAbstractItemModel(), goComicList(goComicList) {}
+ChapterModel::ChapterModel(void* goComicList): QAbstractItemModel(), goComicList(goComicList), comicIdx(-1) {}
 ChapterModel::~ChapterModel() {}
 
 int ChapterModel::rowCount(const QModelIndex& parent) const
@@ -12,8 +12,12 @@ int ChapterModel::rowCount(const QModelIndex& parent) const
 	if (parent.column() > 0) {
 		return 0;
 	}
+
+	if (this->comicIdx == -1) {
+		return 0;
+	}
 	
-	const int comicIdx = 0;	//TODO
+	//const int comicIdx = 0;	//TODO
 	auto comic = go_ComicList_GetComic(this->goComicList, comicIdx);
 	
 	if (!parent.isValid()) {
@@ -38,8 +42,12 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
 	if (!index.isValid()) {
 		return QVariant();
 	}
+
+	if (this->comicIdx == -1) {
+    		return QVariant();
+    }
 	
-	const int comicIdx = 0;	//TODO
+	//const int comicIdx = 0;	//TODO
 	
 	ScanlationRow scanlation;
 	int scanlationsCount;
@@ -226,6 +234,12 @@ QVariant ChapterModel::headerData(int section, Qt::Orientation orientation, int 
 void ChapterModel::setGoData(void* goComicList) {
 	this->beginResetModel();
     this->goComicList = goComicList;
+    this->endResetModel();
+}
+
+void ChapterModel::setComicIdx(int comicIdx) {
+	this->beginResetModel();
+    this->comicIdx = comicIdx;
     this->endResetModel();
 }
 

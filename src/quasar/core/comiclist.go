@@ -70,6 +70,10 @@ type ComicList struct {
 	fetcher        *fetcher
 }
 
+func (list ComicList) Fetcher() *fetcher {
+	return list.fetcher
+}
+
 func (this *ComicList) AddComics(comics []*Comic) {
 	this.comics = append(this.comics, comics...)
 	interruptChans := make([]chan struct{}, len(comics))
