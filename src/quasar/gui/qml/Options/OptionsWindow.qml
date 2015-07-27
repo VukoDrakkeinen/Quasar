@@ -21,6 +21,7 @@ Window {
 	ColumnLayout {
 		anchors.fill: parent
 		anchors.margins: 8
+		id: mainLayout
 
 		GroupBox {
 			Layout.fillWidth: true

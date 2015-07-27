@@ -18,6 +18,89 @@
 #endif
 
 QT_BEGIN_MOC_NAMESPACE
+struct qt_meta_stringdata_UpdateStatus_t {
+    QByteArrayData data[6];
+    char stringdata0[55];
+};
+#define QT_MOC_LITERAL(idx, ofs, len) \
+    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
+    qptrdiff(offsetof(qt_meta_stringdata_UpdateStatus_t, stringdata0) + ofs \
+        - idx * sizeof(QByteArrayData)) \
+    )
+static const qt_meta_stringdata_UpdateStatus_t qt_meta_stringdata_UpdateStatus = {
+    {
+QT_MOC_LITERAL(0, 0, 12), // "UpdateStatus"
+QT_MOC_LITERAL(1, 13, 4), // "Enum"
+QT_MOC_LITERAL(2, 18, 9), // "NoUpdates"
+QT_MOC_LITERAL(3, 28, 8), // "Updating"
+QT_MOC_LITERAL(4, 37, 11), // "NewChapters"
+QT_MOC_LITERAL(5, 49, 5) // "Error"
+
+    },
+    "UpdateStatus\0Enum\0NoUpdates\0Updating\0"
+    "NewChapters\0Error"
+};
+#undef QT_MOC_LITERAL
+
+static const uint qt_meta_data_UpdateStatus[] = {
+
+ // content:
+       7,       // revision
+       0,       // classname
+       0,    0, // classinfo
+       0,    0, // methods
+       0,    0, // properties
+       1,   14, // enums/sets
+       0,    0, // constructors
+       0,       // flags
+       0,       // signalCount
+
+ // enums: name, flags, count, data
+       1, 0x0,    4,   18,
+
+ // enum data: key, value
+       2, uint(UpdateStatus::NoUpdates),
+       3, uint(UpdateStatus::Updating),
+       4, uint(UpdateStatus::NewChapters),
+       5, uint(UpdateStatus::Error),
+
+       0        // eod
+};
+
+void UpdateStatus::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    Q_UNUSED(_o);
+    Q_UNUSED(_id);
+    Q_UNUSED(_c);
+    Q_UNUSED(_a);
+}
+
+const QMetaObject UpdateStatus::staticMetaObject = {
+    { &QObject::staticMetaObject, qt_meta_stringdata_UpdateStatus.data,
+      qt_meta_data_UpdateStatus,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
+};
+
+
+const QMetaObject *UpdateStatus::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *UpdateStatus::qt_metacast(const char *_clname)
+{
+    if (!_clname) return Q_NULLPTR;
+    if (!strcmp(_clname, qt_meta_stringdata_UpdateStatus.stringdata0))
+        return static_cast<void*>(const_cast< UpdateStatus*>(this));
+    return QObject::qt_metacast(_clname);
+}
+
+int UpdateStatus::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    return _id;
+}
 struct qt_meta_stringdata_UpdateInfoModel_t {
     QByteArrayData data[6];
     char stringdata0[44];
@@ -78,7 +161,7 @@ void UpdateInfoModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int 
 }
 
 const QMetaObject UpdateInfoModel::staticMetaObject = {
-    { &QAbstractTableModel::staticMetaObject, qt_meta_stringdata_UpdateInfoModel.data,
+    { &NotifiableModel::staticMetaObject, qt_meta_stringdata_UpdateInfoModel.data,
       qt_meta_data_UpdateInfoModel,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
 };
 
@@ -93,12 +176,12 @@ void *UpdateInfoModel::qt_metacast(const char *_clname)
     if (!_clname) return Q_NULLPTR;
     if (!strcmp(_clname, qt_meta_stringdata_UpdateInfoModel.stringdata0))
         return static_cast<void*>(const_cast< UpdateInfoModel*>(this));
-    return QAbstractTableModel::qt_metacast(_clname);
+    return NotifiableModel::qt_metacast(_clname);
 }
 
 int UpdateInfoModel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 {
-    _id = QAbstractTableModel::qt_metacall(_c, _id, _a);
+    _id = NotifiableModel::qt_metacall(_c, _id, _a);
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {

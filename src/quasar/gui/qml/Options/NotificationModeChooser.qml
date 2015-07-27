@@ -6,34 +6,30 @@ import QuasarGUI 1.0
 Item {
 	implicitHeight: layout.height
 	implicitWidth: layout.width
-
-	signal componentCompleted()
-	Component.onCompleted: componentCompleted
 	
-	function setValues(mode, count, duration) {
-		notifmode.data[1].buttons[mode].checked = true
-		accumulationSpin.value = count
-		//TODO: datetime
-	}
-	
+	property alias mode: disablingExclusiveGroup.currentIndex
+	property alias accumulationCount: accumulationSpin.value
+	property alias delayedHours: spinHours.value
+	property alias delayedDays: spinDays.value
+	property alias delayedWeeks: spinWeeks.value
 	
 	GridLayout {
 		id: layout
 		columns: 2
 		
 		DisablingExclusiveGroup {
-			id: notifmode
+			id: disablingExclusiveGroup
 		}
 		DisablingRadioButton {
 			Layout.columnSpan: 2
 			text: qsTr("Immediate")
-			disabler: notifmode
+			disabler: disablingExclusiveGroup
 			checked: true
 		}
 		
 		DisablingRadioButton {
 			text: qsTr("Accumulative:")
-			disabler: notifmode
+			disabler: disablingExclusiveGroup
 			disablee: accumulationSpin
 		}
 		SpinBox {
@@ -45,7 +41,7 @@ Item {
 		
 		DisablingRadioButton {
 			text: qsTr("Delayed:")
-			disabler: notifmode
+			disabler: disablingExclusiveGroup
 			disablee: delaySpinBoxes
 		}
 		
@@ -56,27 +52,25 @@ Item {
 				id: dateValidator
 			}
 			ValidatingSpinBox {
-				Layout.minimumWidth: 55	//TODO FIXME: hardcoded values
 				id: spinHours
-				suffix: "H"
+				suffix: " hours"
 				maximumValue: 23
 				validator: dateValidator
 			}
 			ValidatingSpinBox {
-				Layout.minimumWidth: 45
 				id: spinDays
-				suffix: "d"
+				suffix: " days"
 				maximumValue: 6
 				validator: dateValidator
 			}
 			ValidatingSpinBox {
-				Layout.minimumWidth: 45
 				id: spinWeeks
-				suffix: "w"
+				suffix: " weeks"
 				value: 1
-				maximumValue: 3
+				maximumValue: 999
 				validator: dateValidator
 			}
+			/*
 			ValidatingSpinBox {
 				Layout.minimumWidth: 55
 				id: spinMonths
@@ -90,7 +84,7 @@ Item {
 				suffix: "Y"
 				maximumValue: 290	//larger values overflow Go's time.Duration
 				validator: dateValidator
-			}
+			}//*/
 		}
 	}
 }

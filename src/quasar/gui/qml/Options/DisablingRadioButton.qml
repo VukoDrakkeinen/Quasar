@@ -2,33 +2,39 @@ import QtQuick 2.5
 import QtQuick.Controls 1.4
 
 RadioButton {
-    id: disablingRadioButton
     property DisablingExclusiveGroup disabler: null
-    property variant disablee: null
+    property var disablee: null
+
+    QtObject {
+		id: internal
+		property DisablingExclusiveGroup prevDisabler: null
+    }
 
     onDisablerChanged: {
         if (disabler) {
-            exclusiveGroup = disabler.data[0]	//HACK
-            disabler.disableUnchecked()
+			if (disabler !== internal.prevDisabler) {
+				if (internal.prevDisabler) {
+					internal.prevDisabler.unbindCheckable(this)
+					exclusiveGroup.unbindCheckable(this)
+				}
+				internal.prevDisabler = disabler
+				this.exclusiveGroup = disabler.__internalGroup
+				disabler.bindCheckable(this)
+			}
         }
     }
-
+    
     onDisableeChanged: {
-        if (disabler) {
-            if (disablee) {
-                disabler.bindButton(disablingRadioButton)
-            } else {
-                disabler.unbindButton(disablingRadioButton)
-            }
-        }
+		__toggleDisablee()
     }
 
-    //onClicked: disabler.disableUnchecked(disablee)
     onCheckedChanged: {
-        if (disabler) {
-            if (!checked) {
-                disabler.disableUnchecked()
-            }
-        }
+		__toggleDisablee()
+    }
+    
+    function __toggleDisablee() {
+		if (disablee) {
+			disablee.enabled = this.checked
+		}
     }
 }

@@ -4,7 +4,7 @@
 #include <QLocale>
 #include <QDebug>
 
-UpdateInfoModel::UpdateInfoModel(void* goComicList): QAbstractTableModel(), goComicList(goComicList) {}
+UpdateInfoModel::UpdateInfoModel(void* goComicList): NotifiableModel(goComicList) {}
 UpdateInfoModel::~UpdateInfoModel() {}
 
 int UpdateInfoModel::rowCount(const QModelIndex& parent) const
@@ -23,9 +23,14 @@ QVariant UpdateInfoModel::data(const QModelIndex& index, int role) const
 {
 	if (!index.isValid()) return QVariant();
 
-	auto goComic = go_ComicList_ComicUpdateInfo(this->goComicList, index.row());
-	//go_GC();
-	auto updateInfo = convertUpdateInfo(goComic);
+	UpdateInfoRow updateInfo;
+	if (this->cache.valid(index)) {
+		updateInfo = this->cache.get();
+	} else {
+		auto goComic = go_ComicList_ComicUpdateInfo(this->goComicList, index.row());
+		updateInfo = convertUpdateInfo(goComic);
+		this->cache.hold(index, updateInfo);
+	}
 
 	switch (role)
 	{
@@ -86,14 +91,13 @@ QVariant UpdateInfoModel::data(const QModelIndex& index, int role) const
 					{
 						return tr("Yesterday") + " \t" + time.toString(Qt::SystemLocaleShortDate);
 					} else if (date >= currentDate.addDays(-7)) {
-						auto sysLocale = QLocale::system();	//weird day names handling workaround
-						auto locale = QLocale(sysLocale.language(), sysLocale.country());
-						return locale.toString(date, "dddd") + " \t" + time.toString(Qt::SystemLocaleShortDate);
+						return date.toString("dddd") + " \t" + time.toString(Qt::SystemLocaleShortDate);
 					}
 					return date.toString(Qt::SystemLocaleShortDate) + " \t" + time.toString(Qt::SystemLocaleShortDate);
 				}
 				break;
 			}
+			break;
 
 		case UpdateInfoModel::CellTypeRole:
 			if (index.column() == 4)
@@ -162,46 +166,6 @@ QVariant UpdateInfoModel::headerData(int section, Qt::Orientation orientation, i
 	return QVariant();
 }
 
-/*
-bool UpdateInfoModel::appendRow(const UpdateInfoRow& row)
-{
-	this->beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount());
-	this->store.append(row);
-	this->endInsertRows();
-	return true;
-}
-
-void UpdateInfoModel::setStore(QList<UpdateInfoRow> store)
-{
-	this->beginResetModel();
-	this->store = store;
-	this->endResetModel();
-}
-
-bool UpdateInfoModel::appendRows(const QList<UpdateInfoRow> rows)
-{
-	this->beginInsertRows(QModelIndex(), this->rowCount(), this->rowCount() + rows.count());
-	this->store.append(rows);
-	this->endInsertRows();
-	return true;
-}
-
-
-bool UpdateInfoModel::removeRows(int row, int count, const QModelIndex& parent)
-{
-	Q_UNUSED(parent)
-	this->beginRemoveRows(QModelIndex(), row, count);
-	this->store.erase(this->store.begin()+row, this->store.begin()+row+count);
-	this->endRemoveRows();
-	return true;
-}//*/
-
-void UpdateInfoModel::setGoData(void* goComicList) {
-	this->beginResetModel();
-    this->goComicList = goComicList;
-    this->endResetModel();
-}
-
 QHash<int, QByteArray> UpdateInfoModel::roleNames() const
 {
 	QHash<int, QByteArray> roles;
@@ -216,9 +180,5 @@ QHash<int, QByteArray> UpdateInfoModel::roleNames() const
 QVariant UpdateInfoModel::qmlGet(int row, int column, const QString& roleName)
 {
 	auto role = this->roleNames().key(roleName.toLatin1(), -1);
-	auto var = this->data(this->createIndex(row, column), role);
-	if (QString(var.typeName()) == "UpdateStatus") {    //WORKAROUND: QML shitty enumerator handling
-		return (uint) var.value<UpdateStatus>();
-	}
-	return var;
+	return this->data(this->createIndex(row, column), role);
 }

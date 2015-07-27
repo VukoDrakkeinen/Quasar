@@ -13,16 +13,41 @@ import (
 )
 
 const (
-	hoursPerDay  time.Duration = 24
-	hoursPerWeek               = 7 * hoursPerDay
-	weekTime                   = time.Hour * hoursPerWeek
-	dayTime                    = time.Hour * hoursPerDay
+	hoursPerDay time.Duration = 24
+	daysPerWeek               = 7
+	//weeksPerMonth               = 4 //uniform
+	//monthsPerYear               = 13 //4*7*13 = 364; 13th month is Nonuary
+	dayTime  = time.Hour * hoursPerDay
+	weekTime = dayTime * daysPerWeek
+	//monthTime = weekTime * weeksPerMonth
+	//yearTime = monthTime * monthsPerYear
 )
 const (
 	Immediate NotificationMode = iota
 	Accumulative
 	Delayed
 )
+
+var bitlength_comic = reflect.TypeOf(IndividualSettings{}).NumField() - 1
+var bitlength_plugin = reflect.TypeOf(PerPluginSettings{}).NumField() - 1
+
+type BitfieldType int
+
+const (
+	ComicSettings BitfieldType = iota
+	PluginSettings
+)
+
+func Bitlength(typ BitfieldType) int {
+	switch typ {
+	case ComicSettings:
+		return bitlength_comic
+	case PluginSettings:
+		return bitlength_plugin
+	default:
+		return -1
+	}
+}
 
 type (
 	NotificationMode int
@@ -51,11 +76,11 @@ func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
 
 func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	proxy := &globalSettingsJSONProxy{
-		FetchFrequency:        durationToSplit(this.FetchFrequency),
+		FetchFrequency:        DurationToSplit(this.FetchFrequency),
 		ValidModeValues:       NotificationModeValueNames(),
 		NotificationMode:      this.NotificationMode.String(),
 		AccumulativeModeCount: this.AccumulativeModeCount,
-		DelayedModeDuration:   durationToSplit(this.DelayedModeDuration),
+		DelayedModeDuration:   DurationToSplit(this.DelayedModeDuration),
 		DownloadsPath:         this.DownloadsPath,
 		Plugins:               this.Plugins,
 		Languages:             make(map[string]LanguageEnabled),
@@ -105,12 +130,12 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 type globalSettingsJSONProxy struct {
 	FetchOnStartup        bool
 	IntervalFetching      bool
-	FetchFrequency        splitDuration
+	FetchFrequency        SplitDuration
 	MaxConnectionsToHost  int
 	ValidModeValues       []string //can't have comments in JSON, make it a dummy value instead
 	NotificationMode      string
 	AccumulativeModeCount int
-	DelayedModeDuration   splitDuration
+	DelayedModeDuration   SplitDuration
 	DownloadsPath         string
 	Plugins               map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
 	Languages             map[string]LanguageEnabled          `json:"LangsEnabled"`
@@ -120,11 +145,11 @@ func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 	settings := &GlobalSettings{
 		FetchOnStartup:        this.FetchOnStartup,
 		IntervalFetching:      this.IntervalFetching,
-		FetchFrequency:        this.FetchFrequency.toDuration(),
+		FetchFrequency:        this.FetchFrequency.ToDuration(),
 		MaxConnectionsToHost:  this.MaxConnectionsToHost,
 		NotificationMode:      NotificationModeFromString(this.NotificationMode),
 		AccumulativeModeCount: this.AccumulativeModeCount,
-		DelayedModeDuration:   this.DelayedModeDuration.toDuration(),
+		DelayedModeDuration:   this.DelayedModeDuration.ToDuration(),
 		DownloadsPath:         this.DownloadsPath,
 		Plugins:               this.Plugins,
 		Languages:             make(map[LangId]LanguageEnabled, len(this.Languages)),
@@ -135,20 +160,22 @@ func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 	return settings
 }
 
-type splitDuration struct {
+type SplitDuration struct {
 	Hours uint8 `json:"hours"`
 	Days  uint8 `json:"days"`
 	Weeks uint8 `json:"weeks"`
+	//Months uint8 `json:"months"`
+	//Years  uint8 `json:"years"`
 }
 
-func (this *splitDuration) toDuration() (d time.Duration) {
+func (this SplitDuration) ToDuration() (d time.Duration) {
 	d += time.Duration(this.Hours) * time.Hour
 	d += time.Duration(this.Days) * dayTime
 	d += time.Duration(this.Weeks) * weekTime
 	return
 }
 
-func durationToSplit(d time.Duration) (s splitDuration) {
+func DurationToSplit(d time.Duration) (s SplitDuration) {
 	s.Weeks, d = uint8(d/weekTime), d%weekTime
 	s.Days, d = uint8(d/dayTime), d%dayTime
 	s.Hours = uint8(d / time.Hour)
@@ -172,7 +199,7 @@ func (this *IndividualSettings) Valid() bool {
 
 func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 	return &IndividualSettings{
-		OverrideDefaults:      make([]bool, reflect.TypeOf(IndividualSettings{}).NumField()-1),
+		OverrideDefaults:      make([]bool, bitlength_comic),
 		NotificationMode:      defaults.NotificationMode,
 		AccumulativeModeCount: defaults.AccumulativeModeCount,
 		DelayedModeDuration:   defaults.DelayedModeDuration,
@@ -224,7 +251,7 @@ type PerPluginSettings struct {
 
 func NewPerPluginSettings(defaults *GlobalSettings) PerPluginSettings {
 	return PerPluginSettings{
-		OverrideDefaults:      make([]bool, reflect.TypeOf(PerPluginSettings{}).NumField()-1),
+		OverrideDefaults:      make([]bool, bitlength_plugin),
 		FetchOnStartup:        defaults.FetchOnStartup,
 		IntervalFetching:      defaults.IntervalFetching,
 		FetchFrequency:        defaults.FetchFrequency,

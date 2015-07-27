@@ -1,27 +1,31 @@
 #ifndef QCAPI_H
 #define QCAPI_H
 
-#include "capi.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void QUpdateModel_;
-typedef void QInfoModel_;
-typedef void QChapterModel_;
+typedef void UpdateModel_;
+typedef void InfoModel_;
+typedef void ChapterModel_;
 typedef void GoComicList_;
+typedef void NotifiableModel_;
 
-QInfoModel_* newInfoModel(GoComicList_* data);
-QUpdateModel_* newUpdateModel(GoComicList_* data);
-QChapterModel_* newChapterModel(GoComicList_* data);
+InfoModel_* newInfoModel(GoComicList_* data);
+UpdateModel_* newUpdateModel(GoComicList_* data);
+ChapterModel_* newChapterModel(GoComicList_* data);
+void registerQMLTypes();
+void notifyModelInsertStart(NotifiableModel_* model, int row, int count);
+void notifyModelInsertEnd(NotifiableModel_* model);
+void notifyModelRemoveStart(NotifiableModel_* model, int row, int count);
+void notifyModelRemoveEnd(NotifiableModel_* model);
 
 void* go_Offsets_ComicInfo;
 void* go_Offsets_Scanlation;
 void* go_Offsets_UpdateInfo;
 
 //TODO: wrap all Go pointers in classes (RAII ftw)
-//TODO: automatically include from _cgo_export.h
+//TODO: automatically include from _cgo_export.h (how?)
 typedef unsigned char GoUint8;
 typedef __SIZE_TYPE__ GoUintptr;
 typedef long long GoInt64;

@@ -5,13 +5,16 @@ import QuasarGUI 1.0
 
 SpinBox {
 	property ValuesValidator validator: null
-	property ValuesValidator __prev_validator: null
+	QtObject {
+		id: internal
+		property ValuesValidator prevValidator: null
+	}
 	
 	onValidatorChanged: {
-		if (__prev_validator) {
+		if (internal.prevValidator) {
 			validator.unbindObject(this)
 		}
-		__prev_validator = validator
+		internal.prevValidator = validator
 		if (validator) {
 			validator.bindObject(this)
 		}

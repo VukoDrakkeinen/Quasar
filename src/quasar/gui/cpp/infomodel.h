@@ -1,39 +1,51 @@
 #ifndef ComicInfoModel_H
 #define ComicInfoModel_H
 
-#include <QAbstractTableModel>
 #include <QDateTime>
 #include <QList>
 #include <QStringList>
 #include <QtQml>
+#include "rowcache.h"
 
-enum class ComicType {
-	Invalid,
-	Manga,
-	Manhwa,
-	Manhua,
-	Western,
-	Webcomic,
-	Other
+class ComicType : public QObject {
+		Q_OBJECT
+	public:
+		enum Enum {
+			Invalid,
+			Manga,
+			Manhwa,
+			Manhua,
+			Western,
+			Webcomic,
+			Other
+		};
+		Q_ENUM(Enum)
 };
-enum class ComicStatus {
-	Invalid,
-	Complete,
-	Ongoing,
-	OnHiatus,
-	Discontinued
+class ComicStatus : public QObject {
+        Q_OBJECT
+    public:
+	    enum Enum {
+	        Invalid,
+			Complete,
+			Ongoing,
+			OnHiatus,
+			Discontinued
+		};
+		Q_ENUM(Enum)
 };
-enum class ScanlationStatus {
-	Invalid,
-	Complete,
-	Ongoing,
-	OnHiatus,
-	Dropped,
-	InDesperateNeedOfMoreStaff
+class ScanlationStatus : public QObject {
+        Q_OBJECT
+    public:
+        enum Enum {
+	        Invalid,
+			Complete,
+			Ongoing,
+			OnHiatus,
+			Dropped,
+			InDesperateNeedOfMoreStaff
+		};
+		Q_ENUM(Enum)
 };
-Q_DECLARE_METATYPE(ComicType)
-Q_DECLARE_METATYPE(ComicStatus)
-Q_DECLARE_METATYPE(ScanlationStatus)
 
 typedef struct {
 	QString mainTitle;
@@ -42,25 +54,16 @@ typedef struct {
 	QList<int> artistIds;
 	QList<int> genreIds;
 	QList<int> categoryIds;
-	ComicType type;
-	ComicStatus status;
-	ScanlationStatus scanlationStatus;
+	ComicType::Enum type;
+	ComicStatus::Enum status;
+	ScanlationStatus::Enum scanlationStatus;
 	QString desc;
 	float rating;
 	bool mature;
 	QString thumbnailFilename;
 } ComicInfoRow;
 
-typedef struct {
-	QString title;
-	int languageId;
-	QList<int> scanlatorIds;
-	QString pluginName;
-	QString url;
-	QStringList pageLinks;
-} QScanlation;
-
-class ComicInfoModel : public QAbstractTableModel
+class ComicInfoModel : public NotifiableModel
 {
 		Q_OBJECT
 
@@ -76,7 +79,7 @@ class ComicInfoModel : public QAbstractTableModel
 		void setGoData(void* goComicList);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 	private:
-		void* goComicList;
+		mutable RowCache<ComicInfoRow, 13> cache;
 };
 
 QML_DECLARE_TYPE(ComicInfoModel)

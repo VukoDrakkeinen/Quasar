@@ -1,8 +1,10 @@
-#include "qcapi.h"
 #include "_cgo_export.h"
+#include "qcapi.h"
+#include "notifiablemodel.h"
 #include "updatemodel.h"
 #include "infomodel.h"
 #include "chaptermodel.h"
+#include "progressbar.h"
 #include <QModelIndex>
 #include <QList>
 #include <cstdlib>
@@ -28,7 +30,9 @@ char* GoStringC(GoUintptr ptr) {
 	char* goStr = (char*)*(GoUintptr*)(ptr);
 	GoInt slen = *(GoInt*)(ptr+sizeof(GoUintptr));
 	char* cstr = (char*) malloc(slen+1);
-	memcpy(cstr, goStr, slen+1);
+	if (slen > 0) {
+		memcpy(cstr, goStr, slen+1);
+	}
 	cstr[slen] = '\0';
 	return cstr;
 }
@@ -90,16 +94,16 @@ SliceQ(Go_Slice slice) {
 	return list;
 }
 
-QInfoModel_* newInfoModel(GoComicList_* data) {
-	return reinterpret_cast<QInfoModel_*>(new ComicInfoModel(data));
+InfoModel_* newInfoModel(GoComicList_* data) {
+	return reinterpret_cast<InfoModel_*>(new ComicInfoModel(data));
 }
 
-QUpdateModel_* newUpdateModel(GoComicList_* data) {
-	return reinterpret_cast<QUpdateModel_*>(new UpdateInfoModel(data));
+UpdateModel_* newUpdateModel(GoComicList_* data) {
+	return reinterpret_cast<UpdateModel_*>(new UpdateInfoModel(data));
 }
 
-QChapterModel_* newChapterModel(GoComicList_* data) {
-	return reinterpret_cast<QChapterModel_*>(new ChapterModel(data));
+ChapterModel_* newChapterModel(GoComicList_* data) {
+	return reinterpret_cast<ChapterModel_*>(new ChapterModel(data));
 }
 
 ComicInfoRow convertComicInfo(void* info) {
@@ -128,9 +132,9 @@ ComicInfoRow convertComicInfo(void* info) {
     auto artists = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->artists));
     auto genres = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->genres));
     auto tags = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->tags));
-    auto type = (ComicType)*(GoInt*)(infoPtr + offsets->type);
-    auto status = (ComicStatus)*(GoInt*)(infoPtr + offsets->status);
-    auto scanStatus = (ScanlationStatus)*(GoInt*)(infoPtr + offsets->scanlationStatus);
+    auto type = (ComicType::Enum)*(GoInt*)(infoPtr + offsets->type);
+    auto status = (ComicStatus::Enum)*(GoInt*)(infoPtr + offsets->status);
+    auto scanStatus = (ScanlationStatus::Enum)*(GoInt*)(infoPtr + offsets->scanlationStatus);
     auto desc = GoStringQ(infoPtr + offsets->description);
     auto rating = *(float*)(infoPtr + offsets->rating);
     bool mature = *(GoInt*)(infoPtr + offsets->mature);
@@ -189,7 +193,7 @@ UpdateInfoRow convertUpdateInfo(void* updateInfo) {
 	auto chaptersRead = (int)*(GoInt*)(updateInfoPtr + offsets->chaptersRead);
 	auto updated = QDateTime::fromMSecsSinceEpoch(1000 * *(GoInt64*)(updateInfoPtr + offsets->updated));
 	auto progress = (int)*(GoInt8*)(updateInfoPtr + offsets->progress);
-	auto status = (UpdateStatus)*(GoInt8*)(updateInfoPtr + offsets->status);
+	auto status = (UpdateStatus::Enum)*(GoInt8*)(updateInfoPtr + offsets->status);
 
 	go_collectGarbage(updateInfo);
 
@@ -202,31 +206,26 @@ void* copyRawGoData(void* data, int size) {
 	return copy;
 }
 
-/*
-void modelSetStore(QModel_* model, QList_* data) {
-	reinterpret_cast<UpdateInfoModel*>(model)->setStore(*reinterpret_cast<QList<UpdateInfoRow>*>(data));
+void registerQMLTypes() {
+	qmlRegisterType<ProgressBar>("QuasarGUI", 1, 0, "SaneProgressBar");
+	qmlRegisterType<UpdateStatus>("QuasarGUI", 1, 0, "UpdateStatus");
+	qmlRegisterType<ComicType>("QuasarGUI", 1, 0, "ComicType");
+	qmlRegisterType<ComicStatus>("QuasarGUI", 1, 0, "ComicStatus");
+	qmlRegisterType<ScanlationStatus>("QuasarGUI", 1, 0, "ScanlationStatus");
 }
 
-
-int modelAppendRow(QModel_* model, QVariantList_* data) {
-	if (reinterpret_cast<UpdateInfoModel*>(model)->appendRow()) {
-		return 1;
-	}
-	return 0;
+void notifyModelInsertStart(NotifiableModel_* model, int row, int count) {
+	reinterpret_cast<NotifiableModel*>(model)->emitBeginInsert(row, count);
 }
 
-
-int modelAppendRows(QModel_* model, QList_* data) {
-	if (reinterpret_cast<UpdateInfoModel*>(model)->appendRows(*reinterpret_cast<QList<UpdateInfoRow>*>(data))) {
-		return 1;
-    }
-    return 0;
+void notifyModelInsertEnd(NotifiableModel_* model) {
+	reinterpret_cast<NotifiableModel*>(model)->emitEndInsert();
 }
 
-int modelRemoveRows(QModel_* model, int row, int count) {
-	if (reinterpret_cast<UpdateInfoModel*>(model)->removeRows(row, count, QModelIndex())) {
-		return 1;
-    }
-    return 0;
+void notifyModelRemoveStart(NotifiableModel_* model, int row, int count) {
+	reinterpret_cast<NotifiableModel*>(model)->emitBeginRemove(row, count);
 }
-*/
+
+void notifyModelRemoveEnd(NotifiableModel_* model) {
+	reinterpret_cast<NotifiableModel*>(model)->emitEndRemove();
+}

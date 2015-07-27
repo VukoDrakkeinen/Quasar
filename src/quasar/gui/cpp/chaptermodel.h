@@ -1,9 +1,10 @@
 #ifndef ChapterModel_H
 #define ChapterModel_H
 
-#include <QAbstractTableModel>
 #include <QDateTime>
 #include <QtQml>
+#include "notifiablemodel.h"
+#include "rowcache.h"
 
 struct ScanlationRow {
 	QString title;
@@ -14,13 +15,17 @@ struct ScanlationRow {
 	QStringList pageLinks;
 };
 
-class ChapterModel : public QAbstractItemModel
+struct CachedScanlationRow {
+	ScanlationRow row;
+	bool readStatus;
+	int scanlationsCount;
+};
+
+class ChapterModel : public NotifiableModel
 {
 		Q_OBJECT
 
 	public:
-		ChapterModel() {};
-		ChapterModel(QList<UpdateInfoRow> store);
 		ChapterModel(void* goComicList);
 		virtual ~ChapterModel();
 	public:
@@ -32,11 +37,12 @@ class ChapterModel : public QAbstractItemModel
 		QModelIndex parent(const QModelIndex& index) const;
 		bool hasChildren(const QModelIndex& parent = QModelIndex()) const;
 		QHash<int, QByteArray> roleNames() const;
-		void setGoData(void* goComicList);
+		Qt::ItemFlags flags(const QModelIndex& index) const;
+	public:
 		Q_INVOKABLE void setComicIdx(int comicIdx);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 	private:
-		void* goComicList;
+		mutable RowCache<CachedScanlationRow, 8> cache;
 		int comicIdx;
 	public:
 		enum DataRole {

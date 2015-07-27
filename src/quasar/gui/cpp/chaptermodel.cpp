@@ -4,7 +4,7 @@
 #include <QLocale>
 #include <QDebug>
 
-ChapterModel::ChapterModel(void* goComicList): QAbstractItemModel(), goComicList(goComicList), comicIdx(-1) {}
+ChapterModel::ChapterModel(void* goComicList): NotifiableModel(goComicList), comicIdx(-1) {}
 ChapterModel::~ChapterModel() {}
 
 int ChapterModel::rowCount(const QModelIndex& parent) const
@@ -16,8 +16,7 @@ int ChapterModel::rowCount(const QModelIndex& parent) const
 	if (this->comicIdx == -1) {
 		return 0;
 	}
-	
-	//const int comicIdx = 0;	//TODO
+
 	auto comic = go_ComicList_GetComic(this->goComicList, comicIdx);
 	
 	if (!parent.isValid()) {
@@ -46,36 +45,36 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
 	if (this->comicIdx == -1) {
     		return QVariant();
     }
-	
-	//const int comicIdx = 0;	//TODO
-	
-	ScanlationRow scanlation;
-	int scanlationsCount;
-	bool readStatus;
-	
-	auto goComic = go_ComicList_GetComic(this->goComicList, comicIdx);
+
+    ScanlationRow scanlation;
+    bool readStatus;
+    int scanlationsCount;
 	auto parent = index.parent();
-	if (parent.isValid()) {
-		auto goChapter = go_Comic_GetChapter(goComic, parent.row());
+    if (this->cache.valid(index)) {
+        auto extScanlation = this->cache.get();
+        scanlation = extScanlation.row;
+        readStatus = extScanlation.readStatus;
+        scanlationsCount = extScanlation.scanlationsCount;
+    } else {
+		auto goComic = go_ComicList_GetComic(this->goComicList, comicIdx);
+		void* goChapter;
+		void* goScanlation;
+		if (parent.isValid()) {
+			goChapter = go_Comic_GetChapter(goComic, parent.row());
+			goScanlation = go_Chapter_GetScanlation(goChapter, index.row()+1);
+		} else {
+			goChapter = go_Comic_GetChapter(goComic, index.row());
+			goScanlation = go_Chapter_GetScanlation(goChapter, 0);
+		}
 		readStatus = go_Chapter_AlreadyRead(goChapter);
 		scanlationsCount = go_Chapter_ScanlationsCount(goChapter);
-		auto goScanlation = go_Chapter_GetScanlation(goChapter, index.row()+1);
-		//go_GC();
-		scanlation = convertScanlation(goScanlation);
-		go_collectGarbage(goChapter);
-		go_collectGarbage(goScanlation);
-	} else {
-		auto goChapter = go_Comic_GetChapter(goComic, index.row());
-		readStatus = go_Chapter_AlreadyRead(goChapter);
-		scanlationsCount = go_Chapter_ScanlationsCount(goChapter);
-		auto goScanlation = go_Chapter_GetScanlation(goChapter, 0);
-        //go_GC();
-        scanlation = convertScanlation(goScanlation);
-        go_collectGarbage(goChapter);
-        go_collectGarbage(goScanlation);
+	    scanlation = convertScanlation(goScanlation);
+	    this->cache.hold(index, CachedScanlationRow{scanlation, readStatus, scanlationsCount});
+	    go_collectGarbage(goChapter);
+	    go_collectGarbage(goScanlation);
+		go_collectGarbage(goComic);
+		Q_UNUSED(scanlationsCount) //TODO
 	}
-	go_collectGarbage(goComic);
-	Q_UNUSED(scanlationsCount) //TODO
 	
 	switch (role)
 	{
@@ -231,10 +230,16 @@ QVariant ChapterModel::headerData(int section, Qt::Orientation orientation, int 
 	return QVariant();
 }
 
-void ChapterModel::setGoData(void* goComicList) {
-	this->beginResetModel();
-    this->goComicList = goComicList;
-    this->endResetModel();
+Qt::ItemFlags ChapterModel::flags(const QModelIndex& index) const {
+	if (!index.isValid()) {
+		return Qt::NoItemFlags;
+	}
+
+	auto flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+	if (index.column() != 0) {
+		flags |= Qt::ItemNeverHasChildren;
+	}
+	return flags;
 }
 
 void ChapterModel::setComicIdx(int comicIdx) {
@@ -258,6 +263,5 @@ QHash<int, QByteArray> ChapterModel::roleNames() const
 QVariant ChapterModel::qmlGet(int row, int column, const QString& roleName)
 {
 	auto role = this->roleNames().key(roleName.toLatin1(), -1);
-	auto var = this->data(this->createIndex(row, column), role);
-	return var;
+	return this->data(this->createIndex(row, column), role);
 }

@@ -2,41 +2,57 @@ import QtQuick 2.5
 import QtQuick.Controls 1.4
 
 Item {
+	id: root
+	
 	ExclusiveGroup {
 		id: internalGroup
+		onCurrentChanged: root.__updateCurrentIndex()
 	}
-	Item {
-		id: container
+	
+	QtObject {
+		id: internal
 		property var buttons: []
+		property bool breakRecurrence: false
 	}
 	
-	function bindButton(object) {
-		if (!container.buttons)
-			container.buttons = []
-			
-			container.buttons.unshift(object)
-			disableUnchecked()
+	property int currentIndex: -1
+	property alias __internalGroup: internalGroup
+	
+	function bindCheckable(object) {
+		internal.buttons.unshift(object)
+		this.__updateCurrentIndex()
 	}
 	
-	function unbindButton(object) {
-		if (!container.buttons) {
-			container.buttons = []
+	function unbindCheckable(object) {
+		if (object.disablee) {
+			object.disablee.enabled = true
 		}
 		
-		var i = container.buttons.indexOf(object)
-		container.buttons.splice(i, i + 1)
+		var i = internal.buttons.indexOf(object)
+		internal.buttons.splice(i, i + 1)
 	}
 	
-	function disableUnchecked() {
-		if (!container.buttons) {
-			container.buttons = []
-		}
-		for (var i = 0; i < container.buttons.length; i++) {
-			var button = container.buttons[i]
-			var disablee = button.disablee
-			if (disablee) {
-				button.disablee.enabled = button.checked
+	function __updateCurrentIndex() {
+		internal.breakRecurrence = true
+		for (var i = 0; i < internal.buttons.length; i++) {
+			if (internal.buttons[i].checked) {
+				this.currentIndex = i
+				break
 			}
 		}
+	}
+	
+	onCurrentIndexChanged: {
+		if (internal.breakRecurrence) {
+			internal.breakRecurrence = false
+			return
+		}
+		
+		if (currentIndex >= internal.buttons.length) {
+			console.warn("DisablingExclusiveGroup: currentIndex out of bounds")
+			currentIndex = -1
+			return
+		}
+		internal.buttons[currentIndex].checked = true
 	}
 }

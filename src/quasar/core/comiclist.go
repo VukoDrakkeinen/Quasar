@@ -75,6 +75,7 @@ func (list ComicList) Fetcher() *fetcher {
 }
 
 func (this *ComicList) AddComics(comics []*Comic) {
+	///notify-list-preupdate-insert (len(this.comics))
 	this.comics = append(this.comics, comics...)
 	interruptChans := make([]chan struct{}, len(comics))
 	for i := range interruptChans {
@@ -83,13 +84,16 @@ func (this *ComicList) AddComics(comics []*Comic) {
 	this.interruptChans = append(this.interruptChans, interruptChans...)
 	this.nextFetchTimes = append(this.nextFetchTimes, make([]time.Time, len(comics))...)
 	this.updatedAt = append(this.updatedAt, make([]time.Time, len(comics))...)
+	///notify-list-postupdate-insert (len(this.comics)+len(comics)-1)
 }
 
 func (this *ComicList) RemoveComics(index, count int64) {
+	///notify-list-preupdate-remove
 	this.comics = append(this.comics[:index], this.comics[index+count:]...)
 	this.interruptChans = append(this.interruptChans[:index], this.interruptChans[index+count:]...)
 	this.nextFetchTimes = append(this.nextFetchTimes[:index], this.nextFetchTimes[index+count:]...)
 	this.updatedAt = append(this.updatedAt[:index], this.updatedAt[index+count:]...)
+	///notify-list-postupdate-remove
 }
 
 func (this ComicList) ComicLastUpdated(idx int) time.Time {
@@ -295,6 +299,7 @@ func (list *ComicList) LoadFromDB() (err error) {
 			qlog.Logf(qlog.Info, "Skipped one comic while loading from DB (already exists). Id: %d\n", comic.sqlId)
 			continue
 		}
+		///notify-list-preupdate-insert (len(this.comics))
 		list.comics = append(list.comics, comic)
 		var nextFetchTime time.Time
 		err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime)
@@ -305,6 +310,7 @@ func (list *ComicList) LoadFromDB() (err error) {
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
+		///notify-list-postupdate-insert (len(this.comics)+1)
 	}
 
 	transaction.Commit()

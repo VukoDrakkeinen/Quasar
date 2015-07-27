@@ -6,7 +6,7 @@ import QtQuick.Layouts 1.2
 import "Main"
 import "Options"
 import "Dialogs"
-import "getProperties.js" as Utils
+import "utils.js" as U
 
 ApplicationWindow {
 	title: "Quasar"
@@ -26,6 +26,10 @@ ApplicationWindow {
 	
 	AddComicWindow {
 		id: addComic
+	}
+	
+	RemoveComicDialog {
+		id: removeComic
 	}
 
 	menuBar: MenuBar {

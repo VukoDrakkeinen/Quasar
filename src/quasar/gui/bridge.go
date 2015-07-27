@@ -21,6 +21,8 @@ var dontGC = make(map[unsafe.Pointer]struct{})
 var lock sync.Mutex
 
 func init() {
+	C.registerQMLTypes()
+
 	var ptr unsafe.Pointer
 
 	ptr = offsets(&comicInfoBridged{})
@@ -136,11 +138,11 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 		chaptersCount: comic.ChapterCount(),
 		chaptersRead:  comic.ChaptersReadCount(),
 		updated:       list.ComicLastUpdated(int(idx)).Unix(),
-		progress:      100,          //TODO
-		status:        qNewChapters, //TODO
+		progress:      33,        //TODO
+		status:        qUpdating, //TODO
 	})
 	var _ = qNoUpdates //TODO: remove
-	var _ = qUpdating
+	var _ = qNewChapters
 	var _ = qError
 
 	disableGcFor(bridged)

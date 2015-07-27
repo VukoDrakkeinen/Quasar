@@ -282,6 +282,10 @@ func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 	return "", errors.New("Plugin autodetect failed!")
 }
 
+func (this *fetcher) Settings() *GlobalSettings {
+	return this.settings
+}
+
 func (this *fetcher) TestFind(comic *Comic, pluginName FetcherPluginName, comicTitle string) {
 	plugin := this.plugins[pluginName]
 	urlFound := plugin.findComicURL(comicTitle)

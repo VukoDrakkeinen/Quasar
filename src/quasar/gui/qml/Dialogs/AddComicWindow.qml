@@ -20,14 +20,28 @@ Window {
 		id: colorOf
 	}
 	
-	property var pluginNames: []
+	QtObject {
+		id: internal
+		property var pluginNames: []
+	}
 	
 	function resetAndShow() {
 		sourcesModel.clear()
 		var names = quasarCore.pluginNames()
-		pluginNames = Array.prototype.concat("[autodetect]", names[0])
+		internal.pluginNames = Array.prototype.concat("[autodetect]", names[0])
 		pluginChooser.model = Array.prototype.concat(qsTr("[Autodetect]"), names[1])
+		__reset()
 		this.show()
+	}
+	
+	function __reset() {
+		var settings = quasarCore.globalSettings()
+		notifChooser.mode = settings.notificationMode
+		notifChooser.accumulationCount = settings.accumulativeModeCount
+		var duration = settings.delayedModeDuration
+		notifChooser.delayedHours = duration.hours
+		notifChooser.delayedDays = duration.days
+		notifChooser.delayedWeeks = duration.weeks
 	}
 	
 	ColumnLayout {
@@ -56,9 +70,14 @@ Window {
 								onTriggered: {
 									var max = sourcesModel.count
 									var url = urlField.text
-									var pluginName = quasarCore.pluginAutodetect(url)
+									var sourceIdx = pluginChooser.currentIndex
+									var pluginName = pluginChooser.currentText
+									if (sourceIdx == 0) {
+										pluginName = quasarCore.pluginAutodetect(url)
+										sourceIdx = internal.pluginNames.indexOf(pluginName)
+									}
 									if (pluginName !== "") {
-										sourcesModel.append({"priority": -1, "sourceIdx": thisWindow.pluginNames.indexOf(pluginName), "url": url, "markAsRead": markReadCheckBox.checked})
+										sourcesModel.append({"priority": -1, "sourceIdx": sourceIdx, "url": url, "markAsRead": markReadCheckBox.checked})
 										urlField.text = ""	//reset or not?
 										pluginChooser.currentIndex = 0
 										markReadCheckBox.checked = false
@@ -143,6 +162,7 @@ Window {
 								}
 							}
 						}
+
 					}
 				}
 				
@@ -163,12 +183,12 @@ Window {
 						title: qsTr("Priority")
 						width: 50
 						delegate: Item {
-						 	Label {
-						 		anchors.verticalCenter: parent.verticalCenter
-						 		text: " " + (styleData.row+1)	//TODO: remove space hack
-						 	}
-						 }
-						 
+							Label {
+								anchors.fill: parent
+								anchors.leftMargin: 4
+								text: styleData.row+1
+							}
+						}
 					}
 					
 					TableViewColumn {
@@ -177,8 +197,9 @@ Window {
 						width: 150
 						delegate: Item {
 							Label {
-								anchors.verticalCenter: parent.verticalCenter
-								text: " " + pluginChooser.model[styleData.value] //TODO: remove space hack
+								anchors.fill: parent
+								anchors.leftMargin: 4
+								text: pluginChooser.model[styleData.value]
 							}
 						}
 					}
@@ -187,6 +208,19 @@ Window {
 						role: "url"
 						title: qsTr("URL")
 						width: 350
+					}
+					
+					TableViewColumn {
+						role: "markAsRead"
+						title: qsTr("Mark")
+						width: 40
+						delegate: Item {
+							Label {
+								anchors.fill: parent
+								anchors.leftMargin: 12
+								text: (styleData.value == true ? "✔" : "❌")
+							}
+						}
 					}
 				}
 				
@@ -239,9 +273,30 @@ Window {
 		GroupBox {
 			Layout.fillWidth: true
 			title: qsTr("Update notification mode:")
-			NotificationModeChooser {}
+			NotificationModeChooser {
+				id: notifChooser
+			}
 		}
 		
-		OptionsBottomButtons {}
+		OptionsBottomButtons {
+			onCancel: thisWindow.hide()
+			onDefaults: thisWindow.__reset()
+			onOK: {
+				var plugins = []
+				var urls = []
+				var marks = []
+				for (var i = 0; i < sourcesModel.count; i++) {
+					var item = sourcesModel.get(i);
+					plugins.push(internal.pluginNames[item.sourceIdx])
+					urls.push(item.url)
+					marks.push(item.markAsRead)
+				}
+				quasarCore.addComic(
+					[notifChooser.mode, notifChooser.accumulationCount, notifChooser.delayedHours, notifChooser.delayedDays, notifChooser.delayedWeeks],
+					{"plugins": plugins, "urls": urls, "marks": marks}
+				)
+				thisWindow.hide()
+			}
+		}
 	}
 }

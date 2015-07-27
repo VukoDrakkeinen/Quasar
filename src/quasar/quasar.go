@@ -95,8 +95,15 @@ func launchGUI() error {
 	engine := qml.NewEngine()
 	context := engine.Context()
 
+	qlog.Log(qlog.Info, "Loading settings")
+	settings, err := core.LoadGlobalSettings()
+	if err != nil {
+		qlog.Log(qlog.Error, "Loading settings failed!")
+		qlog.Log(qlog.Warning, "Falling back on defaults")
+		settings = core.NewGlobalSettings()
+	}
 	qlog.Log(qlog.Info, "Creating Fetcher")
-	fet := core.NewFetcher(nil)
+	fet := core.NewFetcher(settings)
 	qlog.Log(qlog.Info, "Registering plugins")
 	batoto := core.NewBatoto()
 	bupdates := core.NewBakaUpdates()
@@ -105,7 +112,7 @@ func launchGUI() error {
 	list := core.NewComicList(fet)
 	dontGC = &list
 	qlog.Log(qlog.Info, "Loading from DB")
-	err := list.LoadFromDB()
+	err = list.LoadFromDB()
 	err = list.LoadFromDB()
 	if err != nil {
 		qlog.Log(qlog.Error, err)
@@ -116,7 +123,8 @@ func launchGUI() error {
 	//time.Sleep(5 * time.Second)
 
 	fmt.Println("Crash nao!")
-	updatemodelCommon := qml.CommonOf(gui.NewComicUpdateModel(&list), engine) //TODO: investigate possibility of replacing with pure Go code
+	umodelptr := gui.NewComicUpdateModel(&list)
+	updatemodelCommon := qml.CommonOf(umodelptr, engine) //TODO: investigate possibility of replacing with pure Go code
 	infomodelCommon := qml.CommonOf(gui.NewComicInfoModel(&list), engine)
 	chaptermodelCommon := qml.CommonOf(gui.NewComicChapterModel(&list), engine)
 	fmt.Println("Crash niet")
@@ -124,7 +132,7 @@ func launchGUI() error {
 	context.SetVar("updateModel", updatemodelCommon)
 	context.SetVar("infoModel", infomodelCommon)
 	context.SetVar("chapterModel", chaptermodelCommon)
-	context.SetVar("quasarCore", &gui.CoreToQML{&list})
+	context.SetVar("quasarCore", gui.NewCoreConnector(&list))
 	//context.SetVar("notifModeChooser", 0)
 
 	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml") //TODO: load from resources

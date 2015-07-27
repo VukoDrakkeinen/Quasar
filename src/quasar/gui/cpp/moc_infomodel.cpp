@@ -18,6 +18,268 @@
 #endif
 
 QT_BEGIN_MOC_NAMESPACE
+struct qt_meta_stringdata_ComicType_t {
+    QByteArrayData data[9];
+    char stringdata0[66];
+};
+#define QT_MOC_LITERAL(idx, ofs, len) \
+    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
+    qptrdiff(offsetof(qt_meta_stringdata_ComicType_t, stringdata0) + ofs \
+        - idx * sizeof(QByteArrayData)) \
+    )
+static const qt_meta_stringdata_ComicType_t qt_meta_stringdata_ComicType = {
+    {
+QT_MOC_LITERAL(0, 0, 9), // "ComicType"
+QT_MOC_LITERAL(1, 10, 4), // "Enum"
+QT_MOC_LITERAL(2, 15, 7), // "Invalid"
+QT_MOC_LITERAL(3, 23, 5), // "Manga"
+QT_MOC_LITERAL(4, 29, 6), // "Manhwa"
+QT_MOC_LITERAL(5, 36, 6), // "Manhua"
+QT_MOC_LITERAL(6, 43, 7), // "Western"
+QT_MOC_LITERAL(7, 51, 8), // "Webcomic"
+QT_MOC_LITERAL(8, 60, 5) // "Other"
+
+    },
+    "ComicType\0Enum\0Invalid\0Manga\0Manhwa\0"
+    "Manhua\0Western\0Webcomic\0Other"
+};
+#undef QT_MOC_LITERAL
+
+static const uint qt_meta_data_ComicType[] = {
+
+ // content:
+       7,       // revision
+       0,       // classname
+       0,    0, // classinfo
+       0,    0, // methods
+       0,    0, // properties
+       1,   14, // enums/sets
+       0,    0, // constructors
+       0,       // flags
+       0,       // signalCount
+
+ // enums: name, flags, count, data
+       1, 0x0,    7,   18,
+
+ // enum data: key, value
+       2, uint(ComicType::Invalid),
+       3, uint(ComicType::Manga),
+       4, uint(ComicType::Manhwa),
+       5, uint(ComicType::Manhua),
+       6, uint(ComicType::Western),
+       7, uint(ComicType::Webcomic),
+       8, uint(ComicType::Other),
+
+       0        // eod
+};
+
+void ComicType::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    Q_UNUSED(_o);
+    Q_UNUSED(_id);
+    Q_UNUSED(_c);
+    Q_UNUSED(_a);
+}
+
+const QMetaObject ComicType::staticMetaObject = {
+    { &QObject::staticMetaObject, qt_meta_stringdata_ComicType.data,
+      qt_meta_data_ComicType,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
+};
+
+
+const QMetaObject *ComicType::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *ComicType::qt_metacast(const char *_clname)
+{
+    if (!_clname) return Q_NULLPTR;
+    if (!strcmp(_clname, qt_meta_stringdata_ComicType.stringdata0))
+        return static_cast<void*>(const_cast< ComicType*>(this));
+    return QObject::qt_metacast(_clname);
+}
+
+int ComicType::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    return _id;
+}
+struct qt_meta_stringdata_ComicStatus_t {
+    QByteArrayData data[7];
+    char stringdata0[64];
+};
+#define QT_MOC_LITERAL(idx, ofs, len) \
+    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
+    qptrdiff(offsetof(qt_meta_stringdata_ComicStatus_t, stringdata0) + ofs \
+        - idx * sizeof(QByteArrayData)) \
+    )
+static const qt_meta_stringdata_ComicStatus_t qt_meta_stringdata_ComicStatus = {
+    {
+QT_MOC_LITERAL(0, 0, 11), // "ComicStatus"
+QT_MOC_LITERAL(1, 12, 4), // "Enum"
+QT_MOC_LITERAL(2, 17, 7), // "Invalid"
+QT_MOC_LITERAL(3, 25, 8), // "Complete"
+QT_MOC_LITERAL(4, 34, 7), // "Ongoing"
+QT_MOC_LITERAL(5, 42, 8), // "OnHiatus"
+QT_MOC_LITERAL(6, 51, 12) // "Discontinued"
+
+    },
+    "ComicStatus\0Enum\0Invalid\0Complete\0"
+    "Ongoing\0OnHiatus\0Discontinued"
+};
+#undef QT_MOC_LITERAL
+
+static const uint qt_meta_data_ComicStatus[] = {
+
+ // content:
+       7,       // revision
+       0,       // classname
+       0,    0, // classinfo
+       0,    0, // methods
+       0,    0, // properties
+       1,   14, // enums/sets
+       0,    0, // constructors
+       0,       // flags
+       0,       // signalCount
+
+ // enums: name, flags, count, data
+       1, 0x0,    5,   18,
+
+ // enum data: key, value
+       2, uint(ComicStatus::Invalid),
+       3, uint(ComicStatus::Complete),
+       4, uint(ComicStatus::Ongoing),
+       5, uint(ComicStatus::OnHiatus),
+       6, uint(ComicStatus::Discontinued),
+
+       0        // eod
+};
+
+void ComicStatus::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    Q_UNUSED(_o);
+    Q_UNUSED(_id);
+    Q_UNUSED(_c);
+    Q_UNUSED(_a);
+}
+
+const QMetaObject ComicStatus::staticMetaObject = {
+    { &QObject::staticMetaObject, qt_meta_stringdata_ComicStatus.data,
+      qt_meta_data_ComicStatus,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
+};
+
+
+const QMetaObject *ComicStatus::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *ComicStatus::qt_metacast(const char *_clname)
+{
+    if (!_clname) return Q_NULLPTR;
+    if (!strcmp(_clname, qt_meta_stringdata_ComicStatus.stringdata0))
+        return static_cast<void*>(const_cast< ComicStatus*>(this));
+    return QObject::qt_metacast(_clname);
+}
+
+int ComicStatus::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    return _id;
+}
+struct qt_meta_stringdata_ScanlationStatus_t {
+    QByteArrayData data[8];
+    char stringdata0[91];
+};
+#define QT_MOC_LITERAL(idx, ofs, len) \
+    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
+    qptrdiff(offsetof(qt_meta_stringdata_ScanlationStatus_t, stringdata0) + ofs \
+        - idx * sizeof(QByteArrayData)) \
+    )
+static const qt_meta_stringdata_ScanlationStatus_t qt_meta_stringdata_ScanlationStatus = {
+    {
+QT_MOC_LITERAL(0, 0, 16), // "ScanlationStatus"
+QT_MOC_LITERAL(1, 17, 4), // "Enum"
+QT_MOC_LITERAL(2, 22, 7), // "Invalid"
+QT_MOC_LITERAL(3, 30, 8), // "Complete"
+QT_MOC_LITERAL(4, 39, 7), // "Ongoing"
+QT_MOC_LITERAL(5, 47, 8), // "OnHiatus"
+QT_MOC_LITERAL(6, 56, 7), // "Dropped"
+QT_MOC_LITERAL(7, 64, 26) // "InDesperateNeedOfMoreStaff"
+
+    },
+    "ScanlationStatus\0Enum\0Invalid\0Complete\0"
+    "Ongoing\0OnHiatus\0Dropped\0"
+    "InDesperateNeedOfMoreStaff"
+};
+#undef QT_MOC_LITERAL
+
+static const uint qt_meta_data_ScanlationStatus[] = {
+
+ // content:
+       7,       // revision
+       0,       // classname
+       0,    0, // classinfo
+       0,    0, // methods
+       0,    0, // properties
+       1,   14, // enums/sets
+       0,    0, // constructors
+       0,       // flags
+       0,       // signalCount
+
+ // enums: name, flags, count, data
+       1, 0x0,    6,   18,
+
+ // enum data: key, value
+       2, uint(ScanlationStatus::Invalid),
+       3, uint(ScanlationStatus::Complete),
+       4, uint(ScanlationStatus::Ongoing),
+       5, uint(ScanlationStatus::OnHiatus),
+       6, uint(ScanlationStatus::Dropped),
+       7, uint(ScanlationStatus::InDesperateNeedOfMoreStaff),
+
+       0        // eod
+};
+
+void ScanlationStatus::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    Q_UNUSED(_o);
+    Q_UNUSED(_id);
+    Q_UNUSED(_c);
+    Q_UNUSED(_a);
+}
+
+const QMetaObject ScanlationStatus::staticMetaObject = {
+    { &QObject::staticMetaObject, qt_meta_stringdata_ScanlationStatus.data,
+      qt_meta_data_ScanlationStatus,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
+};
+
+
+const QMetaObject *ScanlationStatus::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *ScanlationStatus::qt_metacast(const char *_clname)
+{
+    if (!_clname) return Q_NULLPTR;
+    if (!strcmp(_clname, qt_meta_stringdata_ScanlationStatus.stringdata0))
+        return static_cast<void*>(const_cast< ScanlationStatus*>(this));
+    return QObject::qt_metacast(_clname);
+}
+
+int ScanlationStatus::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    return _id;
+}
 struct qt_meta_stringdata_ComicInfoModel_t {
     QByteArrayData data[6];
     char stringdata0[43];

@@ -79,35 +79,6 @@ type Comic struct {
 type sourceIndex int
 type priorityIndex int
 
-/*
-type syncRWMutex struct {
-	internal sync.RWMutex
-}
-
-func (this *syncRWMutex) Lock() {
-	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("#+Locking at %s:%d\n", file, line)
-	this.internal.Lock()
-}
-
-func (this *syncRWMutex) Unlock() {
-	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("#-Unlocking at %s:%d\n", file, line)
-	this.internal.Unlock()
-}
-
-func (this *syncRWMutex) RLock() {
-	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("#+RLocking at %s:%d\n", file, line)
-	this.internal.RLock()
-}
-
-func (this *syncRWMutex) RUnlock() {
-	_, file, line, _ := runtime.Caller(1)
-	fmt.Printf("#-RUnlocking at %s:%d\n", file, line)
-	this.internal.RUnlock()
-} //*/
-
 func NewComic(settings IndividualSettings) *Comic {
 	return &Comic{
 		settings:          settings,
@@ -404,7 +375,7 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 	comicId = comic.sqlId
 	info.ThumbnailFilename = thumbnailFilename.String
 	stts.DelayedModeDuration = time.Duration(duration)
-	stts.OverrideDefaults = qutils.BitfieldToBools(overrideDefaultsBitfield)
+	stts.OverrideDefaults = qutils.BitfieldToBools(overrideDefaultsBitfield, Bitlength(ComicSettings))
 	stts.FetchFrequency = time.Duration(fetchFreq)
 	comic.settings = stts //TODO?: merge settings, so loaded won't overwrite new defaults?
 

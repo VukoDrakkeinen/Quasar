@@ -76,6 +76,9 @@ func ByteSlicesToStrings(bss [][]byte) []string {
 }
 
 func BoolsToBitfield(table []bool) (bitfield uint64) {
+	if len(table) > 64 {
+		panic("BoolsToBitfield: provided bool table is too long!")
+	}
 	elvisOp := map[bool]uint64{false: 0, true: 1}
 	for i, b := range table[:int(math.Min(float64(len(table)), 64))] {
 		bitfield |= (elvisOp[b] << uint64(i))
@@ -83,12 +86,13 @@ func BoolsToBitfield(table []bool) (bitfield uint64) {
 	return
 }
 
-func BitfieldToBools(bitfield uint64) (table []bool) {
+func BitfieldToBools(bitfield uint64, expectedLength int) (table []bool) {
 	elvisOp := map[uint64]bool{0: false, 1: true}
 	bitLength := BitLen(bitfield)
 	for i := 0; i < bitLength; i++ {
 		table = append(table, elvisOp[(bitfield>>uint64(i))&^0xFFFFFFFFFFFFFFFE])
 	}
+	table = append(table, make([]bool, int(math.Dim(float64(expectedLength), float64(len(table)))))...) //lengthen if too short
 	return
 }
 

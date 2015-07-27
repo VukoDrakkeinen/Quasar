@@ -27,8 +27,7 @@ Window {
         GroupBox {
             Layout.fillWidth: true
             title: qsTr("Update notification mode:")
-            NotificationModeChooser {
-            }
+            //NotificationModeChooser {}
         }
 
         GroupBox {
@@ -133,7 +132,6 @@ Window {
             }
         }
 
-        OptionsBottomButtons {
-        }
+        OptionsBottomButtons {}
     }
 }

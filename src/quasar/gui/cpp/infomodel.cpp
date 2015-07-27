@@ -4,7 +4,7 @@
 #include <QLocale>
 #include <QDebug>
 
-ComicInfoModel::ComicInfoModel(void* goComicList): QAbstractTableModel(), goComicList(goComicList) {}
+ComicInfoModel::ComicInfoModel(void* goComicList): NotifiableModel(goComicList) {}
 ComicInfoModel::~ComicInfoModel() {}
 
 int ComicInfoModel::rowCount(const QModelIndex& parent) const
@@ -23,11 +23,16 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 {
 	if (!index.isValid()) return QVariant();
 
-	auto goComic = go_ComicList_GetComic(this->goComicList, index.row());
-	auto goInfo = go_Comic_Info(goComic);
-	//go_GC();
-	auto info = convertComicInfo(goInfo);
-	go_collectGarbage(goComic); //TODO: wrapper
+	ComicInfoRow info;
+	if (this->cache.valid(index)) {
+		info = this->cache.get();
+	} else {
+		auto goComic = go_ComicList_GetComic(this->goComicList, index.row());
+		auto goInfo = go_Comic_Info(goComic);
+		info = convertComicInfo(goInfo);
+		this->cache.hold(index, info);
+		go_collectGarbage(goComic); //TODO: wrapper
+	}
 
 	switch (role)
 	{
@@ -192,12 +197,6 @@ QVariant ComicInfoModel::headerData(int section, Qt::Orientation orientation, in
 	return QVariant();
 }
 
-void ComicInfoModel::setGoData(void* goComicList) {
-	this->beginResetModel();
-	this->goComicList = goComicList;
-	this->endResetModel();
-}
-
 QHash<int, QByteArray> ComicInfoModel::roleNames() const
 {
 	QHash<int, QByteArray> roles;
@@ -210,16 +209,5 @@ QHash<int, QByteArray> ComicInfoModel::roleNames() const
 QVariant ComicInfoModel::qmlGet(int row, int column, const QString& roleName)
 {
 	auto role = this->roleNames().key(roleName.toLatin1(), -1);
-	auto var = this->data(this->createIndex(row, column), role);
-	QString typeName(var.typeName());	//WORKAROUND: QML shitty enumerator handling
-	if (typeName == "ComicType") {
-		return (uint) var.value<ComicType>();
-	}
-	if (typeName == "ComicStatus") {
-		return (uint) var.value<ComicStatus>();
-	}
-	if (typeName == "ScanlationStatus") {
-		return (uint) var.value<ScanlationStatus>();
-	}
-	return var;
+	return this->data(this->createIndex(row, column), role);
 }
