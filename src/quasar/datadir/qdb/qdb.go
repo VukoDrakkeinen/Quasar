@@ -68,6 +68,9 @@ func SaveThumbnail(filename string, b []byte) {
 }
 
 func GetThumbnailPath(filename string) string {
+	if filename == "" {
+		return ""
+	}
 	return filepath.Join(thumbsDir, filename)
 }
 
