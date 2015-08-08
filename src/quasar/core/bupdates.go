@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	bakaUpdates_rURLValidator = qregexp.MustCompile(`^http://www.mangaupdates.com/series.html\?id=\d+$`)
+	bakaUpdates_rURLValidator = qregexp.MustCompile(`^https?://www.mangaupdates.com/series.html\?id=\d+$`)
 
-	bakaUpdates_rURLAndTitleList = qregexp.MustCompile(`(https://www.mangaupdates.com/series.html\?id=\d+)' alt='Series Info'>(?:<i>)?([^<]+)`)
+	bakaUpdates_rURLAndTitleList = qregexp.MustCompile(`(https?://www.mangaupdates.com/series.html\?id=\d+)' alt='Series Info'>(?:<i>)?([^<]+)`)
 
 	bakaUpdates_rInfoRegion  = qregexp.MustCompile(`(?s)<!-- Start:Series Info-->.*<!-- End:Series Info-->`) //woot, useful comments in code!
 	bakaUpdates_rTitle       = qregexp.MustCompile(`(?<=tabletitle">)[^<]+`)
@@ -31,7 +31,7 @@ var (
 	bakaUpdates_rStatus      = qregexp.MustCompile(`(?<=<div class="sCat"><b>Status in Country of Origin</b></div>\n<div class="sContent" >)[^(]+\(([^)]+)\)`)
 	bakaUpdates_rScanStatus  = qregexp.MustCompile(`(?<=<div class="sCat"><b>Completely Scanlated\?</b></div>\n<div class="sContent" >).*`)
 	bakaUpdates_rRating      = qregexp.MustCompile(`(?<=<div class="sCat"><b>User Rating</b></div>\n<div class="sContent" >Average:)[^<]+<br>Bayesian Average: <b>(\d{1,2}\.\d\d)`)
-	bakaUpdates_rImageURL    = qregexp.MustCompile(`https://www.mangaupdates.com/image/[^']+`)
+	bakaUpdates_rImageURL    = qregexp.MustCompile(`https?://www.mangaupdates.com/image/[^']+`)
 	bakaUpdates_rGenres      = qregexp.MustCompile(`(?<=<div class="sCat"><b>Genre</b></div>\n<div class="sContent" >).*(?=&)`)
 	bakaUpdates_rCategories  = qregexp.MustCompile(`(?<=,\d\)'>).*(?=</a></li>)`)
 	bakaUpdates_rAuthorsLine = qregexp.MustCompile(`(?<=<div class="sCat"><b>Author\(s\)</b></div>\n<div class="sContent" >).*`)

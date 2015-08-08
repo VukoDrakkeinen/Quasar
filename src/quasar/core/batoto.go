@@ -31,12 +31,12 @@ var (
 	batoto_rScanStatus      = qregexp.MustCompile(`(?<=Status:</td>\s+<td>).*(?=</)`)
 	batoto_rDescriptionLine = qregexp.MustCompile(`(?<=Description:</td>\s+<td>).*(?=</td>)`)
 	batoto_rMature          = qregexp.MustCompile("The following content is intended for mature audiences and may contain sexual themes, gore, violence and/or strong language. Discretion is advised.")
-	batoto_rImageURL        = qregexp.MustCompile(`http://img\.batoto[^"]+`)
+	batoto_rImageURL        = qregexp.MustCompile(`https?://img\.bato[^"]+`)
 	batoto_rExtract         = qregexp.MustCompile(`(?<=> ?)[^<]+(?=<)`)
 	batoto_rExtractStrict   = qregexp.MustCompile(`(?<=">)[^<]+(?=<)`)
 
 	batoto_rChaptersRegion   = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
-	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")http://bato.to/read/_/[^"]+(?=" title)`)
+	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")https?://bato.to/read/_/[^"]+(?=" title)`)
 	batoto_rIdentityAndTitle = qregexp.MustCompile(`/> ([^ ]* *[^ ]+)(?: Read Online|: ([^<]+))`)
 	batoto_rScanlator        = qregexp.MustCompile(`(?<=bato.to/group/_/[^"]+">)[^<]+`)
 	batoto_rLang             = qregexp.MustCompile(`(?<=<div title=")[^"]+`)
@@ -47,8 +47,8 @@ var (
 	batoto_rImageLink1 = qregexp.MustCompile(`(?<=id="comic_page".*src=")[^"]+`)
 	batoto_rImageLink2 = qregexp.MustCompile(`(?<=img\.src = ")[^"]+`)
 
-	batoto_rResultsRegions = qregexp.MustCompile(`http://bato.to/comic/_/.+</a>`)
-	batoto_rComicURL       = qregexp.MustCompile(`http://bato.to/comic/_/[^\"]+`)
+	batoto_rResultsRegions = qregexp.MustCompile(`https?://bato.to/comic/_/.+</a>`)
+	batoto_rComicURL       = qregexp.MustCompile(`https?://bato.to/comic/_/[^\"]+`)
 	batoto_rComicTitles    = qregexp.MustCompile(`/> ([^(<]+)(?: \(([^)]+)\))?</a>`)
 )
 
