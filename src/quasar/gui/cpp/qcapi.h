@@ -15,10 +15,13 @@ InfoModel_* newInfoModel(GoComicList_* data);
 UpdateModel_* newUpdateModel(GoComicList_* data);
 ChapterModel_* newChapterModel(GoComicList_* data);
 void registerQMLTypes();
+void modelSetGoData(NotifiableModel_* model, void* goData);
 void notifyModelInsertStart(NotifiableModel_* model, int row, int count);
 void notifyModelInsertEnd(NotifiableModel_* model);
 void notifyModelRemoveStart(NotifiableModel_* model, int row, int count);
 void notifyModelRemoveEnd(NotifiableModel_* model);
+void notifyModelResetStart(NotifiableModel_* model);
+void notifyModelResetEnd(NotifiableModel_* model);
 
 void* go_Offsets_ComicInfo;
 void* go_Offsets_Scanlation;

@@ -11,6 +11,14 @@ import (
 	"time"
 )
 
+type ViewNotificationType int
+
+const (
+	Insert ViewNotificationType = iota
+	Remove
+	Reset
+)
+
 var (
 	idsSchema = `
 	CREATE TABLE IF NOT EXISTS langs(
@@ -54,11 +62,12 @@ var (
 	scheduleQueryCmd     = `SELECT nextFetchTime FROM schedule WHERE comicId = ?;`
 )
 
-func NewComicList(fetcher *fetcher) ComicList {
+func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) ComicList {
 	return ComicList{
 		comics:         make([]*Comic, 0, 10),
 		interruptChans: make([]chan struct{}, 0, 10),
 		fetcher:        fetcher,
+		notifyView:     notifyViewFunc,
 	}
 }
 
@@ -68,6 +77,7 @@ type ComicList struct {
 	nextFetchTimes []time.Time
 	interruptChans []chan struct{}
 	fetcher        *fetcher
+	notifyView     func(typ ViewNotificationType, row, count int, work func())
 }
 
 func (list ComicList) Fetcher() *fetcher {
@@ -75,25 +85,25 @@ func (list ComicList) Fetcher() *fetcher {
 }
 
 func (this *ComicList) AddComics(comics []*Comic) {
-	///notify-list-preupdate-insert (len(this.comics))
-	this.comics = append(this.comics, comics...)
-	interruptChans := make([]chan struct{}, len(comics))
-	for i := range interruptChans {
-		interruptChans[i] = make(chan struct{})
-	}
-	this.interruptChans = append(this.interruptChans, interruptChans...)
-	this.nextFetchTimes = append(this.nextFetchTimes, make([]time.Time, len(comics))...)
-	this.updatedAt = append(this.updatedAt, make([]time.Time, len(comics))...)
-	///notify-list-postupdate-insert (len(this.comics)+len(comics)-1)
+	this.notifyView(Insert, len(this.comics), len(comics), func() {
+		this.comics = append(this.comics, comics...)
+		interruptChans := make([]chan struct{}, len(comics))
+		for i := range interruptChans {
+			interruptChans[i] = make(chan struct{})
+		}
+		this.interruptChans = append(this.interruptChans, interruptChans...)
+		this.nextFetchTimes = append(this.nextFetchTimes, make([]time.Time, len(comics))...)
+		this.updatedAt = append(this.updatedAt, make([]time.Time, len(comics))...)
+	})
 }
 
 func (this *ComicList) RemoveComics(index, count int64) {
-	///notify-list-preupdate-remove
-	this.comics = append(this.comics[:index], this.comics[index+count:]...)
-	this.interruptChans = append(this.interruptChans[:index], this.interruptChans[index+count:]...)
-	this.nextFetchTimes = append(this.nextFetchTimes[:index], this.nextFetchTimes[index+count:]...)
-	this.updatedAt = append(this.updatedAt[:index], this.updatedAt[index+count:]...)
-	///notify-list-postupdate-remove
+	this.notifyView(Remove, int(index), int(count), func() {
+		this.comics = append(this.comics[:index], this.comics[index+count:]...)
+		this.interruptChans = append(this.interruptChans[:index], this.interruptChans[index+count:]...)
+		this.nextFetchTimes = append(this.nextFetchTimes[:index], this.nextFetchTimes[index+count:]...)
+		this.updatedAt = append(this.updatedAt[:index], this.updatedAt[index+count:]...)
+	})
 }
 
 func (this ComicList) ComicLastUpdated(idx int) time.Time {
@@ -127,18 +137,20 @@ func (this ComicList) ScheduleComicFetches() {
 			i := i
 			fmt.Println("  Old schedule", this.nextFetchTimes[i])
 			now := time.Now().UTC()
-			if fetchOnStartup {
-				fmt.Println("  Fetch On Startup: Enabled")
-				this.fetcher.DownloadChapterListFor(comic)
-				this.updatedAt[i] = now //TODO?: actual now?
-				this.nextFetchTimes[i] = now.Add(duration)
-			} else if this.nextFetchTimes[i].Before(now) {
-				fmt.Println("  Scheduled time in the past; adjusting...")
-				this.fetcher.DownloadChapterListFor(comic)
-				this.updatedAt[i] = now
-				multiplier := divThenCeil(now.Sub(this.nextFetchTimes[i]), duration)
-				this.nextFetchTimes[i].Add(multiplier * duration)
-			}
+			this.notifyView(Reset, -1, -1, func() {
+				if fetchOnStartup {
+					fmt.Println("  Fetch On Startup: Enabled")
+					this.fetcher.DownloadChapterListFor(comic)
+					this.updatedAt[i] = now //TODO?: actual now?
+					this.nextFetchTimes[i] = now.Add(duration)
+				} else if this.nextFetchTimes[i].Before(now) {
+					fmt.Println("  Scheduled time in the past; adjusting...")
+					this.fetcher.DownloadChapterListFor(comic)
+					this.updatedAt[i] = now
+					multiplier := divThenCeil(now.Sub(this.nextFetchTimes[i]), duration)
+					this.nextFetchTimes[i].Add(multiplier * duration)
+				}
+			})
 			fmt.Println("  Scheduled fetch for", this.nextFetchTimes[i])
 
 			if intervalFetching {
@@ -146,10 +158,12 @@ func (this ComicList) ScheduleComicFetches() {
 				for {
 					select {
 					case <-time.After(this.nextFetchTimes[i].Sub(now)):
-						this.fetcher.DownloadChapterListFor(comic)
-						now := time.Now().UTC()
-						this.updatedAt[i] = now
-						this.nextFetchTimes[i] = now.Add(duration)
+						this.notifyView(Reset, -1, -1, func() {
+							this.fetcher.DownloadChapterListFor(comic)
+							now := time.Now().UTC()
+							this.updatedAt[i] = now
+							this.nextFetchTimes[i] = now.Add(duration)
+						})
 					case <-this.interruptChans[i]:
 						return
 					}
@@ -296,24 +310,29 @@ func (list *ComicList) LoadFromDB() (err error) {
 			return qerr.NewLocated(err)
 		}
 		if _, exists := comicSqlIds[comic.sqlId]; exists { //TODO: don't skip, merge
-			qlog.Logf(qlog.Info, "Skipped one comic while loading from DB (already exists). Id: %d\n", comic.sqlId)
+			qlog.Logf(qlog.Info, "Skipped one comic while loading from DB (already exists). Id: %d", comic.sqlId)
 			continue
 		}
-		///notify-list-preupdate-insert (len(this.comics))
-		list.comics = append(list.comics, comic)
-		var nextFetchTime time.Time
-		err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime)
-		nextFetchTime = nextFetchTime.UTC()
-		list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
-		list.interruptChans = append(list.interruptChans, make(chan struct{}))
-		list.updatedAt = append(list.updatedAt, time.Time{}) //TODO: actually load
+		list.notifyView(Insert, len(list.comics), 1, func() {
+			list.comics = append(list.comics, comic)
+			var nextFetchTime time.Time
+			err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime)
+			if err != nil {
+				return
+			}
+			nextFetchTime = nextFetchTime.UTC()
+			list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
+			list.interruptChans = append(list.interruptChans, make(chan struct{}))
+			list.updatedAt = append(list.updatedAt, time.Time{}) //TODO: actually load
+		})
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
-		///notify-list-postupdate-insert (len(this.comics)+1)
 	}
 
 	transaction.Commit()
+
+	list.ScheduleComicFetches() //TODO: only the new ones
 	return
 }
 

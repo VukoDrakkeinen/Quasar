@@ -51,9 +51,11 @@ func (this *coreConnector) AddComic(settingsDatas *qml.List, sources *qml.Map) {
 		}
 		comic.AddSource(source)
 	}
-	this.list.Fetcher().DownloadComicInfoFor(comic) //TODO: this will block GUI thread for a long-ass time; fix
-	this.list.AddComics([]*core.Comic{comic})
-	this.list.ScheduleComicFetches() //TODO: just one
+	go func() { //TODO: show progress
+		this.list.Fetcher().DownloadComicInfoFor(comic)
+		this.list.AddComics([]*core.Comic{comic})
+		this.list.ScheduleComicFetches() //TODO: just one
+	}()
 }
 
 type temporaryNeuteredGlobalSettings struct {

@@ -37,7 +37,7 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 
 	return
 
-	globals, _ := core.LoadGlobalSettings()
+	/*globals, _ := core.LoadGlobalSettings()
 	qlog.Log(qlog.Info, "Creating Fetcher")
 	fet := core.NewFetcher(nil)
 	qlog.Log(qlog.Info, "Registering plugins")
@@ -54,16 +54,16 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	fet.DownloadComicInfoFor(comic)
 	qlog.Log(qlog.Info, "Downloading Chapter List")
 	fet.DownloadChapterListFor(comic)
-	/*for i := 0; i < comic.ChapterCount(); i++ {
+	for i := 0; i < comic.ChapterCount(); i++ {
 		chapter, id := comic.GetChapter(i)
 		sc0 := chapter.Scanlation(0)
 		fmt.Printf("%v %v (%v)\n", id, sc0.Title, sc0.Scanlators)
-	}//*/
+	}
 
 	//return
 
 	qlog.Log(qlog.Info, "Saving to DB")
-	list := core.NewComicList(fet)
+	list := core.NewComicList(fet, nil)
 	list.AddComics([]*core.Comic{comic})
 	//list.ScheduleComicFetches()
 	//time.Sleep(5 * time.Second) //Wait for the background tasks to complete
@@ -82,12 +82,12 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	fmt.Println("\nDownloading Page Links for Chapter:0 Scanlation:0")
 	fet.DownloadPageLinksFor(comic, 0, 0)
 	chapter, id := comic.GetChapter(0)
-	fmt.Println(id, chapter)
+	fmt.Println(id, chapter)//*/
 }
 
 var dontGC *core.ComicList //TODO: It's a tra- I mean, a HACK! Remove it!
 
-func launchGUI() error {
+func launchGUI() error { //TODO: move some things out of GUI thread
 	qml.RegisterTypes("QuasarGUI", 1, 0, []qml.TypeSpec{
 		{Init: gui.InitSplitDurationValidator},
 	})
@@ -102,52 +102,57 @@ func launchGUI() error {
 		qlog.Log(qlog.Warning, "Falling back on defaults")
 		settings = core.NewGlobalSettings()
 	}
+	//fmt.Printf("%#v\n", settings)
+
+	qlog.Log(qlog.Info, "Creating proxy models")
+	chapterModel := gui.NewComicChapterModel(nil)
+	updateModel := gui.NewComicUpdateModel(nil)
+	infoModel := gui.NewComicInfoModel(nil)
+
 	qlog.Log(qlog.Info, "Creating Fetcher")
-	fet := core.NewFetcher(settings)
+	fet := core.NewFetcher(settings, func(work func()) {
+		//println("Notifying chapter model - reset")
+		notify := gui.DefaultNotifyFunc()
+		notify(chapterModel, core.Reset, -1, -1, work) //row and count values are unused, hence -1
+	})
+
 	qlog.Log(qlog.Info, "Registering plugins")
-	batoto := core.NewBatoto()
-	bupdates := core.NewBakaUpdates()
-	fet.RegisterPlugin(batoto)
-	fet.RegisterPlugin(bupdates)
-	list := core.NewComicList(fet)
+	fet.RegisterPlugins(core.NewBatoto(), core.NewBakaUpdates())
+
+	qlog.Log(qlog.Info, "Creating comic list")
+	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
+		//println("Notifying updateModel with ntype", ntype, "row", row, "count", count)
+		notify := gui.DefaultNotifyFunc()
+		notify(updateModel, ntype, row, count, work)
+	})
 	dontGC = &list
+	gui.ModelSetGoData(chapterModel, &list)
+	gui.ModelSetGoData(updateModel, &list)
+	gui.ModelSetGoData(infoModel, &list)
+
 	qlog.Log(qlog.Info, "Loading from DB")
 	err = list.LoadFromDB()
-	err = list.LoadFromDB()
+	//err = list.LoadFromDB()	//Test consecutive loads
 	if err != nil {
 		qlog.Log(qlog.Error, err)
 		os.Exit(1)
 	}
-	//list.ScheduleComicFetches()
-	//fmt.Println("Waiting 5 seconds for background tasks (model notification not done yet!)...")
-	//time.Sleep(5 * time.Second)
 
-	fmt.Println("Crash nao!")
-	umodelptr := gui.NewComicUpdateModel(&list)
-	updatemodelCommon := qml.CommonOf(umodelptr, engine) //TODO: investigate possibility of replacing with pure Go code
-	infomodelCommon := qml.CommonOf(gui.NewComicInfoModel(&list), engine)
-	chaptermodelCommon := qml.CommonOf(gui.NewComicChapterModel(&list), engine)
-	fmt.Println("Crash niet")
-	//modelCommon := qml.CommonOf(gui.NewDummyModel(), engine)
-	context.SetVar("updateModel", updatemodelCommon)
-	context.SetVar("infoModel", infomodelCommon)
-	context.SetVar("chapterModel", chaptermodelCommon)
+	qlog.Log(qlog.Info, "Setting QML variables")
+	context.SetVar("updateModel", qml.CommonOf(updateModel.InternalPtr(), engine))
+	context.SetVar("infoModel", qml.CommonOf(infoModel.InternalPtr(), engine))
+	context.SetVar("chapterModel", qml.CommonOf(chapterModel.InternalPtr(), engine))
 	context.SetVar("quasarCore", gui.NewCoreConnector(&list))
-	//context.SetVar("notifModeChooser", 0)
 
-	controls, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml") //TODO: load from resources
+	qlog.Log(qlog.Info, "Launching GUI")
+	control, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml") //TODO: load from resources
 	if err != nil {
 		return err
 	}
-	window := controls.CreateWindow(nil)
-	//var settings *core.GlobalSettings
-	/*go func() {
-		chooser := window.ObjectByName("notifModeChooser")
-		chooser.Call("setValues", int(settings.DefaultNotificationMode), settings.DefaultAccumulativeModeCount, nil) //TODO: duration
-	}()//*/
+	window := control.CreateWindow(nil)
 
 	window.Show()
 	window.Wait()
-	//settings.Save()
+	//settings.Save()	//TODO: fix this (seems to save the default values)
 	return nil
 }

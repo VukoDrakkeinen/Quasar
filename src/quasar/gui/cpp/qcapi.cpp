@@ -214,6 +214,10 @@ void registerQMLTypes() {
 	qmlRegisterType<ScanlationStatus>("QuasarGUI", 1, 0, "ScanlationStatus");
 }
 
+void modelSetGoData(NotifiableModel_* model, void* goData) {
+	reinterpret_cast<NotifiableModel*>(model)->setGoData(goData);
+}
+
 void notifyModelInsertStart(NotifiableModel_* model, int row, int count) {
 	reinterpret_cast<NotifiableModel*>(model)->emitBeginInsert(row, count);
 }
@@ -228,4 +232,12 @@ void notifyModelRemoveStart(NotifiableModel_* model, int row, int count) {
 
 void notifyModelRemoveEnd(NotifiableModel_* model) {
 	reinterpret_cast<NotifiableModel*>(model)->emitEndRemove();
+}
+
+void notifyModelResetStart(NotifiableModel_* model) {
+	reinterpret_cast<NotifiableModel*>(model)->emitBeginReset();
+}
+
+void notifyModelResetEnd(NotifiableModel_* model) {
+	reinterpret_cast<NotifiableModel*>(model)->emitEndReset();
 }

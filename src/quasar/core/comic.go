@@ -2,11 +2,14 @@ package core
 
 import (
 	"database/sql"
+	"fmt"
 	"math"
 	. "quasar/core/idsdict"
 	"quasar/datadir/qdb"
+	"quasar/datadir/qlog"
 	"quasar/qutils"
 	"quasar/qutils/qerr"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,6 +63,31 @@ const ( //SQL Statements Group keys
 	tagsQuery      = "tagsQuery"
 	sourcesQuery   = "sourcesQuery"
 )
+
+type syncRWMutex struct {
+	internal sync.RWMutex
+}
+
+func (this *syncRWMutex) Lock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#+Locking at %s:%d\n", file, line)
+	this.internal.Lock()
+}
+func (this *syncRWMutex) Unlock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#-Unlocking at %s:%d\n", file, line)
+	this.internal.Unlock()
+}
+func (this *syncRWMutex) RLock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#+RLocking at %s:%d\n", file, line)
+	this.internal.RLock()
+}
+func (this *syncRWMutex) RUnlock() {
+	_, file, line, _ := runtime.Caller(1)
+	fmt.Printf("#-RUnlocking at %s:%d\n", file, line)
+	this.internal.RUnlock()
+} //*/
 
 type Comic struct {
 	info     ComicInfo
@@ -183,6 +211,9 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
+	if len(identities) != len(chapters) {
+		qlog.Log(qlog.Warning, "Comic.AddMultipleChapters: provided slices lengths do not match!")
+	}
 	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities

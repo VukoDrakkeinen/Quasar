@@ -23,3 +23,11 @@ void NotifiableModel::setGoData(void* goComicList) {
     this->goComicList = goComicList;
     this->endResetModel();
 }
+
+void NotifiableModel::emitBeginReset() {
+	this->beginResetModel();
+}
+
+void NotifiableModel::emitEndReset() {
+	this->endResetModel();
+}

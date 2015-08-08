@@ -51,9 +51,10 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 	cache       *DataCache
 	connLimiter map[string]chan struct{}
 	connLimits  map[FetcherPluginName]int
+	notifyView  func(work func())
 }
 
-func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
+func NewFetcher(settings *GlobalSettings, notifyViewFunc func(work func()), plugins ...FetcherPlugin) *fetcher {
 	fet := &fetcher{
 		plugins: make(map[FetcherPluginName]FetcherPlugin),
 		webClient: &http.Client{
@@ -63,28 +64,30 @@ func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
 		cache:       NewDataCache(),
 		connLimiter: make(map[string]chan struct{}),
 		connLimits:  make(map[FetcherPluginName]int),
+		notifyView:  notifyViewFunc,
 	}
 	if fet.settings == nil {
 		fet.settings = NewGlobalSettings()
 	}
-	for _, plugin := range plugins {
-		fet.RegisterPlugin(plugin)
-	}
+	fet.RegisterPlugins(plugins...)
 	return fet
 }
 
-func (this *fetcher) RegisterPlugin(plugin FetcherPlugin) (success, replaced bool) {
-	name := plugin.PluginName()
-	oldPlugin, replaced := this.plugins[name]
-	if replaced {
-		oldPlugin.setFetcher(nil)
+func (this *fetcher) RegisterPlugins(plugins ...FetcherPlugin) (successes, replaced []bool) {
+	for _, plugin := range plugins {
+		name := plugin.PluginName()
+		oldPlugin, pluginReplaced := this.plugins[name]
+		if pluginReplaced {
+			oldPlugin.setFetcher(nil)
+		}
+		this.plugins[name] = plugin
+		plugin.setFetcher(this)
+		Langs.AssignIds(plugin.Languages())
+		plugin.SetSettings(NewPerPluginSettings(this.settings)) //TODO
+		this.connLimits[name] = plugin.Settings().MaxConnectionsToHost
+		successes = append(successes, true) //TODO?
+		replaced = append(replaced, pluginReplaced)
 	}
-	this.plugins[name] = plugin
-	plugin.setFetcher(this)
-	Langs.AssignIds(plugin.Languages())
-	plugin.SetSettings(NewPerPluginSettings(this.settings)) //TODO
-	this.connLimits[name] = plugin.Settings().MaxConnectionsToHost
-	success = true //TODO?
 	return
 }
 
@@ -96,7 +99,7 @@ func (this *fetcher) Plugins() (names []FetcherPluginName, humanReadableNames []
 	return
 }
 
-func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
+func (this *fetcher) DownloadComicInfoFor(comic *Comic) { //TODO: parallelize
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
@@ -112,7 +115,6 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 }
 
 func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host string) {
-	//fmt.Println("Getting connection permit for plugin", string(pluginName), "host", host)
 	if c, ok := this.connLimiter[host]; ok {
 		if maxConns := this.connLimits[pluginName]; cap(c) != maxConns {
 			oldLen := len(c)
@@ -127,6 +129,12 @@ func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host stri
 		maxConns := this.connLimits[pluginName]
 		if maxConns == 0 {
 			maxConns = this.settings.MaxConnectionsToHost
+			if maxConns == 0 {
+				maxConns = 1
+				this.settings.MaxConnectionsToHost = 1
+				this.settings.Save()
+				qlog.Log(qlog.Warning, "Invalid number of maximum connections! Can't be zero.")
+			}
 		}
 
 		this.connLimiter[host] = make(chan struct{}, maxConns)
@@ -140,7 +148,6 @@ func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host stri
 }
 
 func (this *fetcher) giveupConnectionPermit(host string) {
-	//fmt.Println("Giving up connection permit for host", host)
 	this.connLimiter[host] <- struct{}{}
 }
 
@@ -216,6 +223,7 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 	return nil, errors.New(`Maximum amount of retries exceeded!`)
 }
 
+//TODO: parallelize
 func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
 	var offender FetcherPluginName
 	defer func() {
@@ -225,22 +233,24 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 		}
 	}()
 
-	for _, source := range comic.Sources() {
-		offender = source.PluginName
-		identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic) //TODO: parallelize!
-		if missingVolumes {                                                                             //some plugins return ChapterIdentities with no Volume data, correct it
-			correctiveSlice := correctiveSlice{identities, chapters}
-			sort.Sort(correctiveSlice)
-			prevVol := byte(1)
-			for i := range correctiveSlice.identities {
-				if correctiveSlice.identities[i].Volume == 0 {
-					correctiveSlice.identities[i].Volume = prevVol
+	this.notifyView(func() {
+		for _, source := range comic.Sources() {
+			offender = source.PluginName
+			identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic) //TODO: parallelize!
+			if missingVolumes {                                                                             //some plugins return ChapterIdentities with no Volume data, correct it
+				correctiveSlice := correctiveSlice{identities, chapters}
+				sort.Sort(correctiveSlice)
+				prevVol := byte(1)
+				for i := range correctiveSlice.identities {
+					if correctiveSlice.identities[i].Volume == 0 {
+						correctiveSlice.identities[i].Volume = prevVol
+					}
+					prevVol = correctiveSlice.identities[i].Volume
 				}
-				prevVol = correctiveSlice.identities[i].Volume
 			}
+			comic.AddMultipleChapters(identities, chapters)
 		}
-		comic.AddMultipleChapters(identities, chapters)
-	}
+	})
 }
 
 func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
