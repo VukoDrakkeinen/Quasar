@@ -2,7 +2,7 @@ package qutils
 
 import (
 	"errors"
-	"math"
+	"quasar/qutils/math"
 	"reflect"
 )
 
@@ -80,7 +80,7 @@ func BoolsToBitfield(table []bool) (bitfield uint64) {
 		panic("BoolsToBitfield: provided bool table is too long!")
 	}
 	elvisOp := map[bool]uint64{false: 0, true: 1}
-	for i, b := range table[:int(math.Min(float64(len(table)), 64))] {
+	for i, b := range table[:int(math.Min(int64(len(table)), 64))] {
 		bitfield |= (elvisOp[b] << uint64(i))
 	}
 	return
@@ -92,7 +92,7 @@ func BitfieldToBools(bitfield uint64, expectedLength int) (table []bool) {
 	for i := 0; i < bitLength; i++ {
 		table = append(table, elvisOp[(bitfield>>uint64(i))&^0xFFFFFFFFFFFFFFFE])
 	}
-	table = append(table, make([]bool, int(math.Dim(float64(expectedLength), float64(len(table)))))...) //lengthen if too short
+	table = append(table, make([]bool, int(math.Dim(int64(expectedLength), int64(len(table)))))...) //lengthen if too short
 	return
 }
 

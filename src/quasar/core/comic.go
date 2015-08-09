@@ -3,11 +3,11 @@ package core
 import (
 	"database/sql"
 	"fmt"
-	"math"
 	. "quasar/core/idsdict"
 	"quasar/datadir/qdb"
 	"quasar/datadir/qlog"
 	"quasar/qutils"
+	"quasar/qutils/math"
 	"quasar/qutils/qerr"
 	"runtime"
 	"sync"
@@ -214,7 +214,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 	if len(identities) != len(chapters) {
 		qlog.Log(qlog.Warning, "Comic.AddMultipleChapters: provided slices lengths do not match!")
 	}
-	minLen := int(math.Min(float64(len(identities)), float64(len(chapters))))
+	minLen := int(math.Min(int64(len(identities)), int64(len(chapters))))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
 	newStart := false                                           //Status of creation of the slice
