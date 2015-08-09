@@ -1,9 +1,9 @@
 package gui
 
 import (
+	"github.com/Quasar/datadir/qlog"
+	"github.com/Quasar/qutils"
 	"gopkg.in/qml.v1"
-	"quasar/datadir/qlog"
-	"quasar/qutils"
 )
 
 type ValuesValidator struct {

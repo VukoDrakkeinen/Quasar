@@ -2,7 +2,7 @@ package qutils
 
 import (
 	"errors"
-	"quasar/qutils/math"
+	"github.com/Quasar/qutils/math"
 	"reflect"
 )
 

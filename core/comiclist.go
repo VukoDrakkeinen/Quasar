@@ -2,11 +2,11 @@ package core
 
 import (
 	"fmt"
+	"github.com/Quasar/core/idsdict"
+	"github.com/Quasar/datadir/qdb"
+	"github.com/Quasar/datadir/qlog"
+	"github.com/Quasar/qutils/qerr"
 	"math"
-	"quasar/core/idsdict"
-	"quasar/datadir/qdb"
-	"quasar/datadir/qlog"
-	"quasar/qutils/qerr"
 	"strings"
 	"time"
 )

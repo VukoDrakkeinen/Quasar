@@ -2,9 +2,9 @@ package qlog
 
 import (
 	"fmt"
+	"github.com/Quasar/datadir"
 	"os"
 	"path/filepath"
-	"quasar/datadir"
 	"strconv"
 	"sync"
 	"time"

@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"quasar/qutils"
+	"github.com/Quasar/qutils"
 )
 
 var ComicGenres = NewComicGenresDict()

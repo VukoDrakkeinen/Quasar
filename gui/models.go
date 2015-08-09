@@ -4,8 +4,8 @@ package gui
 import "C"
 
 import (
+	"github.com/Quasar/core"
 	"gopkg.in/qml.v1"
-	"quasar/core"
 	"sync"
 	"unsafe"
 )

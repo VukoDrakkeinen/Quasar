@@ -3,12 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/Quasar/core"
+	"github.com/Quasar/datadir/qlog"
+	"github.com/Quasar/gui"
 	"gopkg.in/qml.v1"
 	"log"
 	"os"
-	"quasar/core"
-	"quasar/datadir/qlog"
-	"quasar/gui"
 	"runtime/pprof"
 	"time"
 )
@@ -145,7 +145,7 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	context.SetVar("quasarCore", gui.NewCoreConnector(&list))
 
 	qlog.Log(qlog.Info, "Launching GUI")
-	control, err := engine.LoadFile("/home/vuko/Projects/GoLang/Quasar/src/quasar/gui/qml/main.qml") //TODO: load from resources
+	control, err := engine.LoadFile("qml/main.qml") //TODO: load from resources
 	if err != nil {
 		return err
 	}

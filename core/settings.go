@@ -2,12 +2,12 @@ package core
 
 import (
 	"encoding/json"
+	. "github.com/Quasar/core/idsdict"
+	"github.com/Quasar/qutils/qerr"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
-	. "quasar/core/idsdict"
-	"quasar/qutils/qerr"
 	"reflect"
 	"time"
 )

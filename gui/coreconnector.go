@@ -1,8 +1,8 @@
 package gui
 
 import (
+	"github.com/Quasar/core"
 	"gopkg.in/qml.v1"
-	"quasar/core"
 	"unsafe"
 )
 

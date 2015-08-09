@@ -8,9 +8,9 @@ package gui
 import "C"
 
 import (
-	"quasar/core"
-	"quasar/core/idsdict"
-	"quasar/datadir/qdb"
+	"github.com/Quasar/core"
+	"github.com/Quasar/core/idsdict"
+	"github.com/Quasar/datadir/qdb"
 	"reflect"
 	"sort"
 	"sync"

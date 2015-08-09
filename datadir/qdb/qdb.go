@@ -2,13 +2,13 @@ package qdb
 
 import (
 	"database/sql"
+	"github.com/Quasar/datadir"
+	"github.com/Quasar/datadir/qlog"
+	"github.com/Quasar/qutils/qerr"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"quasar/datadir"
-	"quasar/datadir/qlog"
-	"quasar/qutils/qerr"
 	"strconv"
 )
 
