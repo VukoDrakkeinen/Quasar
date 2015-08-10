@@ -79,14 +79,11 @@ func (this *StdLog) Write(msg logMessage) {
 
 func (this *NullLog) Write(msg logMessage) { _ = msg }
 
-var logsDir string
 var defaultLogger QLogger
 var cache map[string]FileLog //TODO: rename
 var cLock sync.Mutex
 
 func init() {
-	logsDir = filepath.Join(datadir.Path(), "logs")
-	os.Mkdir(logsDir, os.ModeDir|0755)
 	cache = make(map[string]FileLog)
 	defaultLogger = *New(NewFileLog("debug.log"), &StdLog{})
 }
@@ -99,7 +96,7 @@ func NewFileLog(filename string) LogWriter {
 		return &NullLog{}
 	}
 
-	path := filepath.Join(logsDir, filename)
+	path := filepath.Join(datadir.Logs(), filename)
 	rotateLogs(path)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0755)
 	if err != nil {

@@ -93,6 +93,7 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	})
 
 	engine := qml.NewEngine()
+	engine.On("quit", func() { fmt.Println("Save to DB here?"); os.Exit(0) })
 	context := engine.Context()
 
 	qlog.Log(qlog.Info, "Loading settings")

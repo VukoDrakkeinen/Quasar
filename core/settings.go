@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	. "github.com/Quasar/core/idsdict"
+	"github.com/Quasar/datadir"
 	"github.com/Quasar/qutils/qerr"
 	"io/ioutil"
 	"os"
@@ -110,7 +111,7 @@ func NewGlobalSettings() *GlobalSettings {
 }
 
 func LoadGlobalSettings() (settings *GlobalSettings, e error) {
-	file, err := os.Open(filepath.Join(configDir, globalConfigFile))
+	file, err := os.Open(filepath.Join(datadir.Configs(), globalConfigFile))
 	defer file.Close()
 	if os.IsNotExist(err) {
 		settings = NewGlobalSettings()
@@ -210,28 +211,23 @@ func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 	}
 }
 
-//TODO:
-//XP: + \Local Settings\Application Data\Quasar\
-//Win: + \AppData\Local\Quasar\
-//OSX: + /Library/Application Support/Quasar/
-var configDir string
 var downloadsPath string
 
 func init() {
 	luser, _ := user.Current() //how can this even fail o_O
-	configDir = filepath.Join(luser.HomeDir, ".config", "quasar")
 	downloadsPath = filepath.Join(luser.HomeDir, "Downloads", "Quasar")
 }
 
 const globalConfigFile = "config.json"
 
 func WriteConfig(filename string, data []byte) {
+	configDir := datadir.Configs()
 	os.MkdirAll(configDir, os.ModeDir|0755)
 	ioutil.WriteFile(filepath.Join(configDir, filename), data, 0644)
 }
 
 func ReadConfig(filename string) (contents []byte, err error) {
-	file, err := os.Open(filepath.Join(configDir, filename))
+	file, err := os.Open(filepath.Join(datadir.Configs(), filename))
 	defer file.Close()
 	if err != nil {
 		return
