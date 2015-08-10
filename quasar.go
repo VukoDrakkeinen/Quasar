@@ -153,6 +153,6 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 
 	window.Show()
 	window.Wait()
-	//settings.Save()	//TODO: fix this (seems to save the default values)
+	settings.Save()
 	return nil
 }

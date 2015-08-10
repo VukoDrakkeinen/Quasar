@@ -85,6 +85,7 @@ func (this *fetcher) RegisterPlugins(plugins ...FetcherPlugin) (successes, repla
 		Langs.AssignIds(plugin.Languages())
 		plugin.SetSettings(NewPerPluginSettings(this.settings)) //TODO
 		this.connLimits[name] = plugin.Settings().MaxConnectionsToHost
+		this.settings.Plugins[name] = PluginEnabled(true)
 		successes = append(successes, true) //TODO?
 		replaced = append(replaced, pluginReplaced)
 	}

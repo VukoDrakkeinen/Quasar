@@ -16,7 +16,7 @@ const (
 	hoursPerDay time.Duration = 24
 	daysPerWeek               = 7
 	//weeksPerMonth               = 4 //uniform
-	//monthsPerYear               = 13 //4*7*13 = 364; 13th month is Nonuary
+	//monthsPerYear               = 13 //4*7*13 = 364; 13th month is Nonuary :P
 	dayTime  = time.Hour * hoursPerDay
 	weekTime = dayTime * daysPerWeek
 	//monthTime = weekTime * weeksPerMonth
@@ -76,7 +76,10 @@ func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
 
 func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	proxy := &globalSettingsJSONProxy{
+		FetchOnStartup:        this.FetchOnStartup,
+		IntervalFetching:      this.IntervalFetching,
 		FetchFrequency:        DurationToSplit(this.FetchFrequency),
+		MaxConnectionsToHost:  this.MaxConnectionsToHost,
 		ValidModeValues:       NotificationModeValueNames(),
 		NotificationMode:      this.NotificationMode.String(),
 		AccumulativeModeCount: this.AccumulativeModeCount,
