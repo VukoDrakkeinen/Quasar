@@ -1,4 +1,3 @@
-#include "_cgo_export.h"
 #include "qcapi.h"
 #include "notifiablemodel.h"
 #include "updatemodel.h"
@@ -15,12 +14,12 @@ typedef struct {
 	GoUintptr ptr;
 	GoInt size;
 	GoInt cap;
-} Go_Slice;
+} GoSlice;
 
 typedef struct {
 	GoUintptr ptr;
 	GoInt size;
-} Go_String;
+} GoString;
 
 void go_collectGarbage(GoUintptr ptr) {
 	go_collectGarbage(reinterpret_cast<void*>(ptr));
@@ -44,8 +43,8 @@ QString GoStringQ(GoUintptr ptr) {
 	return qstr;
 }
 
-Go_Slice GoSliceC(GoUintptr ptr) {
-	return *(Go_Slice*)(ptr);
+GoSlice GoSliceC(GoUintptr ptr) {
+	return *(GoSlice*)(ptr);
 }
 
 #define declareNameByIdQFuncFor(entity) \
@@ -71,8 +70,8 @@ QString go_getThumbnailPathQ(const QString& str) {
 }
 
 template <class GoType, class CType>
-typename std::enable_if<!std::is_same<GoType, Go_String>::value, QList<CType>>::type
-SliceQ(Go_Slice slice) {
+typename std::enable_if<!std::is_same<GoType, GoString>::value, QList<CType>>::type
+SliceQ(GoSlice slice) {
 	QList<CType> list;
 	list.reserve(slice.size);
 	for (int i = 0; i < slice.size; i++) {
@@ -82,12 +81,12 @@ SliceQ(Go_Slice slice) {
 }
 
 template <class GoType, class CType>
-typename std::enable_if<std::is_same<GoType, Go_String>::value, QList<CType>>::type
-SliceQ(Go_Slice slice) {
+typename std::enable_if<std::is_same<GoType, GoString>::value, QList<CType>>::type
+SliceQ(GoSlice slice) {
 	QList<CType> list;
 	list.reserve(slice.size);
 	for (int i = 0; i < slice.size; i++) {
-		char* cstr = GoStringC(slice.ptr + i * sizeof(GoString));
+		char* cstr = GoStringC(slice.ptr + i * sizeof(cgo_GoString));
 		list.append(CType(cstr));
 		free(cstr);
 	}
@@ -127,7 +126,7 @@ ComicInfoRow convertComicInfo(void* info) {
 	GoUintptr infoPtr = (GoUintptr) info;
 
 	QString mainTitle = GoStringQ(infoPtr + offsets->mainTitle);
-    auto titles = SliceQ<Go_String, QString>(GoSliceC(infoPtr + offsets->titles));
+    auto titles = SliceQ<GoString, QString>(GoSliceC(infoPtr + offsets->titles));
     auto authors = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->authors));
     auto artists = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->artists));
     auto genres = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->genres));
@@ -167,7 +166,7 @@ ScanlationRow convertScanlation(void* scanlation) {
 	//auto scanlators = SliceQ<GoInt, int>(GoSliceC(scanlationPtr + offsets->scanlators));
 	auto pluginName = GoStringQ(scanlationPtr + offsets->pluginName);
 	auto url = GoStringQ(scanlationPtr + offsets->url);
-	auto pageLinks = SliceQ<Go_String, QString>(GoSliceC(scanlationPtr + offsets->pageLinks));
+	auto pageLinks = SliceQ<GoString, QString>(GoSliceC(scanlationPtr + offsets->pageLinks));
 
 	go_collectGarbage(scanlation);
 	go_collectGarbage(scanlatorsPtr);

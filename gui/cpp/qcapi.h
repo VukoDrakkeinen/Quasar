@@ -27,31 +27,52 @@ void* go_Offsets_ComicInfo;
 void* go_Offsets_Scanlation;
 void* go_Offsets_UpdateInfo;
 
-//TODO: wrap all Go pointers in classes (RAII ftw)
-//TODO: automatically include from _cgo_export.h (how?)
+/// from _cgo_export.h
+typedef signed char GoInt8;
 typedef unsigned char GoUint8;
-typedef __SIZE_TYPE__ GoUintptr;
+typedef short GoInt16;
+typedef unsigned short GoUint16;
+typedef int GoInt32;
+typedef unsigned int GoUint32;
 typedef long long GoInt64;
+typedef unsigned long long GoUint64;
 typedef GoInt64 GoInt;
-extern char* go_authorNameById(GoInt);
-extern char* go_artistNameById(GoInt);
-extern char* go_genreNameById(GoInt);
-extern char* go_categoryNameById(GoInt);
-extern char* go_scanlatorNameById(GoInt);
-extern char* go_langNameById(GoInt);
-extern char* go_getThumbnailPath(char*);
-extern void* go_ComicList_GetComic(void*, int);
-extern int   go_ComicList_Len(void*);
-extern void* go_ComicList_ComicUpdateInfo(void*, int);
-extern int   go_Comic_ChaptersCount(void*);
-extern int   go_Comic_ChaptersReadCount(void*);
-extern void* go_Comic_Info(void*);
-extern void* go_Comic_GetChapter(void*, int);
-extern GoUint8 go_Chapter_AlreadyRead(void*);
-extern int   go_Chapter_ScanlationsCount(void*);
-extern void* go_Chapter_GetScanlation(void*, int);
-extern void  go_collectGarbage(void*);
-extern GoUintptr go_JointScanlators_ToSlice(GoUintptr);
+typedef GoUint64 GoUint;
+typedef __SIZE_TYPE__ GoUintptr;
+typedef float GoFloat32;
+typedef double GoFloat64;
+typedef __complex float GoComplex64;
+typedef __complex double GoComplex128;
+
+typedef struct { char *p; GoInt n; } cgo_GoString;  //symbol conflict without "cgo_" prefix
+typedef void *cgo_GoMap;
+typedef void *cgo_GoChan;
+typedef struct { void *t; void *v; } cgo_GoInterface;
+typedef struct { void *data; GoInt len; GoInt cap; } cgo_GoSlice;
+///
+
+//For some reason we have to declare those manually if the file has a .cpp extension
+//TODO: wrap all Go pointers in classes (RAII ftw)
+char* go_authorNameById(GoInt);
+char* go_artistNameById(GoInt);
+char* go_genreNameById(GoInt);
+char* go_categoryNameById(GoInt);
+char* go_scanlatorNameById(GoInt);
+char* go_langNameById(GoInt);
+char* go_getThumbnailPath(char*);
+void* go_ComicList_GetComic(void*, int);
+int   go_ComicList_Len(void*);
+void* go_ComicList_ComicUpdateInfo(void*, int);
+int   go_Comic_ChaptersCount(void*);
+int   go_Comic_ChaptersReadCount(void*);
+void* go_Comic_Info(void*);
+void* go_Comic_GetChapter(void*, int);
+GoUint8 go_Chapter_AlreadyRead(void*);
+int   go_Chapter_ScanlationsCount(void*);
+void* go_Chapter_GetScanlation(void*, int);
+void  go_collectGarbage(void*);
+GoUintptr go_JointScanlators_ToSlice(GoUintptr);
+
 
 #ifdef __cplusplus
 } // extern "C"

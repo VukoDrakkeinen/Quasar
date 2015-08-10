@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+//TODO: qml logging integration?
+
 type msgSeverity int
 
 func (this msgSeverity) String() string {
