@@ -2,9 +2,9 @@ package core
 
 import (
 	"encoding/json"
-	. "github.com/Quasar/core/idsdict"
-	"github.com/Quasar/datadir"
-	"github.com/Quasar/qutils/qerr"
+	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/datadir"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io/ioutil"
 	"os"
 	"os/user"

@@ -2,7 +2,7 @@ package core
 
 import (
 	"errors"
-	. "github.com/Quasar/qutils"
+	. "github.com/VukoDrakkeinen/Quasar/qutils"
 )
 
 type ChapterIdentity struct {

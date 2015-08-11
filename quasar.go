@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Quasar/core"
-	"github.com/Quasar/datadir/qlog"
-	"github.com/Quasar/gui"
+	"github.com/VukoDrakkeinen/Quasar/core"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/gui"
 	"gopkg.in/qml.v1"
 	"log"
 	"os"

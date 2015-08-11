@@ -1,8 +1,8 @@
 package gui
 
 import (
-	"github.com/Quasar/datadir/qlog"
-	"github.com/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"gopkg.in/qml.v1"
 )
 

@@ -2,10 +2,10 @@ package core
 
 import (
 	"database/sql"
-	. "github.com/Quasar/core/idsdict"
-	"github.com/Quasar/datadir/qdb"
-	"github.com/Quasar/qutils"
-	"github.com/Quasar/qutils/qerr"
+	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 )
 
 const ( //SQL Statements Group keys

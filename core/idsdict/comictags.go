@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"github.com/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
 )
 
 var ComicTags = NewComicTagsDict()

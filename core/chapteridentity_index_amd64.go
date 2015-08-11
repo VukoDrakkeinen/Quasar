@@ -1,6 +1,6 @@
 package core
 
-import "github.com/Quasar/qutils"
+import "github.com/VukoDrakkeinen/Quasar/qutils"
 
 func (this ChapterIdentitiesSlice) vestedIndexOf(ci ChapterIdentity) (index int) {
 	low := int64(0)

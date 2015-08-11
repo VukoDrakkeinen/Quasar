@@ -2,12 +2,12 @@ package core
 
 import (
 	"bytes"
-	. "github.com/Quasar/core/idsdict"
-	"github.com/Quasar/datadir/qdb"
-	"github.com/Quasar/datadir/qlog"
-	"github.com/Quasar/qregexp"
-	"github.com/Quasar/qutils"
-	"github.com/Quasar/qutils/qerr"
+	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qregexp"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"html"
 	"net/url"
 	"path"

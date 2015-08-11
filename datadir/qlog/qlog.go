@@ -2,7 +2,7 @@ package qlog
 
 import (
 	"fmt"
-	"github.com/Quasar/datadir"
+	"github.com/VukoDrakkeinen/Quasar/datadir"
 	"os"
 	"path/filepath"
 	"strconv"
