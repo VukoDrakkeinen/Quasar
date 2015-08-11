@@ -36,8 +36,15 @@ typedef int GoInt32;
 typedef unsigned int GoUint32;
 typedef long long GoInt64;
 typedef unsigned long long GoUint64;
+#if __SIZEOF_SIZE_T__ == 4  //x86
+typedef GoInt32 GoInt;
+typedef GoUint32 GoUint;
+#elif __SIZEOF_SIZE_T__ == 8  //x64
 typedef GoInt64 GoInt;
 typedef GoUint64 GoUint;
+#else
+#error Your architecture is not supported! (not 32/64 bits)
+#endif //__SIZEOF_SIZE_T__
 typedef __SIZE_TYPE__ GoUintptr;
 typedef float GoFloat32;
 typedef double GoFloat64;

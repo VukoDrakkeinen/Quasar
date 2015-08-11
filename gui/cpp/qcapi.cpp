@@ -86,7 +86,7 @@ SliceQ(GoSlice slice) {
 	QList<CType> list;
 	list.reserve(slice.size);
 	for (int i = 0; i < slice.size; i++) {
-		char* cstr = GoStringC(slice.ptr + i * sizeof(cgo_GoString));
+		char* cstr = GoStringC(slice.ptr + i * sizeof(GoString));
 		list.append(CType(cstr));
 		free(cstr);
 	}
