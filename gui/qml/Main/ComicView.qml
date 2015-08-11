@@ -17,7 +17,7 @@ Rectangle {
 			Column {
 				
 				Image {
-					source: "file:///home/vuko/Pictures/Misc/Azureus.png"
+					source: "placeholder.png"
 					Rectangle {
 						color: "black"
 						anchors.left: parent.left
@@ -34,7 +34,7 @@ Rectangle {
 					}
 				}
 				Image {
-					source: "file:///home/vuko/Pictures/Misc/Azureus.png"
+					source: "placeholder.png"
 					Rectangle {
 						color: "black"
 						anchors.left: parent.left
@@ -51,7 +51,7 @@ Rectangle {
 					}
 				}
 				Image {
-					source: "file:///home/vuko/Pictures/Misc/Azureus.png"
+					source: "placeholder.png"
 				}
 			}
 		}
@@ -62,7 +62,7 @@ Rectangle {
 			Image {
 				anchors.centerIn: parent
 				scale: 5
-				source: "file:///home/vuko/Pictures/Misc/Azureus.png"
+				source: "placeholder.png"
 			}
 		}
 	}
