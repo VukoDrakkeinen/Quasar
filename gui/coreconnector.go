@@ -97,7 +97,7 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 	settings := comic.Settings()
 
 	var splitDuration core.SplitDuration
-	dmDuration.Unmarshal(&dmDuration)
+	dmDuration.Unmarshal(&splitDuration)
 	settingsObj.Unmarshal(&settings)
 	settings.DelayedModeDuration = splitDuration.ToDuration()
 	comic.SetSettings(settings)
