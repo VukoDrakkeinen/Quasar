@@ -1,9 +1,9 @@
 package gui
 
 import (
+	"fmt"
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"gopkg.in/qml.v1"
-	"unsafe"
 )
 
 func NewCoreConnector(list *core.ComicList) *coreConnector {
@@ -16,24 +16,23 @@ type coreConnector struct {
 	list *core.ComicList
 }
 
-func (this *coreConnector) PluginNames() (names *[]string, humanReadableNames *[]string) {
-	pluginNames, hrNames := this.list.Fetcher().Plugins() //TODO: important! sorted data!
-	//screw FetcherPluginName -> string conversion, we'll have to convert it into C++ data anyway
-	return (*[]string)(unsafe.Pointer(&pluginNames)), &hrNames
+func (this *coreConnector) PluginNames() (names *[]core.FetcherPluginName, humanReadableNames *[]string) {
+	pluginNames, hrNames := this.list.Fetcher().Plugins() //TODO?: sorted data
+	return &pluginNames, &hrNames
 }
 
-func (this *coreConnector) PluginAutodetect(url string) (pluginName string) {
+func (this *coreConnector) PluginAutodetect(url string) (pluginName core.FetcherPluginName) {
 	fetcherPluginName, _ := this.list.Fetcher().PluginNameFromURL(url)
-	return *(*string)(unsafe.Pointer(&fetcherPluginName))
+	return fetcherPluginName
 }
 
-func (this *coreConnector) AddComic(settingsObj *qml.Map, sourcesList *qml.List) {
-	var neuteredSettings temporaryNeuteredGlobalSettings
-	settingsObj.Unmarshal(&neuteredSettings)
+func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesList *qml.List) {
 	settings := core.NewIndividualSettings(this.list.Fetcher().Settings())
-	settings.NotificationMode = core.NotificationMode(neuteredSettings.NotificationMode)
-	settings.AccumulativeModeCount = neuteredSettings.AccumulativeModeCount
-	settings.DelayedModeDuration = neuteredSettings.DelayedModeDuration.ToDuration()
+
+	var splitDuration core.SplitDuration
+	dmDuration.Unmarshal(&splitDuration)
+	settingsObj.Unmarshal(settings)
+	settings.DelayedModeDuration = splitDuration.ToDuration()
 
 	var sources []*qml.Map
 	sourcesList.Convert(&sources)
@@ -53,38 +52,54 @@ func (this *coreConnector) AddComic(settingsObj *qml.Map, sourcesList *qml.List)
 }
 
 type temporaryNeuteredGlobalSettings struct {
-	NotificationMode      int
+	NotificationMode      core.NotificationMode
 	AccumulativeModeCount int
 	DelayedModeDuration   core.SplitDuration
+	DownloadsPath         string
+	Plugins               map[core.FetcherPluginName]core.PluginEnabled
 }
 
 func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
+	println("getting global settings")
 	settings := this.list.Fetcher().Settings()
 	return &temporaryNeuteredGlobalSettings{
-		NotificationMode:      int(settings.NotificationMode),
+		NotificationMode:      settings.NotificationMode,
 		AccumulativeModeCount: settings.AccumulativeModeCount,
 		DelayedModeDuration:   core.DurationToSplit(settings.DelayedModeDuration),
+		DownloadsPath:         settings.DownloadsPath,
+		Plugins:               settings.Plugins,
 	}
+}
+
+func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map) {
+	settings := this.list.Fetcher().Settings()
+
+	fmt.Printf("pre: %#v\n\n", settings)
+
+	var splitDuration core.SplitDuration
+	dmDuration.Unmarshal(&splitDuration)
+	settingsObj.Unmarshal(settings)
+	settings.DelayedModeDuration = splitDuration.ToDuration()
+	fmt.Printf("post: %#v\n", settings)
 }
 
 func (this *coreConnector) ComicSettings(idx int) *temporaryNeuteredGlobalSettings {
 	settings := this.list.GetComic(idx).Settings()
 	return &temporaryNeuteredGlobalSettings{
-		NotificationMode:      int(settings.NotificationMode),
+		NotificationMode:      settings.NotificationMode,
 		AccumulativeModeCount: settings.AccumulativeModeCount,
 		DelayedModeDuration:   core.DurationToSplit(settings.DelayedModeDuration),
 	}
 }
 
-func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj *qml.Map, sourcesList *qml.List) {
+func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj, dmDuration *qml.Map, sourcesList *qml.List) {
 	comic := this.list.GetComic(comicIdx)
-
-	var neuteredSettings temporaryNeuteredGlobalSettings
-	settingsObj.Unmarshal(&neuteredSettings)
 	settings := comic.Settings()
-	settings.NotificationMode = core.NotificationMode(neuteredSettings.NotificationMode)
-	settings.AccumulativeModeCount = neuteredSettings.AccumulativeModeCount
-	settings.DelayedModeDuration = neuteredSettings.DelayedModeDuration.ToDuration()
+
+	var splitDuration core.SplitDuration
+	dmDuration.Unmarshal(&dmDuration)
+	settingsObj.Unmarshal(&settings)
+	settings.DelayedModeDuration = splitDuration.ToDuration()
 	comic.SetSettings(settings)
 
 	var sources []*qml.Map
@@ -96,17 +111,7 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj 
 	}
 }
 
-type updateSource struct {
-	PluginName string
-	URL        string
-	MarkAsRead bool
-}
-
-func (this *coreConnector) ComicSources(comicIdx int) *[]updateSource {
+func (this *coreConnector) ComicSources(comicIdx int) *[]core.UpdateSource {
 	csources := this.list.GetComic(comicIdx).Sources()
-	sources := make([]updateSource, 0, len(csources))
-	for _, source := range csources {
-		sources = append(sources, updateSource{string(source.PluginName), source.URL, source.MarkAsRead})
-	}
-	return &sources
+	return &csources
 }

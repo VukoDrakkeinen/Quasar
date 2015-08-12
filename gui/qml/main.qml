@@ -37,7 +37,7 @@ ApplicationWindow {
 			title: "Quasar"
 			MenuItem {
 				text: qsTr("Options")
-				onTriggered: options.show()
+				onTriggered: options.resetAndShow()
 			}
 			MenuItem {
 				text: qsTr("Quit")

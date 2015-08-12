@@ -71,18 +71,15 @@ Window {
 			onCancel: thisWindow.hide()
 			onDefaults: thisWindow.__reset()
 			onOK: {
-				var settings = {
-					"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount,
-					"delayedModeDuration": {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
-				}
-				
+				var settings = {"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount}
 				var sources = []
 				for (var i = 0; i < sourcesModel.count; i++) {
 					var item = sourcesModel.get(i);
 					sources.push({"pluginName": sourcesView.pluginNameForIndex(item.sourceIdx), "url": item.url, "markAsRead": item.markAsRead})
 				}
+				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
 				
-				quasarCore.addComic(settings, sources)
+				quasarCore.addComic(settings, delayedModeDuration, sources)
 				thisWindow.hide()
 			}
 		}

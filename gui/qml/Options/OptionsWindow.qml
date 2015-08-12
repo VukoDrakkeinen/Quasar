@@ -8,7 +8,7 @@ Window {
 	flags: Qt.Dialog
 	modality: Qt.WindowModal
 	color: colorOf.window
-	id: thisWindow
+	id: root
 	width: 600
 	height: 500
 	minimumWidth: mainLayout.Layout.minimumWidth + 2 * margin
@@ -16,6 +16,24 @@ Window {
 	
 	SystemPalette {
 		id: colorOf
+	}
+	
+	function __setSettings(settings) {
+		notifChooser.mode = settings.notificationMode
+		notifChooser.accumulationCount = settings.accumulativeModeCount
+		var duration = settings.delayedModeDuration
+		notifChooser.delayedHours = duration.hours
+		notifChooser.delayedDays = duration.days
+		notifChooser.delayedWeeks = duration.weeks
+	}
+	
+	function resetAndShow() {
+		this.__defaults()
+		this.show()
+	}
+	
+	function __defaults() {
+		this.__setSettings(quasarCore.globalSettings())
 	}
 
 	ColumnLayout {
@@ -26,7 +44,9 @@ Window {
 		GroupBox {
 			Layout.fillWidth: true
 			title: qsTr("Default update notification mode:")
-			NotificationModeChooser {}
+			NotificationModeChooser {
+				id: notifChooser
+			}
 		}
 
 		GroupBox {
@@ -93,6 +113,18 @@ Window {
 		}
 
 		OptionsBottomButtons {
+			onCancel: root.hide()
+			onDefaults: root.__defaults()
+			onOK: {
+				var settings = {
+					"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount,
+					"plugins": {"batoto": true, "bakaUpdates": false}
+				}
+				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
+				
+				quasarCore.setGlobalSettings(settings, delayedModeDuration)
+				root.hide()
+			}
 		}
 	}
 }
