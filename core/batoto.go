@@ -18,8 +18,7 @@ import (
 )
 
 var (
-	batoto_rURLValidator = qregexp.MustCompile(`^http://bato.to/comic/_/comics/[\w-]+r\d+$`)
-
+	batoto_rURLValidator    = qregexp.MustCompile(`^http://bato.to/comic/_(?:/comics)?/[\w-]+r\d+$`)
 	batoto_rInfoRegion      = qregexp.MustCompile(`(?s)class='rating.*class='ipsPad'`)
 	batoto_rTitle           = qregexp.MustCompile(`(?<=ipsType_pagetitle'>\s+)[^\r\n]+`)
 	batoto_rRating          = qregexp.MustCompile(`(?<=\()\d\.\d\d(?= - \d+votes\))`)
