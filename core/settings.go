@@ -72,7 +72,7 @@ type GlobalSettings struct {
 
 func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
 	jsonData, _ := json.MarshalIndent(this.toJSONProxy(), "", "\t")
-	WriteConfig(globalConfigFile, jsonData)
+	WriteConfig(globalConfigFilename, jsonData)
 }
 
 func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
@@ -111,7 +111,8 @@ func NewGlobalSettings() *GlobalSettings {
 }
 
 func LoadGlobalSettings() (settings *GlobalSettings, e error) {
-	file, err := os.Open(filepath.Join(datadir.Configs(), globalConfigFile))
+	configPath := filepath.Join(datadir.Configs(), globalConfigFilename)
+	file, err := os.Open(configPath)
 	defer file.Close()
 	if os.IsNotExist(err) {
 		settings = NewGlobalSettings()
@@ -120,10 +121,14 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 	} else if err != nil {
 		return nil, err
 	}
+
 	jsonData, _ := ioutil.ReadAll(file)
 	var proxy globalSettingsJSONProxy = *NewGlobalSettings().toJSONProxy()
 	err = json.Unmarshal(jsonData, &proxy)
 	if err != nil {
+		corruptedConfigPath := configPath + ".corrupted"
+		os.Remove(corruptedConfigPath)
+		os.Rename(configPath, corruptedConfigPath)
 		return nil, qerr.NewParse("Error while unmarshaling settings", err, string(jsonData))
 	}
 	settings = proxy.toSettings()
@@ -204,6 +209,8 @@ func (this *IndividualSettings) Valid() bool {
 func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 	return &IndividualSettings{
 		OverrideDefaults:      make([]bool, bitlength_comic),
+		FetchOnStartup:        defaults.FetchOnStartup,
+		IntervalFetching:      defaults.IntervalFetching,
 		NotificationMode:      defaults.NotificationMode,
 		AccumulativeModeCount: defaults.AccumulativeModeCount,
 		DelayedModeDuration:   defaults.DelayedModeDuration,
@@ -214,11 +221,11 @@ func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
 var downloadsPath string
 
 func init() {
-	luser, _ := user.Current() //how can this even fail o_O
-	downloadsPath = filepath.Join(luser.HomeDir, "Downloads", "Quasar")
+	luser, _ := user.Current()                                          //how can this even fail o_O
+	downloadsPath = filepath.Join(luser.HomeDir, "Downloads", "Quasar") //TODO: get default path (e.g. use xdg on Linux)
 }
 
-const globalConfigFile = "config.json"
+const globalConfigFilename = "config.json"
 
 func WriteConfig(filename string, data []byte) {
 	configDir := datadir.Configs()
