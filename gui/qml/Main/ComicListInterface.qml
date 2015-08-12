@@ -4,8 +4,9 @@ import QtQuick.Layouts 1.2
 import "../utils.js" as U
 
 SplitView {	
+	id: root
 	orientation: Qt.Horizontal
-	//anchors.margins: margin
+	property alias comicId: comicListView.currentRow
 	
 	ControlButtons {
 		Button {
@@ -60,7 +61,7 @@ SplitView {
 		Button {
 			text: qsTr("Properties")
 			action: Action {
-				onTriggered: properties.show()
+				onTriggered: properties.resetAndShow()
 			}
 			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})
 		}
@@ -82,6 +83,6 @@ SplitView {
 	
 	ComicInfoPanel {
 		model: infoModel
-		comicId: comicListView.currentRow
+		comicId: root.comicId
 	}
 } 
