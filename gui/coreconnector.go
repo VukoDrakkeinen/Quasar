@@ -51,17 +51,25 @@ func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesLis
 }
 
 type temporaryNeuteredGlobalSettings struct {
+	FetchOnStartup        bool
+	IntervalFetching      bool
+	FetchFrequency        core.SplitDuration
+	MaxConnectionsToHost  int
 	NotificationMode      core.NotificationMode
 	AccumulativeModeCount int
 	DelayedModeDuration   core.SplitDuration
 	DownloadsPath         string
-	Plugins               map[core.FetcherPluginName]core.PluginEnabled
+	Plugins               map[core.FetcherPluginName]core.PluginEnabled //FIXME: causes a crash (unhashable value)
 }
 
 func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
 	settings := this.list.Fetcher().Settings()
 
 	return &temporaryNeuteredGlobalSettings{
+		FetchOnStartup:        settings.FetchOnStartup,
+		IntervalFetching:      settings.IntervalFetching,
+		FetchFrequency:        core.DurationToSplit(settings.FetchFrequency),
+		MaxConnectionsToHost:  settings.MaxConnectionsToHost,
 		NotificationMode:      settings.NotificationMode,
 		AccumulativeModeCount: settings.AccumulativeModeCount,
 		DelayedModeDuration:   core.DurationToSplit(settings.DelayedModeDuration),
@@ -70,13 +78,15 @@ func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
 	}
 }
 
-func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map) {
+func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map, fetchFrequency *qml.Map) {
 	settings := this.list.Fetcher().Settings()
 
-	var splitDuration core.SplitDuration
+	var splitDuration, splitFrequency core.SplitDuration
 	dmDuration.Unmarshal(&splitDuration)
+	fetchFrequency.Unmarshal(&splitFrequency)
 	settingsObj.Unmarshal(settings)
 	settings.DelayedModeDuration = splitDuration.ToDuration()
+	//settings.FetchFrequency = splitFrequency.ToDuration()
 }
 
 func (this *coreConnector) ComicSettings(idx int) *temporaryNeuteredGlobalSettings {

@@ -220,7 +220,6 @@ GridLayout {
 		}
 		
 		Label {
-			id: markReadLabel
 			text: qsTr("Mark chapters as already read:")
 			MouseArea {
 				anchors.fill: parent
