@@ -119,66 +119,103 @@ func (this ComicList) Len() int {
 }
 
 func (this ComicList) ScheduleComicFetches() {
-	this.cancelSchedule()
-
-	for i, comic := range this.comics {
-		cSettings := comic.Settings()
-		fSettings := this.fetcher.settings
-		var duration time.Duration
-		if overrideFrequency := cSettings.OverrideDefaults[2]; overrideFrequency {
-			duration = cSettings.FetchFrequency
-		} else {
-			duration = fSettings.FetchFrequency
-		}
-		fetchOnStartup := fSettings.FetchOnStartup
-		intervalFetching := fSettings.IntervalFetching
-
-		go func() {
-			i := i
-			fmt.Println("  Old schedule", this.nextFetchTimes[i])
-			now := time.Now().UTC()
-			this.notifyView(Reset, -1, -1, func() {
-				if fetchOnStartup {
-					fmt.Println("  Fetch On Startup: Enabled")
-					this.fetcher.DownloadChapterListFor(comic)
-					this.updatedAt[i] = now //TODO?: actual now?
-					this.nextFetchTimes[i] = now.Add(duration)
-				} else if this.nextFetchTimes[i].Before(now) {
-					fmt.Println("  Scheduled time in the past; adjusting...")
-					this.fetcher.DownloadChapterListFor(comic)
-					this.updatedAt[i] = now
-					multiplier := divThenCeil(now.Sub(this.nextFetchTimes[i]), duration)
-					this.nextFetchTimes[i].Add(multiplier * duration)
-				}
-			})
-			fmt.Println("  Scheduled fetch for", this.nextFetchTimes[i])
-
-			if intervalFetching {
-				fmt.Println("#  Interval Fetching Task Started")
-				for {
-					select {
-					case <-time.After(this.nextFetchTimes[i].Sub(now)):
-						this.notifyView(Reset, -1, -1, func() {
-							this.fetcher.DownloadChapterListFor(comic)
-							now := time.Now().UTC()
-							this.updatedAt[i] = now
-							this.nextFetchTimes[i] = now.Add(duration)
-						})
-					case <-this.interruptChans[i]:
-						return
-					}
-				}
-			}
-		}()
+	for i := range this.comics {
+		this.scheduleComicFetchFor(i)
 	}
 }
 
-/*
-func (this ComicList) RescheduleComicFetch(comicIdx int) {
-	close(this.interruptChans[comicIdx])
-	this.ScheduleComicFetches() //TODO: just one, jeez
+func (this ComicList) scheduleComicFetchFor(comicIdx int) {
+	this.cancelScheduleForComic(comicIdx)
+
+	fetchOnStartup := this.fetcher.settings.FetchOnStartup
+	intervalFetching := this.fetcher.settings.IntervalFetching
+
+	go func() {
+		fmt.Println("  Old schedule", this.nextFetchTimes[comicIdx].Local())
+		now := time.Now().UTC()
+		this.notifyView(Reset, -1, -1, func() {
+			if fetchOnStartup {
+				this.comicFetch(comicIdx, false, false)
+			} else if this.nextFetchTimes[comicIdx].Before(now) {
+				fmt.Println("  Scheduled time in the past; adjusting...")
+				this.comicFetch(comicIdx, true, false)
+			}
+		})
+
+		if intervalFetching {
+			for {
+				select {
+				case <-time.After(this.nextFetchTimes[comicIdx].Sub(now)):
+					this.notifyView(Reset, -1, -1, func() {
+						fmt.Println("Scheduled fetch starting")
+						now = this.comicFetch(comicIdx, false, false)
+					})
+				case <-this.interruptChans[comicIdx]:
+					return
+				}
+			}
+		}
+	}()
+
 }
-//*/
+
+func (this ComicList) UpdateComic(comicId int) {
+	this.cancelScheduleForComic(comicId)
+	this.comicFetch(comicId, false, true)
+	this.scheduleComicFetchFor(comicId)
+}
+
+func (this ComicList) comicFetch(comicId int, missedFetches, manual bool) (timeUpdated time.Time) {
+	now := time.Now().UTC()
+	comic := this.GetComic(comicId)
+	freq := this.comicUpdateFrequency(comicId)
+	this.fetcher.DownloadChapterListFor(comic)
+	this.updatedAt[comicId] = now
+	var prev time.Time
+	if !manual {
+		prev = this.nextFetchTimes[comicId]
+	} else {
+		prev = now
+		missedFetches = false
+	}
+	if !missedFetches {
+		this.nextFetchTimes[comicId] = prev.Add(freq)
+	} else {
+		multiplier := divCeil(now.Sub(prev), freq)
+		this.nextFetchTimes[comicId] = prev.Add(multiplier * freq)
+	}
+	fmt.Println("  Scheduled fetch for", this.nextFetchTimes[comicId].Local())
+	return now
+}
+
+func (this ComicList) comicUpdateFrequency(comicIdx int) time.Duration {
+	//return 2 * time.Minute
+	comic := this.GetComic(comicIdx)
+	cSettings := comic.Settings()
+	fSettings := this.fetcher.settings
+	if overrideFrequency := cSettings.OverrideDefaults[2]; overrideFrequency {
+		return cSettings.FetchFrequency
+	} else {
+		return fSettings.FetchFrequency
+	}
+}
+
+func (this *ComicList) cancelSchedule() {
+	for i := range this.comics {
+		this.cancelScheduleForComic(i)
+	}
+}
+
+func (this *ComicList) cancelScheduleForComic(comicId int) {
+	close(this.interruptChans[comicId])
+	this.interruptChans[comicId] = make(chan struct{})
+}
+
+func divCeil(divident, divisor time.Duration) (multiplier time.Duration) {
+	x := float64(divident)
+	y := float64(divisor)
+	return time.Duration(math.Ceil(x / y))
+}
 
 func CreateDB(db *qdb.QDB) (err error) {
 	transaction, _ := db.Begin()
@@ -323,7 +360,7 @@ func (list *ComicList) LoadFromDB() (err error) {
 			nextFetchTime = nextFetchTime.UTC()
 			list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
 			list.interruptChans = append(list.interruptChans, make(chan struct{}))
-			list.updatedAt = append(list.updatedAt, time.Time{}) //TODO: actually load
+			list.updatedAt = append(list.updatedAt, time.Unix(0, 0).UTC()) //TODO: actually load
 		})
 		if err != nil {
 			return qerr.NewLocated(err)
@@ -334,17 +371,4 @@ func (list *ComicList) LoadFromDB() (err error) {
 
 	list.ScheduleComicFetches() //TODO: only the new ones
 	return
-}
-
-func (this *ComicList) cancelSchedule() {
-	for i, interrupt := range this.interruptChans {
-		close(interrupt)
-		this.interruptChans[i] = make(chan struct{})
-	}
-}
-
-func divThenCeil(divident, divisor time.Duration) (multiplier time.Duration) {
-	x := float64(divident)
-	y := float64(divisor)
-	return time.Duration(math.Ceil(x / y))
 }

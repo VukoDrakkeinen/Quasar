@@ -45,8 +45,10 @@ SplitView {
 			text: qsTr("Check for updates")
 			action: Action {
 				onTriggered: {
-					console.log(comicListView.model.data(comicListView.model.index(0, 0), comicListView.model.roleNames()["foreground"]))
-					comicListView.selection.forEach(function (i){console.log("Comic", i, "requested to update")})
+					//console.log(comicListView.model.data(comicListView.model.index(0, 0), 0))
+					var comicIndices = []
+					comicListView.selection.forEach(function (i){comicIndices.push(i)})
+					quasarCore.updateComics(comicIndices)
 				}
 			}
 			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})

@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"fmt"
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"gopkg.in/qml.v1"
 )
@@ -60,8 +59,8 @@ type temporaryNeuteredGlobalSettings struct {
 }
 
 func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
-	println("getting global settings")
 	settings := this.list.Fetcher().Settings()
+
 	return &temporaryNeuteredGlobalSettings{
 		NotificationMode:      settings.NotificationMode,
 		AccumulativeModeCount: settings.AccumulativeModeCount,
@@ -74,17 +73,15 @@ func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
 func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map) {
 	settings := this.list.Fetcher().Settings()
 
-	fmt.Printf("pre: %#v\n\n", settings)
-
 	var splitDuration core.SplitDuration
 	dmDuration.Unmarshal(&splitDuration)
 	settingsObj.Unmarshal(settings)
 	settings.DelayedModeDuration = splitDuration.ToDuration()
-	fmt.Printf("post: %#v\n", settings)
 }
 
 func (this *coreConnector) ComicSettings(idx int) *temporaryNeuteredGlobalSettings {
 	settings := this.list.GetComic(idx).Settings()
+
 	return &temporaryNeuteredGlobalSettings{
 		NotificationMode:      settings.NotificationMode,
 		AccumulativeModeCount: settings.AccumulativeModeCount,
@@ -114,4 +111,14 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 func (this *coreConnector) ComicSources(comicIdx int) *[]core.UpdateSource {
 	csources := this.list.GetComic(comicIdx).Sources()
 	return &csources
+}
+
+func (this *coreConnector) UpdateComics(comicIndices *qml.List) {
+	var ids []int
+	comicIndices.Convert(&ids)
+	go func() {
+		for _, i := range ids {
+			this.list.UpdateComic(i)
+		}
+	}()
 }
