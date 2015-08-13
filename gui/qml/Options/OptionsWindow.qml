@@ -25,6 +25,7 @@ Window {
 		notifChooser.delayedHours = duration.hours
 		notifChooser.delayedDays = duration.days
 		notifChooser.delayedWeeks = duration.weeks
+		downloadsPath.text = settings.downloadsPath
 	}
 	
 	function resetAndShow() {
@@ -56,6 +57,7 @@ Window {
 				anchors.fill: parent
 
 				TextField {
+					id: downloadsPath
 					Layout.fillWidth: true
 					text: "/home/vuko/Downloads"
 				}
@@ -118,6 +120,7 @@ Window {
 			onOK: {
 				var settings = {
 					"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount,
+					"downloadsPath": downloadsPath.text,
 					"plugins": {"batoto": true, "bakaUpdates": false}
 				}
 				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
