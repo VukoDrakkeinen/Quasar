@@ -55,13 +55,15 @@ var (
 	scheduleSchema = `
 	CREATE TABLE IF NOT EXISTS schedule(
 		comicId INTEGER PRIMARY KEY,
-		nextFetchTime TIMESTAMP NOT NULL
+		nextFetchTime TIMESTAMP NOT NULL,
+		lastUpdated TIMESTAMP NOT NULL
 	);
 	`
 	idsInsertionPreCmd   = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
 	idsQueryPreCmd       = `SELECT $colName FROM $tableName;` //TODO?: use placeholders?
-	scheduleInsertionCmd = `INSERT OR REPLACE INTO schedule(comicId, nextFetchTime) VALUES((SELECT id FROM comics WHERE id = ?), ?);`
-	scheduleQueryCmd     = `SELECT nextFetchTime FROM schedule WHERE comicId = ?;`
+	scheduleInsertionCmd = `INSERT OR REPLACE INTO schedule(comicId, nextFetchTime, lastUpdated)
+							VALUES((SELECT id FROM comics WHERE id = ?), ?, ?);`
+	scheduleQueryCmd = `SELECT nextFetchTime, lastUpdated FROM schedule WHERE comicId = ?;`
 )
 
 func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) ComicList {
@@ -148,6 +150,7 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 	go func() {
 		//fmt.Println("  Old schedule", this.nextFetchTimes[comicIdx].Local())
 		if fetchOnStartup && !reschedule {
+			fmt.Println("Fetch on startup")
 			this.nextFetchTimes[comicIdx] = time.Time{} //TODO: this is hack, but I'm too fed up with this piece of code to fix it
 			this.comicFetch(comicIdx, false, false)
 		} else if this.nextFetchTimes[comicIdx].Before(time.Now().UTC()) {
@@ -174,11 +177,11 @@ func (this ComicList) UpdateComic(comicId int) {
 	this.comicFetch(comicId, false, true)
 }
 
-func (this ComicList) comicFetch(comicId int, missedFetches, manual bool) {
+func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 	now := time.Now().UTC()
 	canUpdate := true
 	this.notifyView(Reset, -1, -1, func() {
-		canUpdate = atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.statuses[comicId])),
+		canUpdate = atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.statuses[comicIdx])),
 			uint32(ComicNotUpdating), uint32(ComicUpdating),
 		)
 	})
@@ -188,37 +191,37 @@ func (this ComicList) comicFetch(comicId int, missedFetches, manual bool) {
 	}
 
 	if manual {
-		this.cancelScheduleForComic(comicId)
+		this.cancelScheduleForComic(comicIdx)
 	}
 
 	fmt.Println("Updating")
 	this.notifyView(Reset, -1, -1, func() {
-		comic := this.GetComic(comicId)
-		freq := this.comicUpdateFrequency(comicId)
+		comic := this.GetComic(comicIdx)
+		freq := this.comicUpdateFrequency(comicIdx)
 
-		prev := this.nextFetchTimes[comicId]
+		prev := this.nextFetchTimes[comicIdx]
 		if manual || prev.IsZero() {
 			prev = now
 			missedFetches = false
 		}
 		if !missedFetches {
-			this.nextFetchTimes[comicId] = prev.Add(freq)
+			this.nextFetchTimes[comicIdx] = prev.Add(freq)
 		} else {
 			multiplier := divCeil(now.Sub(prev), freq)
-			this.nextFetchTimes[comicId] = prev.Add(multiplier * freq)
+			this.nextFetchTimes[comicIdx] = prev.Add(multiplier * freq)
 		}
 
 		this.notifyView(Reset, -1, -1, func() {
 			this.fetcher.DownloadChapterListFor(comic)
-			this.updatedAt[comicId] = now
+			this.updatedAt[comicIdx] = now
 		})
 
-		atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.statuses[comicId])), uint32(ComicNotUpdating))
-		fmt.Println("Scheduled fetch for", this.nextFetchTimes[comicId].Local())
+		atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.statuses[comicIdx])), uint32(ComicNotUpdating))
+		fmt.Println(comicIdx, "Scheduled fetch for", this.nextFetchTimes[comicIdx].Local())
 	})
 
 	if manual {
-		this.scheduleComicFetchFor(comicId, true)
+		this.scheduleComicFetchFor(comicIdx, true)
 	}
 }
 
@@ -307,8 +310,7 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 		}
 		transaction.Commit()
 	}
-	fmt.Println("\tIds write complete.")
-	fmt.Println("\t Writing", len(this.comics), "comics")
+	fmt.Println("Writing", len(this.comics), "comics")
 
 	scheduleInsertionStmt := db.MustPrepare(scheduleInsertionCmd)
 	dbStmts := SQLComicInsertStmts(db)
@@ -324,8 +326,7 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 			fmt.Println(qerr.NewLocated(err))
 		} else {
 			transaction.Commit()
-			fmt.Println("  Saving scheduled fetch time", this.nextFetchTimes[i])
-			_, err := scheduleInsertionStmt.Exec(comic.sqlId, this.nextFetchTimes[i])
+			_, err := scheduleInsertionStmt.Exec(comic.sqlId, this.nextFetchTimes[i], this.updatedAt[i])
 			if err != nil {
 				fmt.Println(qerr.NewLocated(err))
 			}
@@ -386,15 +387,14 @@ func (list *ComicList) LoadFromDB() (err error) {
 		}
 		list.notifyView(Insert, len(list.comics), 1, func() {
 			list.comics = append(list.comics, comic)
-			var nextFetchTime time.Time
-			err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime)
+			var nextFetchTime, lastUpdated time.Time
+			err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime, &lastUpdated)
 			if err != nil {
 				return
 			}
-			nextFetchTime = nextFetchTime.UTC()
-			list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
+			list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime.UTC())
 			list.interruptChans = append(list.interruptChans, make(chan struct{}))
-			list.updatedAt = append(list.updatedAt, time.Unix(0, 0).UTC()) //TODO: actually load
+			list.updatedAt = append(list.updatedAt, lastUpdated)
 			list.statuses = append(list.statuses, ComicNotUpdating)
 		})
 		if err != nil {

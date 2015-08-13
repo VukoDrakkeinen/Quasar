@@ -46,7 +46,7 @@ func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesLis
 	go func() {
 		this.list.Fetcher().DownloadComicInfoFor(comic)
 		this.list.AddComics([]*core.Comic{comic})
-		this.list.ScheduleComicFetches() //TODO: just one
+		this.list.ScheduleComicFetches()
 	}()
 }
 
