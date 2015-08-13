@@ -116,9 +116,7 @@ func (this *coreConnector) ComicSources(comicIdx int) *[]core.UpdateSource {
 func (this *coreConnector) UpdateComics(comicIndices *qml.List) {
 	var ids []int
 	comicIndices.Convert(&ids)
-	go func() {
-		for _, i := range ids {
-			this.list.UpdateComic(i)
-		}
-	}()
+	for _, i := range ids {
+		go this.list.UpdateComic(i)
+	}
 }

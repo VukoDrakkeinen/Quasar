@@ -8,7 +8,9 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 type ViewNotificationType int
@@ -71,8 +73,15 @@ func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType
 	}
 }
 
+const (
+	ComicNotUpdating ComicUpdatingBool = iota
+	ComicUpdating
+)
+
+type ComicUpdatingBool uint32
 type ComicList struct {
 	comics         []*Comic
+	statuses       []ComicUpdatingBool
 	updatedAt      []time.Time
 	nextFetchTimes []time.Time
 	interruptChans []chan struct{}
@@ -94,6 +103,7 @@ func (this *ComicList) AddComics(comics []*Comic) {
 		this.interruptChans = append(this.interruptChans, interruptChans...)
 		this.nextFetchTimes = append(this.nextFetchTimes, make([]time.Time, len(comics))...)
 		this.updatedAt = append(this.updatedAt, make([]time.Time, len(comics))...)
+		this.statuses = append(this.statuses, make([]ComicUpdatingBool, len(comics))...)
 	})
 }
 
@@ -103,11 +113,16 @@ func (this *ComicList) RemoveComics(index, count int64) {
 		this.interruptChans = append(this.interruptChans[:index], this.interruptChans[index+count:]...)
 		this.nextFetchTimes = append(this.nextFetchTimes[:index], this.nextFetchTimes[index+count:]...)
 		this.updatedAt = append(this.updatedAt[:index], this.updatedAt[index+count:]...)
+		this.statuses = append(this.statuses[:index], this.statuses[index+count:]...)
 	})
 }
 
 func (this ComicList) ComicLastUpdated(idx int) time.Time {
 	return this.updatedAt[idx]
+}
+
+func (this ComicList) ComicIsUpdating(idx int) bool {
+	return this.statuses[idx] == ComicUpdating
 }
 
 func (this ComicList) GetComic(idx int) *Comic {
@@ -120,36 +135,32 @@ func (this ComicList) Len() int {
 
 func (this ComicList) ScheduleComicFetches() {
 	for i := range this.comics {
-		this.scheduleComicFetchFor(i)
+		this.scheduleComicFetchFor(i, false)
 	}
 }
 
-func (this ComicList) scheduleComicFetchFor(comicIdx int) {
+func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 	this.cancelScheduleForComic(comicIdx)
 
 	fetchOnStartup := this.fetcher.settings.FetchOnStartup
 	intervalFetching := this.fetcher.settings.IntervalFetching
 
 	go func() {
-		fmt.Println("  Old schedule", this.nextFetchTimes[comicIdx].Local())
-		now := time.Now().UTC()
-		this.notifyView(Reset, -1, -1, func() {
-			if fetchOnStartup {
-				this.comicFetch(comicIdx, false, false)
-			} else if this.nextFetchTimes[comicIdx].Before(now) {
-				fmt.Println("  Scheduled time in the past; adjusting...")
-				this.comicFetch(comicIdx, true, false)
-			}
-		})
+		//fmt.Println("  Old schedule", this.nextFetchTimes[comicIdx].Local())
+		if fetchOnStartup && !reschedule {
+			this.nextFetchTimes[comicIdx] = time.Time{} //TODO: this is hack, but I'm too fed up with this piece of code to fix it
+			this.comicFetch(comicIdx, false, false)
+		} else if this.nextFetchTimes[comicIdx].Before(time.Now().UTC()) {
+			fmt.Println("Scheduled time in the past; adjusting...")
+			this.comicFetch(comicIdx, true, false)
+		}
 
 		if intervalFetching {
 			for {
 				select {
-				case <-time.After(this.nextFetchTimes[comicIdx].Sub(now)):
-					this.notifyView(Reset, -1, -1, func() {
-						fmt.Println("Scheduled fetch starting")
-						now = this.comicFetch(comicIdx, false, false)
-					})
+				case <-time.After(this.nextFetchTimes[comicIdx].Sub(time.Now().UTC())):
+					fmt.Println("Scheduled fetch starting on", time.Now())
+					this.comicFetch(comicIdx, false, false)
 				case <-this.interruptChans[comicIdx]:
 					return
 				}
@@ -160,32 +171,55 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int) {
 }
 
 func (this ComicList) UpdateComic(comicId int) {
-	this.cancelScheduleForComic(comicId)
 	this.comicFetch(comicId, false, true)
-	this.scheduleComicFetchFor(comicId)
 }
 
-func (this ComicList) comicFetch(comicId int, missedFetches, manual bool) (timeUpdated time.Time) {
+func (this ComicList) comicFetch(comicId int, missedFetches, manual bool) {
 	now := time.Now().UTC()
-	comic := this.GetComic(comicId)
-	freq := this.comicUpdateFrequency(comicId)
-	this.fetcher.DownloadChapterListFor(comic)
-	this.updatedAt[comicId] = now
-	var prev time.Time
-	if !manual {
-		prev = this.nextFetchTimes[comicId]
-	} else {
-		prev = now
-		missedFetches = false
+	canUpdate := true
+	this.notifyView(Reset, -1, -1, func() {
+		canUpdate = atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.statuses[comicId])),
+			uint32(ComicNotUpdating), uint32(ComicUpdating),
+		)
+	})
+	if !canUpdate {
+		fmt.Println("Cannot update while updating")
+		return
 	}
-	if !missedFetches {
-		this.nextFetchTimes[comicId] = prev.Add(freq)
-	} else {
-		multiplier := divCeil(now.Sub(prev), freq)
-		this.nextFetchTimes[comicId] = prev.Add(multiplier * freq)
+
+	if manual {
+		this.cancelScheduleForComic(comicId)
 	}
-	fmt.Println("  Scheduled fetch for", this.nextFetchTimes[comicId].Local())
-	return now
+
+	fmt.Println("Updating")
+	this.notifyView(Reset, -1, -1, func() {
+		comic := this.GetComic(comicId)
+		freq := this.comicUpdateFrequency(comicId)
+
+		prev := this.nextFetchTimes[comicId]
+		if manual || prev.IsZero() {
+			prev = now
+			missedFetches = false
+		}
+		if !missedFetches {
+			this.nextFetchTimes[comicId] = prev.Add(freq)
+		} else {
+			multiplier := divCeil(now.Sub(prev), freq)
+			this.nextFetchTimes[comicId] = prev.Add(multiplier * freq)
+		}
+
+		this.notifyView(Reset, -1, -1, func() {
+			this.fetcher.DownloadChapterListFor(comic)
+			this.updatedAt[comicId] = now
+		})
+
+		atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.statuses[comicId])), uint32(ComicNotUpdating))
+		fmt.Println("Scheduled fetch for", this.nextFetchTimes[comicId].Local())
+	})
+
+	if manual {
+		this.scheduleComicFetchFor(comicId, true)
+	}
 }
 
 func (this ComicList) comicUpdateFrequency(comicIdx int) time.Duration {
@@ -361,6 +395,7 @@ func (list *ComicList) LoadFromDB() (err error) {
 			list.nextFetchTimes = append(list.nextFetchTimes, nextFetchTime)
 			list.interruptChans = append(list.interruptChans, make(chan struct{}))
 			list.updatedAt = append(list.updatedAt, time.Unix(0, 0).UTC()) //TODO: actually load
+			list.statuses = append(list.statuses, ComicNotUpdating)
 		})
 		if err != nil {
 			return qerr.NewLocated(err)

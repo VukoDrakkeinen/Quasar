@@ -134,21 +134,25 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 	list := (*core.ComicList)(goComicList)
 	comic := list.GetComic(int(idx))
 
-	bridged := unsafe.Pointer(&updateInfoBridged{
+	bridged := &updateInfoBridged{
 		title:         comic.Info().Title,
 		chaptersCount: comic.ChapterCount(),
 		chaptersRead:  comic.ChaptersReadCount(),
 		updated:       list.ComicLastUpdated(int(idx)).Unix(),
-		progress:      33,        //TODO
-		status:        qUpdating, //TODO
-	})
-	var _ = qNoUpdates //TODO: remove
-	var _ = qNewChapters
-	var _ = qError
+		progress:      33,     //TODO
+		status:        qError, //TODO
+	}
+	if list.ComicIsUpdating(int(idx)) {
+		bridged.status = qUpdating
+	} else if bridged.chaptersCount == bridged.chaptersRead {
+		bridged.status = qNoUpdates
+	} else {
+		bridged.status = qNewChapters
+	}
 
-	disableGcFor(bridged)
+	disableGcFor(unsafe.Pointer(bridged))
 
-	return bridged
+	return unsafe.Pointer(bridged)
 }
 
 ///Comic
