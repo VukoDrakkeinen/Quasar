@@ -43,7 +43,7 @@ func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesLis
 		comic.AddSource(source)
 	}
 
-	go func() { //TODO: show progress
+	go func() {
 		this.list.Fetcher().DownloadComicInfoFor(comic)
 		this.list.AddComics([]*core.Comic{comic})
 		this.list.ScheduleComicFetches() //TODO: just one
@@ -100,7 +100,7 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 	comic.SetSettings(settings)
 
 	var sources []*qml.Map
-	sourcesList.Convert(&sources)
+	sourcesList.Convert(&sources) //TODO: update comic after data changes
 	for i, sourceObj := range sources {
 		var source core.UpdateSource
 		sourceObj.Unmarshal(&source)

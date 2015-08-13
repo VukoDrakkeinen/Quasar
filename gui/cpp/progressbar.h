@@ -14,7 +14,7 @@ class ProgressBar : public QQuickPaintedItem
 		Q_PROPERTY(double minimumValue READ minimumValue WRITE setMinimumValue NOTIFY minimumValueChanged)
 		Q_PROPERTY(Qt::Orientation orientation READ orientation WRITE setOrientation NOTIFY orientationChanged)
 		Q_PROPERTY(double value READ value WRITE setValue NOTIFY valueChanged)
-		Q_PROPERTY(bool selected READ selected WRITE setSelected NOTIFY selectedChanged)
+		//Q_PROPERTY(bool selected READ selected WRITE setSelected NOTIFY selectedChanged)
 
 	public:
 		ProgressBar(QQuickItem* parent = nullptr);
@@ -27,21 +27,21 @@ class ProgressBar : public QQuickPaintedItem
 		double minimumValue();
 		Qt::Orientation orientation();
 		double value();
-		bool selected();
+		//bool selected();
 	public:
 		void setIndeterminate(bool);
 		void setMaximumValue(double);
 		void setMinimumValue(double);
 		void setOrientation(Qt::Orientation);
 		void setValue(double);
-		void setSelected(bool);
+		//void setSelected(bool);
 	signals:
 		void indeterminateChanged(bool);
 		void maximumValueChanged(double);
 		void minimumValueChanged(double);
 		void orientationChanged(Qt::Orientation);
 		void valueChanged(double);
-		void selectedChanged(bool);
+		//void selectedChanged(bool);
 	protected:
 		QStyleOptionProgressBar* m_styleoption;
 	private:
@@ -50,7 +50,7 @@ class ProgressBar : public QQuickPaintedItem
 		double m_minimumValue;
 		Qt::Orientation m_orientation;
 		double m_value;
-		bool m_selected;
+		//bool m_selected;
 	private:
 		QTimer* updateTimer;
 

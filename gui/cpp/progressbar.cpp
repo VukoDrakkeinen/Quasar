@@ -11,7 +11,7 @@ m_indeterminate(false),
 m_maximumValue(100),
 m_minimumValue(0),
 m_value(0),
-m_selected(false),
+//m_selected(false),
 updateTimer(new QTimer(this)) {
 	updateTimer->setInterval(16);
 
@@ -20,7 +20,7 @@ updateTimer(new QTimer(this)) {
 	QObject::connect(this, SIGNAL(minimumValueChanged(double)), this, SLOT(update()));
 	QObject::connect(this, SIGNAL(orientationChanged(Qt::Orientation)), this, SLOT(update()));
 	QObject::connect(this, SIGNAL(valueChanged(double)), this, SLOT(update()));
-	QObject::connect(this, SIGNAL(selectedChanged(bool)), this, SLOT(update()));
+	//QObject::connect(this, SIGNAL(selectedChanged(bool)), this, SLOT(update()));
 	QObject::connect(this->updateTimer, SIGNAL(timeout()), this, SLOT(update()));
 
 	this->setImplicitWidth(100);
@@ -48,7 +48,8 @@ void ProgressBar::paint(QPainter* painter) {
 	} else {
 		this->m_styleoption->palette.setCurrentColorGroup(QPalette::Disabled);
 	}
-	this->m_styleoption->palette.setBrush(QPalette::Base, this->m_selected ? stdPalette.highlight() : stdPalette.base());
+	this->m_styleoption->palette.setBrush(QPalette::Base, QBrush(Qt::NoBrush));
+	//this->m_styleoption->palette.setBrush(QPalette::Base, this->m_selected ? stdPalette.highlight() : stdPalette.base());
 	this->m_styleoption->state |= QStyle::State_Horizontal & (this->m_orientation == Qt::Horizontal);
 	qApp->style()->drawControl(QStyle::CE_ProgressBar, this->m_styleoption, painter);
 }
@@ -73,9 +74,9 @@ double ProgressBar::value() {
 	return this->m_value;
 }
 
-bool ProgressBar::selected() {
+/*bool ProgressBar::selected() {
 	return this->m_selected;
-}
+}//*/
 
 void ProgressBar::setIndeterminate(bool indeterminate) {
 	if (indeterminate == this->m_indeterminate) {
@@ -123,9 +124,9 @@ void ProgressBar::setValue(double value) {
 	emit valueChanged(value);
 }
 
-void ProgressBar::setSelected(bool selected) {
+/*void ProgressBar::setSelected(bool selected) {
 	if (selected != this->m_selected) {
 		this->m_selected = selected;
 		emit selectedChanged(selected);
 	}
-}
+}//*/

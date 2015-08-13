@@ -83,7 +83,7 @@ void ChapterModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id
 }
 
 const QMetaObject ChapterModel::staticMetaObject = {
-    { &QAbstractItemModel::staticMetaObject, qt_meta_stringdata_ChapterModel.data,
+    { &NotifiableModel::staticMetaObject, qt_meta_stringdata_ChapterModel.data,
       qt_meta_data_ChapterModel,  qt_static_metacall, Q_NULLPTR, Q_NULLPTR}
 };
 
@@ -98,12 +98,12 @@ void *ChapterModel::qt_metacast(const char *_clname)
     if (!_clname) return Q_NULLPTR;
     if (!strcmp(_clname, qt_meta_stringdata_ChapterModel.stringdata0))
         return static_cast<void*>(const_cast< ChapterModel*>(this));
-    return QAbstractItemModel::qt_metacast(_clname);
+    return NotifiableModel::qt_metacast(_clname);
 }
 
 int ChapterModel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 {
-    _id = QAbstractItemModel::qt_metacall(_c, _id, _a);
+    _id = NotifiableModel::qt_metacall(_c, _id, _a);
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
