@@ -16,5 +16,9 @@ func (this *parseErr) Input() string { //TODO: this can't be used, because parse
 }
 
 func (this parseErr) Error() string {
-	return fmt.Sprintf("%s (input: %s)\n  caused by: %s", this.msg, this.input, this.parent)
+	str := fmt.Sprintf("%s (input: %s)", this.msg, this.input)
+	if this.parent != nil {
+		str += fmt.Sprintf("\n  caused by: %s", this.parent)
+	}
+	return str
 }
