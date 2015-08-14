@@ -80,7 +80,10 @@ SplitView {
 			onCurrentRowChanged: chapterModel.setComicIdx(this.currentRow)
 		}
 		
-		LabeledProgressBar {}
+		LabeledProgressBar {
+			//indeterminate: true
+			enabled: false
+		}
 	}
 	
 	ComicInfoPanel {

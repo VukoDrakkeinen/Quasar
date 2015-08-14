@@ -14,6 +14,20 @@ Item {
 	property int comicId: 0
 	property QtObject model: null
 	
+	QtObject {
+		id: internal
+		function valueOrDefault(row, role, defaultVal) {
+			if (root.model == null) {
+				return defaultVal
+			}
+			var value = root.model.qmlGet(root.comicId, row, role)
+			if (typeof(value) == "undefined") {
+				return defaultVal
+			}
+			return value
+		}
+	}
+	
 	ColumnLayout {
 		id: layout
 		anchors.fill: parent
@@ -29,30 +43,14 @@ Item {
 			Layout.preferredHeight: 200
 			Layout.preferredWidth: 200
 			fillMode: Image.PreserveAspectFit
-			source: {
-				if (root.model === null) {
-					return ""
-				}
-				var value = root.model.qmlGet(root.comicId, 0, "decoration")
-				if (typeof value == "undefined") {
-					return ""
-				}
-				return value
-			}
+			source: internal.valueOrDefault(0, "decoration", "")
 		}
 		
 		Label {
-			Layout.alignment: Qt.AlignHCenter | Qt.AlignTop
-			text: {
-				if (root.model === null) {
-					return ""
-				}
-				var value = root.model.qmlGet(root.comicId, 0, "display")
-				if (typeof value == "undefined") {
-					return ""
-				}
-				return value
-			}
+			Layout.fillWidth: true
+			horizontalAlignment: Text.AlignHCenter
+			wrapMode: Text.Wrap
+			text: internal.valueOrDefault(0, "display", "[Invalid Comic]")
 			font.bold: true
 			font.pointSize: 10
 		}
@@ -60,13 +58,13 @@ Item {
 		HorizontalSeparator {}
 		
 		ScrollView {
-			id: scroll
+			id: scrollView
 			Layout.fillHeight: true
 			Layout.fillWidth: true
 			horizontalScrollBarPolicy: Qt.ScrollBarAlwaysOff
 			viewport.width: 100
 			GridLayout {
-				width: scroll.width - 25	//too bad you can't do "width: scrollview.viewport.width - margin * 2" - sometimes the bindings start to loop :(
+				width: scrollView.width - 25	//too bad you can't do "width: scrollView.viewport.width - margin * 2" - sometimes the bindings start to loop :(
 				columns: 2
 				Label {
 					Layout.alignment: Qt.AlignRight | Qt.AlignTop
@@ -74,16 +72,7 @@ Item {
 				}
 				Label {
 					Layout.fillWidth: true
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 1, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(1, "display", "")
 					wrapMode: Text.Wrap
 				}
 				
@@ -93,16 +82,7 @@ Item {
 				}
 				Label {
 					Layout.fillWidth: true
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 2, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(2, "display", "")
 					wrapMode: Text.Wrap
 				}
 				
@@ -112,16 +92,7 @@ Item {
 				}
 				Label {
 					Layout.fillWidth: true
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 3, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(3, "display", "")
 					wrapMode: Text.Wrap
 				}
 				
@@ -131,16 +102,7 @@ Item {
 				}
 				Label {
 					Layout.fillWidth: true
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 4, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(4, "display", "")
 					wrapMode: Text.Wrap
 				}
 				
@@ -150,16 +112,7 @@ Item {
 				}
 				Label {
 					Layout.fillWidth: true
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 5, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(5, "display", "")
 					wrapMode: Text.Wrap
 				}
 				
@@ -241,16 +194,7 @@ Item {
 					text: "Rating: "
 				}
 				Label {
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 10, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(10, "display", "")
 				}
 				
 				Label {
@@ -259,16 +203,7 @@ Item {
 				}
 				Label {
 					Layout.fillWidth: true
-					text: {
-						if (root.model === null) {
-							return ""
-						}
-						var value = root.model.qmlGet(root.comicId, 11, "display")
-						if (typeof value == "undefined") {
-							return ""
-						}
-						return value
-					}
+					text: internal.valueOrDefault(11, "display", "")
 					wrapMode: Text.Wrap
 				}
 			}

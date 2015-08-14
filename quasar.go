@@ -151,6 +151,6 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	window.Show()
 	window.Wait()
 	settings.Save()
-	list.SaveToDB()
+	list.SaveToDB() //FIXME: there are still some bugs lurking there
 	return nil
 }

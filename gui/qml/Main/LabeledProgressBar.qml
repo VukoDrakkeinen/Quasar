@@ -1,6 +1,7 @@
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
+//import QuasarGUI 1.0
 
 Item {
 	Layout.fillWidth: true
@@ -8,11 +9,12 @@ Item {
 	
 	property alias text: label.text
 	property alias value: bar.value
+	//property alias indeterminate: bar.indeterminate
 	
+	//SaneProgressBar {
 	ProgressBar {
 		anchors.fill: parent
 		id: bar
-		value: 0.23
 	}
 	Label {
 		id: label
