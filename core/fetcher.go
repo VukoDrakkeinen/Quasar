@@ -51,7 +51,7 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 	settings    *GlobalSettings
 	cache       *DataCache
 	connLimiter map[string]chan struct{}
-	connLimits  map[FetcherPluginName]int
+	connLimits  map[FetcherPluginName]uint
 	notifyView  func(work func())
 }
 
@@ -64,7 +64,7 @@ func NewFetcher(settings *GlobalSettings, notifyViewFunc func(work func()), plug
 		settings:    settings,
 		cache:       NewDataCache(),
 		connLimiter: make(map[string]chan struct{}),
-		connLimits:  make(map[FetcherPluginName]int),
+		connLimits:  make(map[FetcherPluginName]uint),
 		notifyView:  notifyViewFunc,
 	}
 	if fet.settings == nil {
@@ -123,7 +123,7 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 
 func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host string) {
 	if c, ok := this.connLimiter[host]; ok {
-		if maxConns := this.connLimits[pluginName]; cap(c) != maxConns {
+		if maxConns := this.connLimits[pluginName]; uint(cap(c)) != maxConns {
 			oldLen := len(c)
 			this.connLimiter[host] = make(chan struct{}, maxConns)
 			c = this.connLimiter[host]
@@ -146,7 +146,7 @@ func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host stri
 
 		this.connLimiter[host] = make(chan struct{}, maxConns)
 		c = this.connLimiter[host]
-		for i := 0; i < maxConns; i++ {
+		for i := uint(0); i < maxConns; i++ {
 			c <- struct{}{}
 		}
 		<-c

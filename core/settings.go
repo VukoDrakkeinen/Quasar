@@ -60,9 +60,9 @@ type GlobalSettings struct {
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        time.Duration
-	MaxConnectionsToHost  int
+	MaxConnectionsToHost  uint
 	NotificationMode      NotificationMode
-	AccumulativeModeCount int
+	AccumulativeModeCount uint
 	DelayedModeDuration   time.Duration
 	DownloadsPath         string
 	Plugins               map[FetcherPluginName]PluginEnabled
@@ -131,6 +131,9 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 		os.Rename(configPath, corruptedConfigPath)
 		return nil, qerr.NewParse("Error while unmarshaling settings", err, string(jsonData))
 	}
+	if proxy.MaxConnectionsToHost > 10 {
+		proxy.MaxConnectionsToHost = 10 //bigger values seem to trigger a DDoS protection, so clamp for now
+	}
 	settings = proxy.toSettings()
 
 	return
@@ -140,10 +143,10 @@ type globalSettingsJSONProxy struct {
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        SplitDuration
-	MaxConnectionsToHost  int
+	MaxConnectionsToHost  uint
 	ValidModeValues       []string //can't have comments in JSON, make it a dummy value instead
 	NotificationMode      string
-	AccumulativeModeCount int
+	AccumulativeModeCount uint
 	DelayedModeDuration   SplitDuration
 	DownloadsPath         string
 	Plugins               map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
@@ -197,7 +200,7 @@ type IndividualSettings struct { //TODO: rename -> PerComicSettings
 	IntervalFetching      bool
 	FetchFrequency        time.Duration
 	NotificationMode      NotificationMode
-	AccumulativeModeCount int
+	AccumulativeModeCount uint
 	DelayedModeDuration   time.Duration
 	DownloadPath          string
 }
@@ -248,9 +251,9 @@ type PerPluginSettings struct {
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        time.Duration
-	MaxConnectionsToHost  int
+	MaxConnectionsToHost  uint
 	NotificationMode      NotificationMode
-	AccumulativeModeCount int
+	AccumulativeModeCount uint
 	DelayedModeDuration   time.Duration
 	Languages             map[LangId]LanguageEnabled
 }

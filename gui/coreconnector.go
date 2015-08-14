@@ -55,9 +55,9 @@ type temporaryNeuteredGlobalSettings struct {
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        core.SplitDuration
-	MaxConnectionsToHost  int
+	MaxConnectionsToHost  uint
 	NotificationMode      core.NotificationMode
-	AccumulativeModeCount int
+	AccumulativeModeCount uint
 	DelayedModeDuration   core.SplitDuration
 	DownloadsPath         string
 	Plugins               map[core.FetcherPluginName]core.PluginEnabled //FIXME: causes a crash (unhashable value)
