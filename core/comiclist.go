@@ -151,9 +151,9 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 		//fmt.Println("  Old schedule", this.nextFetchTimes[comicIdx].Local())
 		if fetchOnStartup && !reschedule {
 			fmt.Println("Fetch on startup")
-			this.nextFetchTimes[comicIdx] = time.Time{} //TODO: this is hack, but I'm too fed up with this piece of code to fix it
+			this.nextFetchTimes[comicIdx] = time.Time{} //FIXME: this is hack, but I'm too fed up with this piece of code to fix it
 			this.comicFetch(comicIdx, false, false)
-		} else if this.nextFetchTimes[comicIdx].Before(time.Now().UTC()) {
+		} else if intervalFetching && this.nextFetchTimes[comicIdx].Before(time.Now().UTC()) {
 			fmt.Println("Scheduled time in the past; adjusting...")
 			this.comicFetch(comicIdx, true, false)
 		}
