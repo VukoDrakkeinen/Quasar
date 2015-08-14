@@ -313,6 +313,13 @@ func (this *batoto) fetchChapterPageLinks(url string) []string {
 }
 
 func parseBatotoIdentity(str string) (identity ChapterIdentity, err error) {
+	normalizeNumbers := func(r rune) rune {
+		if r >= '０' && r <= '９' { //should probably also handle the rest of unicode digits,
+			return r - '０' + '0' //but they're very unlikely to show up in practice
+		}
+		return r
+	}
+	str = strings.Map(normalizeNumbers, str)
 	parsing := batoto_rIdentityParse.FindStringSubmatch(str)
 	/*
 		[0] is whole match
