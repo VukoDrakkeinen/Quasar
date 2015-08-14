@@ -2,6 +2,7 @@ package gui
 
 import (
 	"github.com/VukoDrakkeinen/Quasar/core"
+	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"gopkg.in/qml.v1"
 	"reflect"
 )
@@ -51,7 +52,7 @@ func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesLis
 	}()
 }
 
-type temporaryNeuteredGlobalSettings struct {
+type temporaryNeuteredGlobalSettings struct { //TODO: remove? how? go-to-qml/qml-to-go type converters?
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        core.SplitDuration
@@ -61,6 +62,7 @@ type temporaryNeuteredGlobalSettings struct {
 	DelayedModeDuration   core.SplitDuration
 	DownloadsPath         string
 	Plugins               map[core.FetcherPluginName]core.PluginEnabled //FIXME: causes a crash (unhashable value)
+	Languages             map[idsdict.LangId]core.LanguageEnabled       //this too
 }
 
 func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
@@ -76,6 +78,7 @@ func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
 		DelayedModeDuration:   core.DurationToSplit(settings.DelayedModeDuration),
 		DownloadsPath:         settings.DownloadsPath,
 		Plugins:               settings.Plugins,
+		Languages:             settings.Languages,
 	}
 }
 
@@ -88,6 +91,28 @@ func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map, f
 	settingsObj.Unmarshal(settings)
 	settings.DelayedModeDuration = splitDuration.ToDuration()
 	settings.FetchFrequency = splitFrequency.ToDuration()
+}
+
+func (this *coreConnector) DefaultGlobalSettings() *temporaryNeuteredGlobalSettings {
+	settings := this.list.Fetcher().Settings() //we still need it for some data
+	defaults := core.NewGlobalSettings()
+
+	neutered := &temporaryNeuteredGlobalSettings{
+		FetchOnStartup:        defaults.FetchOnStartup,
+		IntervalFetching:      defaults.IntervalFetching,
+		FetchFrequency:        core.DurationToSplit(defaults.FetchFrequency),
+		MaxConnectionsToHost:  defaults.MaxConnectionsToHost,
+		NotificationMode:      defaults.NotificationMode,
+		AccumulativeModeCount: defaults.AccumulativeModeCount,
+		DelayedModeDuration:   core.DurationToSplit(defaults.DelayedModeDuration),
+		DownloadsPath:         defaults.DownloadsPath,
+		Plugins:               settings.Plugins,
+		Languages:             settings.Languages,
+	}
+	for p := range neutered.Plugins {
+		neutered.Plugins[p] = core.PluginEnabled(true)
+	}
+	return neutered
 }
 
 func (this *coreConnector) ComicSettings(idx int) *temporaryNeuteredGlobalSettings {

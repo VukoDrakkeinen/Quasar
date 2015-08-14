@@ -47,8 +47,8 @@ Window {
 		this.__setSettings(quasarCore.globalSettings())
 	}
 	
-	function __defaults() {	//FIXME: no, that's not defaults
-		this.__setSettings(quasarCore.globalSettings())
+	function __defaults() {
+		this.__setSettings(quasarCore.defaultGlobalSettings())
 	}
 
 	ColumnLayout {
