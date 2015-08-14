@@ -3,6 +3,7 @@ package gui
 import (
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"gopkg.in/qml.v1"
+	"reflect"
 )
 
 func NewCoreConnector(list *core.ComicList) *coreConnector {
@@ -103,6 +104,8 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 	comic := this.list.GetComic(comicIdx)
 	settings := comic.Settings()
 
+	prevSources := comic.Sources()
+
 	var splitDuration core.SplitDuration
 	dmDuration.Unmarshal(&splitDuration)
 	settingsObj.Unmarshal(&settings)
@@ -116,6 +119,11 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 		sourceObj.Unmarshal(&source)
 		comic.AddSourceAt(i, source)
 	}
+
+	if !reflect.DeepEqual(comic.Sources(), prevSources) {
+		go this.list.UpdateComic(comicIdx)
+	}
+
 }
 
 func (this *coreConnector) ComicSources(comicIdx int) *[]core.UpdateSource {
