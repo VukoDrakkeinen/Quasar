@@ -30,12 +30,21 @@ Window {
 		fonCheckBox.checked = settings.fetchOnStartup
 		intFetCheckBox.checked = settings.intervalFetching
 		maxConnSpinBox.value = settings.maxConnectionsToHost
+		
+		var frequency = settings.fetchFrequency
+		frequencySpin.hours = frequency.hours
+		frequencySpin.days = frequency.days
+		frequencySpin.weeks = frequency.weeks
 		//console.log(settings.plugins)
 	}
 	
 	function resetAndShow() {
-		this.__defaults()
+		this.__reset()
 		this.show()
+	}
+	
+	function __reset() {
+		this.__setSettings(quasarCore.globalSettings())
 	}
 	
 	function __defaults() {	//FIXME: no, that's not defaults
@@ -103,11 +112,9 @@ Window {
 				Label {
 					text: qsTr("Fetch frequency:")
 				}
-				RowLayout{	//TODO
+				DurationChooser {
+					id: frequencySpin
 					enabled: intFetCheckBox.checked
-					SpinBox{}
-					SpinBox{}
-					SpinBox{}
 				}
 				
 				Label {
@@ -195,8 +202,8 @@ Window {
 			title: qsTr("Languages")
 			Label {
 				text: "Not implemented yet"
+				//TODO
 			}
-			//TODO
 		}
 
 		OptionsBottomButtons {
@@ -211,7 +218,7 @@ Window {
 					"plugins": {"batoto": true, "bakaUpdates": false}
 				}
 				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
-				var fetchFrequency = {}
+				var fetchFrequency = {"hours": frequencySpin.hours, "days": frequencySpin.days, "weeks": frequencySpin.weeks}
 				
 				quasarCore.setGlobalSettings(settings, delayedModeDuration, fetchFrequency)
 				root.hide()

@@ -86,7 +86,7 @@ func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map, f
 	fetchFrequency.Unmarshal(&splitFrequency)
 	settingsObj.Unmarshal(settings)
 	settings.DelayedModeDuration = splitDuration.ToDuration()
-	//settings.FetchFrequency = splitFrequency.ToDuration()
+	settings.FetchFrequency = splitFrequency.ToDuration()
 }
 
 func (this *coreConnector) ComicSettings(idx int) *temporaryNeuteredGlobalSettings {
