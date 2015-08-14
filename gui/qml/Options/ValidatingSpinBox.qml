@@ -4,10 +4,10 @@ import QtQml 2.2
 import QuasarGUI 1.0
 
 SpinBox {
-	property ValuesValidator validator: null
+	property var validator: null
 	QtObject {
 		id: internal
-		property ValuesValidator prevValidator: null
+		property var prevValidator: null
 	}
 	
 	onValidatorChanged: {

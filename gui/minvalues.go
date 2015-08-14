@@ -6,6 +6,12 @@ import (
 	"gopkg.in/qml.v1"
 )
 
+func init() {
+	qml.RegisterTypes("QuasarGUI", 1, 0, []qml.TypeSpec{
+		{Init: initSplitDurationValidator, Name: "DurationValidator"},
+	})
+}
+
 type ValuesValidator struct {
 	qml.Object
 	ValidationFunc func(objs []qml.Object) (valid bool)
@@ -57,7 +63,7 @@ func CorrectSplitDuration(objs []qml.Object, valid bool) {
 	}
 }
 
-func InitSplitDurationValidator(v *ValuesValidator, obj qml.Object) {
+func initSplitDurationValidator(v *ValuesValidator, obj qml.Object) {
 	v.Object = obj
 	v.ValidationFunc = ValidateSplitDuration
 	v.CorrectionFunc = CorrectSplitDuration

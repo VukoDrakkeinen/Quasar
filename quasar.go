@@ -88,10 +88,6 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 var dontGC *core.ComicList //TODO: It's a tra- I mean, a HACK! Remove it!
 
 func launchGUI() error { //TODO: move some things out of GUI thread
-	qml.RegisterTypes("QuasarGUI", 1, 0, []qml.TypeSpec{
-		{Init: gui.InitSplitDurationValidator},
-	})
-
 	engine := qml.NewEngine()
 	engine.On("quit", func() { fmt.Println("Save to DB here?"); os.Exit(0) })
 	context := engine.Context()

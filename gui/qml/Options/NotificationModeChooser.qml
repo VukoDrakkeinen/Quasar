@@ -9,9 +9,9 @@ Item {
 	
 	property alias mode: disablingExclusiveGroup.currentIndex
 	property alias accumulationCount: accumulationSpin.value
-	property alias delayedHours: spinHours.value
-	property alias delayedDays: spinDays.value
-	property alias delayedWeeks: spinWeeks.value
+	property alias delayedHours: delaySpin.hours
+	property alias delayedDays: delaySpin.days
+	property alias delayedWeeks: delaySpin.weeks
 	
 	GridLayout {
 		id: layout
@@ -42,49 +42,12 @@ Item {
 		DisablingRadioButton {
 			text: qsTr("Delayed:")
 			disabler: disablingExclusiveGroup
-			disablee: delaySpinBoxes
+			disablee: delaySpin
 		}
 		
 		
-		RowLayout {
-			id: delaySpinBoxes
-			ValuesValidator {
-				id: dateValidator
-			}
-			ValidatingSpinBox {
-				id: spinHours
-				suffix: " hours"
-				maximumValue: 23
-				validator: dateValidator
-			}
-			ValidatingSpinBox {
-				id: spinDays
-				suffix: " days"
-				maximumValue: 6
-				validator: dateValidator
-			}
-			ValidatingSpinBox {
-				id: spinWeeks
-				suffix: " weeks"
-				value: 1
-				maximumValue: 999
-				validator: dateValidator
-			}
-			/*
-			ValidatingSpinBox {
-				Layout.minimumWidth: 55
-				id: spinMonths
-				suffix: "m"
-				maximumValue: 11
-				validator: dateValidator
-			}
-			ValidatingSpinBox {
-				Layout.minimumWidth: 60
-				id: spinYears
-				suffix: "Y"
-				maximumValue: 290	//larger values overflow Go's time.Duration
-				validator: dateValidator
-			}//*/
+		DurationChooser {
+			id: delaySpin
 		}
 	}
 }
