@@ -12,6 +12,7 @@ import (
 	"net/http"
 	neturl "net/url"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -100,19 +101,24 @@ func (this *fetcher) Plugins() (names []FetcherPluginName, humanReadableNames []
 	return
 }
 
-func (this *fetcher) DownloadComicInfoFor(comic *Comic) { //TODO: parallelize
-	var offender FetcherPluginName
-	defer func() {
-		if err := recover(); err != nil {
-			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
-			this.settings.Plugins[offender] = PluginEnabled(false)
-		}
-	}()
-
+func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
+	var wg sync.WaitGroup
 	for _, source := range comic.Sources() {
-		offender = source.PluginName
-		comic.SetInfo(*comic.Info().MergeWith(this.plugins[source.PluginName].fetchComicInfo(comic)))
+		offender := source.PluginName
+		wg.Add(1)
+		go func() {
+			defer func() {
+				offender := offender
+				if err := recover(); err != nil {
+					qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
+					this.settings.Plugins[offender] = PluginEnabled(false)
+				}
+			}()
+			comic.SetInfo(*comic.Info().MergeWith(this.plugins[source.PluginName].fetchComicInfo(comic)))
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 }
 
 func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host string) {
@@ -224,33 +230,38 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 	return nil, errors.New(`Maximum amount of retries exceeded!`)
 }
 
-//TODO: parallelize
 func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
-	var offender FetcherPluginName
-	defer func() {
-		if err := recover(); err != nil {
-			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
-			this.settings.Plugins[offender] = PluginEnabled(false)
-		}
-	}()
-
 	this.notifyView(func() {
+		var wg sync.WaitGroup
 		for _, source := range comic.Sources() {
-			offender = source.PluginName
-			identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic) //TODO: parallelize!
-			if missingVolumes {                                                                             //some plugins return ChapterIdentities with no Volume data, correct it
-				correctiveSlice := correctiveSlice{identities, chapters}
-				sort.Sort(correctiveSlice)
-				prevVol := byte(1)
-				for i := range correctiveSlice.identities {
-					if correctiveSlice.identities[i].Volume == 0 {
-						correctiveSlice.identities[i].Volume = prevVol
+			offender := source.PluginName
+			wg.Add(1)
+			go func() {
+				defer func() {
+					if err := recover(); err != nil {
+						offender := offender
+						qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
+						this.settings.Plugins[offender] = PluginEnabled(false)
 					}
-					prevVol = correctiveSlice.identities[i].Volume
+				}()
+
+				identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic)
+				if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
+					correctiveSlice := correctiveSlice{identities, chapters}
+					sort.Sort(correctiveSlice)
+					prevVol := byte(1)
+					for i := range correctiveSlice.identities {
+						if correctiveSlice.identities[i].Volume == 0 {
+							correctiveSlice.identities[i].Volume = prevVol
+						}
+						prevVol = correctiveSlice.identities[i].Volume
+					}
 				}
-			}
-			comic.AddMultipleChapters(identities, chapters)
+				comic.AddMultipleChapters(identities, chapters)
+				wg.Done()
+			}()
 		}
+		wg.Wait()
 	})
 }
 
@@ -267,7 +278,7 @@ func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 	scanlation := chapter.Scanlation(scanlationIndex)
 	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
 		offender = scanlation.PluginName
-		links := plugin.fetchChapterPageLinks(scanlation.URL) //TODO: parallelize!
+		links := plugin.fetchChapterPageLinks(scanlation.URL)
 		scanlation.PageLinks = links
 		chapter.AddScanlation(scanlation)    //reinsert after modifying
 		comic.AddChapter(identity, &chapter) //reinsert //TODO: use pointers instead?
