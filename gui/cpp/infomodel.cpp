@@ -3,6 +3,7 @@
 #include <QBrush>
 #include <QLocale>
 #include <QDebug>
+#include <QUrl>
 
 ComicInfoModel::ComicInfoModel(void* goComicList): NotifiableModel(goComicList) {}
 ComicInfoModel::~ComicInfoModel() {}
@@ -38,7 +39,7 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 	{
 		case Qt::DecorationRole:
 		{
-			return go_getThumbnailPathQ(info.thumbnailFilename);
+			return QUrl(go_getThumbnailPathQ(info.thumbnailFilename));
 		}
 		break;
 
