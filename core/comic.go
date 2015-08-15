@@ -68,6 +68,7 @@ type syncRWMutex struct {
 	internal sync.RWMutex
 }
 
+/*
 func (this *syncRWMutex) Lock() {
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Printf("#+Locking at %s:%d\n", file, line)
@@ -89,7 +90,7 @@ func (this *syncRWMutex) RUnlock() {
 	this.internal.RUnlock()
 } //*/
 
-type Comic struct { //TODO: rework all that concurrency-safeness (is that even a word), it's a mess
+type Comic struct {
 	info     ComicInfo
 	settings IndividualSettings
 
@@ -282,23 +283,23 @@ func (this *Comic) ChapterCount() int { //TODO: rename ChaptersCount()
 
 func (this *Comic) ChaptersReadCount() int {
 	this.lock.RLock()
-	defer this.lock.RUnlock()
 	if this.cachedReadCount != -1 {
+		this.lock.RUnlock()
 		return this.cachedReadCount
 	}
+
 	var readCount int
 	chapterCount := this.ChapterCount() //IT'S CALLED EVERY ITERATION?! O_O
 	for i := 0; i < chapterCount; i++ {
-
 		if chapter, _ := this.GetChapter(i); chapter.AlreadyRead {
 			readCount++
 		}
 	}
+
 	this.lock.RUnlock()
 	this.lock.Lock()
+	defer this.lock.Unlock()
 	this.cachedReadCount = readCount
-	this.lock.Unlock()
-	this.lock.RLock()
 	return readCount
 }
 
@@ -307,7 +308,8 @@ func (this *Comic) SQLId() int64 {
 }
 
 func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
-	this.lock.RLock()
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	var newId int64
 	result, err := stmts[comicInsertion].Exec(
 		this.sqlId,
@@ -324,8 +326,6 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
-	this.lock.RUnlock()
-	this.lock.Lock()
 	this.sqlId = newId
 
 	if this.info.titlesSQLIds == nil {
@@ -344,8 +344,6 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		this.info.titlesSQLIds[title] = newATId
 		stmts[altTitleRelation].Exec(this.sqlId, newATId)
 	}
-	this.lock.Unlock()
-	this.lock.RLock()
 
 	for _, author := range this.info.Authors {
 		stmts[authorRelation].Exec(this.sqlId, author)
@@ -367,18 +365,14 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		}
 	}
 
-	this.lock.RUnlock()
-	this.lock.Lock()
 	for _, identity := range this.chaptersOrder {
 		chapter := this.chapters[identity] //can't take a pointer
 		err = chapter.SQLInsert(identity, stmts)
 		if err != nil {
-			this.lock.Unlock()
 			return qerr.NewLocated(err)
 		}
 		this.chapters[identity] = chapter //so reinsert
 	}
-	this.lock.Unlock()
 
 	return nil
 }

@@ -104,19 +104,18 @@ func (this *fetcher) Plugins() (names []FetcherPluginName, humanReadableNames []
 func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 	var wg sync.WaitGroup
 	for _, source := range comic.Sources() {
-		offender := source.PluginName
 		wg.Add(1)
-		go func() {
+		go func(pluginName FetcherPluginName) {
 			defer func() {
-				offender := offender
+				offender := pluginName
 				if err := recover(); err != nil {
 					qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
 					this.settings.Plugins[offender] = PluginEnabled(false)
 				}
 			}()
-			comic.SetInfo(*comic.Info().MergeWith(this.plugins[source.PluginName].fetchComicInfo(comic)))
+			comic.SetInfo(*comic.Info().MergeWith(this.plugins[pluginName].fetchComicInfo(comic)))
 			wg.Done()
-		}()
+		}(source.PluginName)
 	}
 	wg.Wait()
 }
@@ -158,7 +157,6 @@ func (this *fetcher) giveupConnectionPermit(host string) {
 	this.connLimiter[host] <- struct{}{}
 }
 
-//TODO: parallelization?
 func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forceCaching bool) (data []byte, err error) {
 	if data, ok := this.cache.Get(url); ok {
 		return data, err
@@ -234,18 +232,17 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 	this.notifyView(func() {
 		var wg sync.WaitGroup
 		for _, source := range comic.Sources() {
-			offender := source.PluginName
 			wg.Add(1)
-			go func() {
+			go func(pluginName FetcherPluginName) {
 				defer func() {
 					if err := recover(); err != nil {
-						offender := offender
+						offender := pluginName
 						qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
 						this.settings.Plugins[offender] = PluginEnabled(false)
 					}
 				}()
 
-				identities, chapters, missingVolumes := this.plugins[source.PluginName].fetchChapterList(comic)
+				identities, chapters, missingVolumes := this.plugins[pluginName].fetchChapterList(comic)
 				if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
 					correctiveSlice := correctiveSlice{identities, chapters}
 					sort.Sort(correctiveSlice)
@@ -259,7 +256,7 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 				}
 				comic.AddMultipleChapters(identities, chapters)
 				wg.Done()
-			}()
+			}(source.PluginName)
 		}
 		wg.Wait()
 	})
