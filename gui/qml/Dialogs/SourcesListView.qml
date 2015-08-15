@@ -60,6 +60,8 @@ GridLayout {
 							sources.selection.clear()
 							sources.selection.select(max)
 							sources.currentRow = max
+						} else {
+							flashUrlRed.start()
 						}
 					}
 				}
@@ -207,8 +209,8 @@ GridLayout {
 			text: qsTr("Plugin:")
 		}
 		ComboBox {
-			id: pluginChooser
 			Layout.fillWidth: true
+			id: pluginChooser
 		}
 		
 		Label {
@@ -217,6 +219,13 @@ GridLayout {
 		TextField {
 			id: urlField
 			Layout.fillWidth: true
+			
+			SequentialAnimation {
+				id: flashUrlRed
+				ColorAnimation { target: urlField; property: "textColor"; to: "red"; easing.type: Easing.OutQuad; duration: 400 }
+				ColorAnimation { target: urlField; property: "textColor"; to: urlField.textColor; easing.type: Easing.InQuad; duration: 400 }
+			}
+			
 		}
 		
 		Label {
