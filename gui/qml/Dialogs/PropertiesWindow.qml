@@ -36,6 +36,7 @@ Window {
 		var names = quasarCore.pluginNames()
 		sourcesView.populatePluginNames(Array.prototype.concat("[autodetect]", names[0]))
 		sourcesView.populatePluginComboBox(Array.prototype.concat(qsTr("[Autodetect]"), names[1]))
+		sourcesView.clearFields()
 		
 		var sources = quasarCore.comicSources(this.comicId)
 		var mappedSources = sources.map(function (source) {

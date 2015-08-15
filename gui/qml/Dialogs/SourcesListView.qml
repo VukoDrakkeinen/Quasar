@@ -33,6 +33,12 @@ GridLayout {
 		return internal.pluginNames.indexOf(pluginName)
 	}
 	
+	function clearFields() {
+		pluginChooser.currentIndex = 0
+		urlField.text = ""
+		markReadCheckBox.checked = false
+	}
+	
 	Item {
 		width: buttoncol.width
 		height: buttoncol.height
@@ -76,6 +82,7 @@ GridLayout {
 							var data = sources.model.get(row)
 							pluginChooser.currentIndex = data.sourceIdx
 							urlField.text = data.url
+							urlField.focus = true
 							markReadCheckBox.checked = data.markAsRead
 							sources.currentRow = -1
 							sources.selection.clear()
@@ -225,7 +232,6 @@ GridLayout {
 				ColorAnimation { target: urlField; property: "textColor"; to: "red"; easing.type: Easing.OutQuad; duration: 400 }
 				ColorAnimation { target: urlField; property: "textColor"; to: urlField.textColor; easing.type: Easing.InQuad; duration: 400 }
 			}
-			
 		}
 		
 		Label {
