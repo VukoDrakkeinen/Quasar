@@ -273,7 +273,9 @@ func CreateDB(db *qdb.QDB) (err error) {
 	return
 }
 
-func (this ComicList) SaveToDB() { //TODO: write a unit test
+//TODO: more error checking
+//TODO: write a unit test
+func (this ComicList) SaveToDB() {
 	db := qdb.DB()
 	if db == nil {
 		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
@@ -310,7 +312,6 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 		}
 		transaction.Commit()
 	}
-	fmt.Println("Writing", len(this.comics), "comics")
 
 	scheduleInsertionStmt := db.MustPrepare(scheduleInsertionCmd)
 	dbStmts := SQLComicInsertStmts(db)
@@ -321,17 +322,15 @@ func (this ComicList) SaveToDB() { //TODO: write a unit test
 
 		err := comic.SQLInsert(stmts)
 		if err != nil { // no need to manually close statements, Commit() or Rollback() take care of that
-			fmt.Println("Error while saving, rolling back")
+			qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
 			transaction.Rollback()
-			fmt.Println(qerr.NewLocated(err))
 		} else {
 			transaction.Commit()
-			_, err := scheduleInsertionStmt.Exec(comic.sqlId, this.nextFetchTimes[i], this.updatedAt[i])
+			_, err := scheduleInsertionStmt.Exec(comic.sqlId, this.nextFetchTimes[i], this.updatedAt[i]) //TODO: move to comic Tx
 			if err != nil {
-				fmt.Println(qerr.NewLocated(err))
+				qlog.Log(qlog.Error, qerr.NewLocated(err))
 			}
 		}
-
 	}
 }
 

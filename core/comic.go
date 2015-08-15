@@ -65,7 +65,7 @@ const ( //SQL Statements Group keys
 )
 
 type syncRWMutex struct {
-	internal sync.RWMutex
+	internal syncRWMutex
 }
 
 func (this *syncRWMutex) Lock() {
@@ -89,7 +89,7 @@ func (this *syncRWMutex) RUnlock() {
 	this.internal.RUnlock()
 } //*/
 
-type Comic struct {
+type Comic struct { //TODO: rework all that concurrency-safeness (is that even a word), it's a mess
 	info     ComicInfo
 	settings IndividualSettings
 
@@ -308,7 +308,6 @@ func (this *Comic) SQLId() int64 {
 
 func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 	this.lock.RLock()
-	defer this.lock.RUnlock()
 	var newId int64
 	result, err := stmts[comicInsertion].Exec(
 		this.sqlId,
@@ -374,12 +373,12 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		chapter := this.chapters[identity] //can't take a pointer
 		err = chapter.SQLInsert(identity, stmts)
 		if err != nil {
+			this.lock.Unlock()
 			return qerr.NewLocated(err)
 		}
 		this.chapters[identity] = chapter //so reinsert
 	}
 	this.lock.Unlock()
-	this.lock.RLock()
 
 	return nil
 }

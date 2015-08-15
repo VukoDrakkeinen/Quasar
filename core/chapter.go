@@ -222,8 +222,9 @@ func SQLChapterSchema() string {
 	return `
 	CREATE TABLE IF NOT EXISTS chapters(
 		id INTEGER PRIMARY KEY,
-		identity INTEGER UNIQUE NOT NULL,
-		alreadyRead INTEGER NOT NULL
+		identity INTEGER NOT NULL,
+		alreadyRead INTEGER NOT NULL,
+		CONSTRAINT uq_CH_ID UNIQUE (id, identity)
 	);
 	CREATE TABLE IF NOT EXISTS rel_Comic_Chapters(
 		comicId INTEGER NOT NULL REFERENCES comics(id) ON DELETE CASCADE,
