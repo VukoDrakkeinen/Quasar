@@ -65,7 +65,7 @@ const ( //SQL Statements Group keys
 )
 
 type syncRWMutex struct {
-	internal syncRWMutex
+	internal sync.RWMutex
 }
 
 func (this *syncRWMutex) Lock() {
