@@ -17,9 +17,8 @@ type coreConnector struct {
 	list *core.ComicList
 }
 
-func (this *coreConnector) PluginNames() (names *[]core.FetcherPluginName, humanReadableNames *[]string) {
-	pluginNames, hrNames := this.list.Fetcher().Plugins() //TODO?: sorted data
-	return &pluginNames, &hrNames
+func (this *coreConnector) PluginNames() (names []core.FetcherPluginName, humanReadableNames []string) {
+	return this.list.Fetcher().Plugins() //TODO: map?
 }
 
 func (this *coreConnector) PluginAutodetect(url string) (pluginName core.FetcherPluginName) {
@@ -61,8 +60,8 @@ type temporaryNeuteredGlobalSettings struct { //TODO: remove? how? go-to-qml/qml
 	AccumulativeModeCount uint
 	DelayedModeDuration   core.SplitDuration
 	DownloadsPath         string
-	Plugins               map[core.FetcherPluginName]core.PluginEnabled //FIXME: causes a crash (unhashable value)
-	Languages             map[idsdict.LangId]core.LanguageEnabled       //this too
+	Plugins               map[core.FetcherPluginName]core.PluginEnabled
+	Languages             map[idsdict.LangId]core.LanguageEnabled
 }
 
 func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
@@ -151,9 +150,8 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 
 }
 
-func (this *coreConnector) ComicSources(comicIdx int) *[]core.UpdateSource {
-	csources := this.list.GetComic(comicIdx).Sources()
-	return &csources
+func (this *coreConnector) ComicSources(comicIdx int) []core.UpdateSource {
+	return this.list.GetComic(comicIdx).Sources()
 }
 
 func (this *coreConnector) UpdateComics(comicIndices *qml.List) {
