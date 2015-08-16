@@ -67,12 +67,14 @@ var (
 )
 
 func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) ComicList {
-	return ComicList{
+	list := ComicList{
 		comics:         make([]*Comic, 0, 10),
 		interruptChans: make([]chan struct{}, 0, 10),
 		fetcher:        fetcher,
 		notifyView:     notifyViewFunc,
 	}
+	list.SaveToDB() //FIXME: this is a very hacky workaround for a serious bug in IDs Dictionaries logic
+	return list     //this probably causes even more potential problems (as I thought, global state sucks)
 }
 
 const (
