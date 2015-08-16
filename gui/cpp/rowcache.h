@@ -5,7 +5,7 @@
 #include <QModelIndex>
 
 template <typename T, int N>
-class RowCache {
+class RowCache {    //TODO: may be buggy, investigate
 	public:
 		RowCache() : validFor(N) {};
 		~RowCache() {};

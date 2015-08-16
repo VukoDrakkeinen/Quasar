@@ -51,7 +51,7 @@ GridLayout {
 				action: Action {
 					onTriggered: {
 						var max = sources.model.count
-						var url = urlField.text
+						var url = urlField.text.trim()
 						var sourceIdx = pluginChooser.currentIndex
 						var pluginName = pluginChooser.currentText
 						if (sourceIdx == 0) {

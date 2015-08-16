@@ -1,7 +1,7 @@
 package core
 
 import (
-	"fmt"
+	//"fmt"
 	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
@@ -150,11 +150,11 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 	go func() {
 		//fmt.Println("  Old schedule", this.nextFetchTimes[comicIdx].Local())
 		if fetchOnStartup && !reschedule {
-			fmt.Println("Fetch on startup")
+			//fmt.Println("Fetch on startup")
 			this.nextFetchTimes[comicIdx] = time.Time{} //FIXME: this is hack, but I'm too fed up with this piece of code to fix it
 			this.comicFetch(comicIdx, false, false)
 		} else if intervalFetching && this.nextFetchTimes[comicIdx].Before(time.Now().UTC()) {
-			fmt.Println("Scheduled time in the past; adjusting...")
+			//fmt.Println("Scheduled time in the past; adjusting...")
 			this.comicFetch(comicIdx, true, false)
 		}
 
@@ -162,7 +162,7 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 			for {
 				select {
 				case <-time.After(this.nextFetchTimes[comicIdx].Sub(time.Now().UTC())):
-					fmt.Println("Scheduled fetch starting on", time.Now())
+					//fmt.Println("Scheduled fetch starting on", time.Now())
 					this.comicFetch(comicIdx, false, false)
 				case <-this.interruptChans[comicIdx]:
 					return
@@ -186,7 +186,7 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 		)
 	})
 	if !canUpdate {
-		fmt.Println("Cannot update while updating")
+		//fmt.Println("Cannot update while updating")
 		return
 	}
 
@@ -194,7 +194,7 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 		this.cancelScheduleForComic(comicIdx)
 	}
 
-	fmt.Println("Updating")
+	//fmt.Println("Updating")
 	this.notifyView(Reset, -1, -1, func() {
 		comic := this.GetComic(comicIdx)
 		freq := this.comicUpdateFrequency(comicIdx)
@@ -217,7 +217,7 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 		})
 
 		atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.statuses[comicIdx])), uint32(ComicNotUpdating))
-		fmt.Println(comicIdx, "Scheduled fetch for", this.nextFetchTimes[comicIdx].Local())
+		//fmt.Println(comicIdx, "Scheduled fetch for", this.nextFetchTimes[comicIdx].Local())
 	})
 
 	if manual {
