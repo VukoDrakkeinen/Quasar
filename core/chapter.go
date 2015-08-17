@@ -111,7 +111,7 @@ func (this *Chapter) Scanlators() (ret []JointScanlatorIds) {
 	if this.parent != nil {
 		for _, pluginName := range this.usedPlugins {
 			perPlugin := this.mapping[pluginName]
-			for _, scanlator := range this.parent.scanlatorPriority {
+			for _, scanlator := range this.parent.ScanlatorsPriority() {
 				if _, exists := perPlugin[scanlator]; exists {
 					ret = append(ret, scanlator)
 				}
@@ -135,14 +135,14 @@ func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorId
 		return scanlation.PluginName, scanlation.Scanlators
 	}
 
-	var pluginNames []FetcherPluginName          //Create a set of plugin names with prioritized ones at the beginning
-	for _, source := range this.parent.sources { //Add prioritized plugin names
+	var pluginNames []FetcherPluginName            //Create a set of plugin names with prioritized ones at the beginning
+	for _, source := range this.parent.Sources() { //Add prioritized plugin names
 		if _, exists := this.mapping[source.PluginName]; exists {
 			pluginNames = append(pluginNames, source.PluginName)
 		}
 	}
 	for _, pluginName := range this.usedPlugins { //Add the rest
-		if _, exists := this.parent.sourceIdxByPlugin[pluginName]; !exists {
+		if !this.parent.UsesPlugin(pluginName) {
 			pluginNames = append(pluginNames, pluginName)
 		}
 	}
@@ -159,7 +159,7 @@ func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorId
 
 	scanlatorSet := this.mapping[pluginName]
 	var scanlators []JointScanlatorIds
-	for _, scanlator := range this.parent.scanlatorPriority { //Create a set of this chapter's scanlators (prioritized first)
+	for _, scanlator := range this.parent.ScanlatorsPriority() { //Create a set of this chapter's scanlators (prioritized first)
 		if _, exists := scanlatorSet[scanlator]; exists {
 			scanlators = append(scanlators, scanlator)
 		}
@@ -180,7 +180,7 @@ func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts qdb.StmtGroup) (e
 	}
 	this.sqlId = newId
 
-	result, err = stmts[chapterRelation].Exec(this.parent.sqlId, this.sqlId)
+	result, err = stmts[chapterRelation].Exec(this.parent.SQLId(), this.sqlId)
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
