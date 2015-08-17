@@ -5,9 +5,6 @@ import (
 	"gopkg.in/qml.v1"
 	"reflect"
 )
-import (
-	"fmt"
-)
 
 func NewCoreConnector(list *core.ComicList) *coreConnector {
 	return &coreConnector{
