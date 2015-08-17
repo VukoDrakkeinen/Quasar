@@ -50,7 +50,7 @@ func (this AuthorId) Value() (driver.Value, error) {
 }
 
 func (this *AuthorId) Scan(src interface{}) error {
-	n, ok := src.(int64) //TODO?: check if scanned id is assigned
+	n, ok := src.(int64)
 	if !ok || src == nil {
 		return errors.New(fmt.Sprintf("%T.Scan: type assert failed (must be an int64, got %T!)", *this, src))
 	}

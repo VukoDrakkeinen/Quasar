@@ -54,7 +54,7 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 	fet.DownloadComicInfoFor(comic)
 	qlog.Log(qlog.Info, "Downloading Chapter List")
 	fet.DownloadChapterListFor(comic)
-	for i := 0; i < comic.ChapterCount(); i++ {
+	for i := 0; i < comic.ChaptersCount(); i++ {
 		chapter, id := comic.GetChapter(i)
 		sc0 := chapter.Scanlation(0)
 		fmt.Printf("%v %v (%v)\n", id, sc0.Title, sc0.Scanlators)

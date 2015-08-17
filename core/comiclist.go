@@ -60,7 +60,7 @@ var (
 	);
 	`
 	idsInsertionPreCmd   = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
-	idsQueryPreCmd = `SELECT $colName FROM $tableName;`
+	idsQueryPreCmd       = `SELECT $colName FROM $tableName;`
 	scheduleInsertionCmd = `INSERT OR REPLACE INTO schedule(comicId, nextFetchTime, lastUpdated)
 							VALUES((SELECT id FROM comics WHERE id = ?), ?, ?);`
 	scheduleQueryCmd = `SELECT nextFetchTime, lastUpdated FROM schedule WHERE comicId = ?;`

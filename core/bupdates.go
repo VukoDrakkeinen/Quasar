@@ -46,7 +46,7 @@ var (
 
 	bakaUpdates_rIdentityParse = qregexp.MustCompile(`^(\d+)(?:-(\d+))?(?:\.(\d))?(?: ([LH]Q))?(?: ?\(?v(\d)\)?)?( Color)?( \+ Extra)?`)
 
-	bakaUpdates_rComicID = qregexp.MustCompile(`(?<=id=)\d+`) //TODO FIXME: UpdateSource holding additional plugin data?
+	bakaUpdates_rComicID = qregexp.MustCompile(`(?<=id=)\d+`) //TODO: UpdateSource holding additional plugin data?
 )
 
 type bakaUpdates struct {
