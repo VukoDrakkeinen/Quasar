@@ -54,6 +54,7 @@ type (
 	NotificationMode int
 	PluginEnabled    bool
 	LanguageEnabled  bool
+	LangName         string
 )
 
 type GlobalSettings struct {
@@ -66,7 +67,7 @@ type GlobalSettings struct {
 	DelayedModeDuration   time.Duration
 	DownloadsPath         string
 	Plugins               map[FetcherPluginName]PluginEnabled
-	Languages             map[LangId]LanguageEnabled
+	Languages             map[LangName]LanguageEnabled //TODO: languages validation
 	//TODO: default plugin priority?
 }
 
@@ -87,10 +88,7 @@ func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 		DelayedModeDuration:   DurationToSplit(this.DelayedModeDuration),
 		DownloadsPath:         this.DownloadsPath,
 		Plugins:               this.Plugins,
-		Languages:             make(map[string]LanguageEnabled),
-	}
-	for id, status := range this.Languages {
-		proxy.Languages[Langs.NameOf(id)] = status
+		Languages:             this.Languages,
 	}
 	return proxy
 }
@@ -106,7 +104,7 @@ func NewGlobalSettings() *GlobalSettings {
 		DelayedModeDuration:   time.Duration(time.Hour * 24 * 7),
 		DownloadsPath:         downloadsPath,
 		Plugins:               make(map[FetcherPluginName]PluginEnabled),
-		Languages:             map[LangId]LanguageEnabled{ENGLISH_LANG(): LanguageEnabled(true)},
+		Languages:             map[LangName]LanguageEnabled{LangName(ENGLISH_LANG_NAME): LanguageEnabled(true)},
 	}
 }
 
@@ -150,11 +148,11 @@ type globalSettingsJSONProxy struct {
 	DelayedModeDuration   SplitDuration
 	DownloadsPath         string
 	Plugins               map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
-	Languages             map[string]LanguageEnabled          `json:"LangsEnabled"`
+	Languages             map[LangName]LanguageEnabled        `json:"LangsEnabled"`
 }
 
 func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
-	settings := &GlobalSettings{
+	return &GlobalSettings{
 		FetchOnStartup:        this.FetchOnStartup,
 		IntervalFetching:      this.IntervalFetching,
 		FetchFrequency:        this.FetchFrequency.ToDuration(),
@@ -164,12 +162,8 @@ func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 		DelayedModeDuration:   this.DelayedModeDuration.ToDuration(),
 		DownloadsPath:         this.DownloadsPath,
 		Plugins:               this.Plugins,
-		Languages:             make(map[LangId]LanguageEnabled, len(this.Languages)),
+		Languages:             this.Languages,
 	}
-	for lang, status := range this.Languages {
-		settings.Languages[Langs.Id(lang)] = status
-	}
-	return settings
 }
 
 type SplitDuration struct {
@@ -255,7 +249,7 @@ type PerPluginSettings struct {
 	NotificationMode      NotificationMode
 	AccumulativeModeCount uint
 	DelayedModeDuration   time.Duration
-	Languages             map[LangId]LanguageEnabled
+	Languages             map[LangName]LanguageEnabled
 }
 
 func NewPerPluginSettings(defaults *GlobalSettings) PerPluginSettings {

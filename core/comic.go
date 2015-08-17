@@ -225,12 +225,16 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		existingChapter, exists := this.chapters[identity]
 		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 		if exists {
+			existingRead := existingChapter.AlreadyRead
 			existingChapter.MergeWith(&chapter)
 			if newStart { //Sequence ended, add newly created slice to the list, set creation status to false
 				nonexistentSlices = append(nonexistentSlices, identities[startIndex:i])
 				newStart = false
 			}
 			this.chapters[identity] = existingChapter //reinsert //TODO?: use pointers instead?
+			if !existingRead && existingChapter.AlreadyRead {
+				this.cachedReadCount += 1
+			}
 		} else {
 			chapter.SetParent(this)
 			this.chapters[identity] = chapter
@@ -254,7 +258,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 	}
 }
 
-func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //TODO FIXME: bounds check?
+func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //FIXME: bounds check?
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	identity := this.chaptersOrder[index]
@@ -264,7 +268,7 @@ func (this *Comic) GetChapter(index int) (Chapter, ChapterIdentity) { //TODO FIX
 func (this *Comic) ScanlatorsPriority() []JointScanlatorIds {
 	this.lock.RLock()
 	defer this.lock.RUnlock()
-	ret := make([]JointScanlatorIds, len(this.sources))
+	ret := make([]JointScanlatorIds, len(this.scanlatorPriority))
 	copy(ret, this.scanlatorPriority)
 	return ret
 }
@@ -275,7 +279,7 @@ func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) {
 	this.scanlatorPriority = priority
 }
 
-func (this *Comic) ChapterCount() int { //TODO: rename ChaptersCount()
+func (this *Comic) ChaptersCount() int {
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	return len(this.chaptersOrder)
@@ -289,7 +293,7 @@ func (this *Comic) ChaptersReadCount() int {
 	}
 
 	var readCount int
-	chapterCount := this.ChapterCount() //IT'S CALLED EVERY ITERATION?! O_O
+	chapterCount := this.ChaptersCount() //IT'S CALLED EVERY ITERATION?! O_O
 	for i := 0; i < chapterCount; i++ {
 		if chapter, _ := this.GetChapter(i); chapter.AlreadyRead {
 			readCount++
@@ -303,6 +307,13 @@ func (this *Comic) ChaptersReadCount() int {
 	return readCount
 }
 
+func (this *Comic) UsesPlugin(pluginName FetcherPluginName) bool {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	_, exists := this.sourceIdxByPlugin[pluginName]
+	return exists
+}
+
 func (this *Comic) SQLId() int64 {
 	return atomic.LoadInt64(&this.sqlId)
 }
@@ -312,7 +323,7 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 	defer this.lock.Unlock()
 	var newId int64
 	result, err := stmts[comicInsertion].Exec(
-		this.sqlId,
+		this.SQLId(),
 		this.info.Title, this.info.Type, this.info.Status, this.info.ScanlationStatus, this.info.Description,
 		this.info.Rating, this.info.Mature, this.info.ThumbnailFilename,
 		qutils.BoolsToBitfield(this.settings.OverrideDefaults), this.settings.FetchOnStartup,
@@ -326,7 +337,7 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
-	this.sqlId = newId
+	atomic.StoreInt64(&this.sqlId, newId)
 
 	if this.info.titlesSQLIds == nil {
 		this.info.titlesSQLIds = make(map[string]int64)
@@ -342,24 +353,24 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 			return qerr.NewLocated(err)
 		}
 		this.info.titlesSQLIds[title] = newATId
-		stmts[altTitleRelation].Exec(this.sqlId, newATId)
+		stmts[altTitleRelation].Exec(newId, newATId)
 	}
 
 	for _, author := range this.info.Authors {
-		stmts[authorRelation].Exec(this.sqlId, author)
+		stmts[authorRelation].Exec(newId, author)
 	}
 	for _, artist := range this.info.Artists {
-		stmts[artistRelation].Exec(this.sqlId, artist)
+		stmts[artistRelation].Exec(newId, artist)
 	}
 	for genre := range this.info.Genres {
-		stmts[genreRelation].Exec(this.sqlId, genre)
+		stmts[genreRelation].Exec(newId, genre)
 	}
 	for tag := range this.info.Categories {
-		stmts[tagRelation].Exec(this.sqlId, tag)
+		stmts[tagRelation].Exec(newId, tag)
 	}
 
 	for i := range this.sources {
-		err = this.sources[i].SQLInsert(this.sqlId, stmts)
+		err = this.sources[i].SQLInsert(newId, stmts)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -388,7 +399,7 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 	var fetchFreq int64
 	var duration int64
 	err := rows.Scan(
-		&comic.sqlId,
+		&comicId,
 		&info.Title, &info.Type, &info.Status, &info.ScanlationStatus, &info.Description, &info.Rating, &info.Mature, &thumbnailFilename,
 		&overrideDefaultsBitfield, &stts.FetchOnStartup, &stts.IntervalFetching, &fetchFreq, &stts.NotificationMode,
 		&stts.AccumulativeModeCount, &duration,
@@ -396,7 +407,7 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 	if err != nil {
 		return nil, qerr.NewLocated(err)
 	}
-	comicId = comic.sqlId
+	atomic.StoreInt64(&comic.sqlId, comicId)
 	info.ThumbnailFilename = thumbnailFilename.String
 	stts.DelayedModeDuration = time.Duration(duration)
 	stts.OverrideDefaults = qutils.BitfieldToBools(overrideDefaultsBitfield, Bitlength(ComicSettings))

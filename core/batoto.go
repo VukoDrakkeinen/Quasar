@@ -52,7 +52,7 @@ var (
 )
 
 type batoto struct {
-	name      FetcherPluginName //TODO?: string -> id?
+	name      FetcherPluginName
 	settings  PerPluginSettings
 	m_fetcher *fetcher
 }
@@ -239,7 +239,7 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 		}
 
 		lang := Langs.Id(string(batoto_rLang.Find(chapterInfo)))
-		if !this.fetcher().settings.Languages[lang] {
+		if !this.fetcher().settings.Languages[LangName(Langs.NameOf(lang))] {
 			continue // skip disabled languages
 		}
 

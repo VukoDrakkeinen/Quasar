@@ -4,7 +4,6 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
-	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io"
@@ -83,12 +82,28 @@ func (this *fetcher) RegisterPlugins(plugins ...FetcherPlugin) (successes, repla
 		}
 		this.plugins[name] = plugin
 		plugin.setFetcher(this)
-		Langs.AssignIds(plugin.Languages())
 		plugin.SetSettings(NewPerPluginSettings(this.settings)) //TODO
+		for _, lang := range plugin.Languages() {
+			langName := LangName(lang)
+			this.settings.Languages[langName] = this.settings.Languages[langName] || LanguageEnabled(false)
+		}
 		this.connLimits[name] = plugin.Settings().MaxConnectionsToHost
 		this.settings.Plugins[name] = PluginEnabled(true)
 		successes = append(successes, true) //TODO?
 		replaced = append(replaced, pluginReplaced)
+	}
+	return
+}
+
+func (this *fetcher) PluginProvidedLanguages() (langNames []string) {
+	langSet := make(map[string]struct{})
+	for _, plugin := range this.plugins {
+		for _, lang := range plugin.Languages() {
+			if _, duplicate := langSet[lang]; !duplicate {
+				langSet[lang] = struct{}{}
+				langNames = append(langNames, lang)
+			}
+		}
 	}
 	return
 }
@@ -303,16 +318,4 @@ func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 
 func (this *fetcher) Settings() *GlobalSettings {
 	return this.settings
-}
-
-func (this *fetcher) TestFind(comic *Comic, pluginName FetcherPluginName, comicTitle string) {
-	plugin := this.plugins[pluginName]
-	urlFound := plugin.findComicURL(comicTitle)
-	if urlFound != "" {
-		comic.AddSource(UpdateSource{
-			PluginName: pluginName,
-			URL:        urlFound,
-			MarkAsRead: false,
-		})
-	}
 }

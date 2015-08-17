@@ -2,9 +2,11 @@ package gui
 
 import (
 	"github.com/VukoDrakkeinen/Quasar/core"
-	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"gopkg.in/qml.v1"
 	"reflect"
+)
+import (
+	"fmt"
 )
 
 func NewCoreConnector(list *core.ComicList) *coreConnector {
@@ -61,7 +63,7 @@ type temporaryNeuteredGlobalSettings struct { //TODO: remove? how? go-to-qml/qml
 	DelayedModeDuration   core.SplitDuration
 	DownloadsPath         string
 	Plugins               map[core.FetcherPluginName]core.PluginEnabled
-	Languages             map[idsdict.LangId]core.LanguageEnabled
+	Languages             map[core.LangName]core.LanguageEnabled
 }
 
 func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
@@ -81,10 +83,10 @@ func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
 	}
 }
 
-func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration *qml.Map, fetchFrequency *qml.Map) {
+func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration, fetchFrequency *qml.Map) {
 	settings := this.list.Fetcher().Settings()
 
-	var splitDuration, splitFrequency core.SplitDuration
+	var splitDuration, splitFrequency core.SplitDuration //TODO: type converters
 	dmDuration.Unmarshal(&splitDuration)
 	fetchFrequency.Unmarshal(&splitFrequency)
 	settingsObj.Unmarshal(settings)

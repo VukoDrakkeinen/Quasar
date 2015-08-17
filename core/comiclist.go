@@ -60,7 +60,7 @@ var (
 	);
 	`
 	idsInsertionPreCmd   = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
-	idsQueryPreCmd       = `SELECT $colName FROM $tableName;` //TODO?: use placeholders?
+	idsQueryPreCmd = `SELECT $colName FROM $tableName;`
 	scheduleInsertionCmd = `INSERT OR REPLACE INTO schedule(comicId, nextFetchTime, lastUpdated)
 							VALUES((SELECT id FROM comics WHERE id = ?), ?, ?);`
 	scheduleQueryCmd = `SELECT nextFetchTime, lastUpdated FROM schedule WHERE comicId = ?;`
@@ -73,8 +73,7 @@ func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType
 		fetcher:        fetcher,
 		notifyView:     notifyViewFunc,
 	}
-	list.SaveToDB() //FIXME: this is a very hacky workaround for a serious bug in IDs Dictionaries logic
-	return list     //this probably causes even more potential problems (as I thought, global state sucks)
+	return list //this probably causes even more potential problems (as I thought, global state sucks)
 }
 
 const (
@@ -276,18 +275,17 @@ func CreateDB(db *qdb.QDB) (err error) {
 }
 
 //TODO: more error checking
-//TODO: write a unit test
+//TODO: write some unit tests
+//TODO: return errors, so we can show the user a pop-up
 func (this ComicList) SaveToDB() {
 	db := qdb.DB()
 	if db == nil {
 		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
 		return
-		//panic()	//TODO?
 	}
 	err := CreateDB(db)
 	if err != nil {
 		qlog.Log(qlog.Error, "Creating database failed.", qerr.NewLocated(err))
-		//panic()	//TODO?
 		return
 	}
 
@@ -295,7 +293,7 @@ func (this ComicList) SaveToDB() {
 		dict qdb.InsertionStmtExecutor
 		name string
 	}
-	for _, tuple := range []tuple{ //TODO?: global state, hmm
+	for _, tuple := range []tuple{ //TODO?: global state is bad
 		{&idsdict.Langs, "lang"},
 		{&idsdict.Scanlators, "scanlator"},
 		{&idsdict.Authors, "author"},
@@ -347,7 +345,7 @@ func (list *ComicList) LoadFromDB() (err error) {
 		dict qdb.QueryStmtExecutor
 		name string
 	}
-	for _, tuple := range []tuple{ //TODO?: dicts as function arguments? (global state side effects are not nice)
+	for _, tuple := range []tuple{ //FIXME: Global dicts are bad
 		{&idsdict.Langs, "lang"},
 		{&idsdict.Scanlators, "scanlator"},
 		{&idsdict.Authors, "author"},
@@ -363,6 +361,8 @@ func (list *ComicList) LoadFromDB() (err error) {
 		}
 		idsQueryStmt.Close()
 	}
+
+	idsdict.Langs.AssignIds(list.fetcher.PluginProvidedLanguages())
 
 	comicSqlIds := make(map[int64]struct{}) //TODO: not satisfied with this part, rewrite
 	for _, comic := range list.comics {

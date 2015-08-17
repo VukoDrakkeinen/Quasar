@@ -136,7 +136,7 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 
 	bridged := &updateInfoBridged{
 		title:         comic.Info().Title,
-		chaptersCount: comic.ChapterCount(),
+		chaptersCount: comic.ChaptersCount(),
 		chaptersRead:  comic.ChaptersReadCount(),
 		updated:       list.ComicLastUpdated(int(idx)).Unix(),
 		progress:      33,     //TODO
@@ -160,7 +160,7 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 //export go_Comic_ChaptersCount
 func go_Comic_ChaptersCount(goComic unsafe.Pointer) C.int {
 	comic := (*core.Comic)(goComic)
-	return C.int(comic.ChapterCount())
+	return C.int(comic.ChaptersCount())
 }
 
 //export go_Comic_ChaptersReadCount
