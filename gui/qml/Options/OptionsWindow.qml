@@ -35,7 +35,8 @@ Window {
 		frequencySpin.hours = frequency.hours
 		frequencySpin.days = frequency.days
 		frequencySpin.weeks = frequency.weeks
-		//console.log(settings.plugins)
+		
+		langOpts.setLanguages(settings.languages)
 	}
 	
 	function resetAndShow() {
@@ -200,9 +201,9 @@ Window {
 		GroupBox {
 			Layout.fillWidth: true
 			title: qsTr("Languages")
-			Label {
-				text: "Not implemented yet"
-				//TODO
+			LanguageOptions {
+				anchors.fill: parent
+				id: langOpts
 			}
 		}
 
@@ -215,7 +216,8 @@ Window {
 					"maxConnectionsToHost": maxConnSpinBox.value,
 					"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount,
 					"downloadsPath": downloadsPath.text,
-					"plugins": {"batoto": true, "bakaUpdates": false}
+					"plugins": {"batoto": true, "bakaUpdates": false},
+					"languages": langOpts.getLanguages()
 				}
 				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
 				var fetchFrequency = {"hours": frequencySpin.hours, "days": frequencySpin.days, "weeks": frequencySpin.weeks}
