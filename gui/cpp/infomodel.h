@@ -79,7 +79,7 @@ class ComicInfoModel : public NotifiableModel
 		void setGoData(void* goComicList);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 	private:
-		mutable RowCache<ComicInfoRow, 13> cache;
+		mutable RowCache<ComicInfoRow, 13, 1> cache;
 };
 
 QML_DECLARE_TYPE(ComicInfoModel)

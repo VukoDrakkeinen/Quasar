@@ -102,8 +102,8 @@ int UpdateStatus::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     return _id;
 }
 struct qt_meta_stringdata_UpdateInfoModel_t {
-    QByteArrayData data[6];
-    char stringdata0[44];
+    QByteArrayData data[9];
+    char stringdata0[72];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -117,11 +117,14 @@ QT_MOC_LITERAL(1, 16, 6), // "qmlGet"
 QT_MOC_LITERAL(2, 23, 0), // ""
 QT_MOC_LITERAL(3, 24, 3), // "row"
 QT_MOC_LITERAL(4, 28, 6), // "column"
-QT_MOC_LITERAL(5, 35, 8) // "roleName"
+QT_MOC_LITERAL(5, 35, 8), // "roleName"
+QT_MOC_LITERAL(6, 44, 8), // "CellType"
+QT_MOC_LITERAL(7, 53, 6), // "Normal"
+QT_MOC_LITERAL(8, 60, 11) // "ProgressBar"
 
     },
     "UpdateInfoModel\0qmlGet\0\0row\0column\0"
-    "roleName"
+    "roleName\0CellType\0Normal\0ProgressBar"
 };
 #undef QT_MOC_LITERAL
 
@@ -133,7 +136,7 @@ static const uint qt_meta_data_UpdateInfoModel[] = {
        0,    0, // classinfo
        1,   14, // methods
        0,    0, // properties
-       0,    0, // enums/sets
+       1,   26, // enums/sets
        0,    0, // constructors
        0,       // flags
        0,       // signalCount
@@ -143,6 +146,13 @@ static const uint qt_meta_data_UpdateInfoModel[] = {
 
  // methods: parameters
     QMetaType::QVariant, QMetaType::Int, QMetaType::Int, QMetaType::QString,    3,    4,    5,
+
+ // enums: name, flags, count, data
+       6, 0x0,    2,   30,
+
+ // enum data: key, value
+       7, uint(UpdateInfoModel::CellType::Normal),
+       8, uint(UpdateInfoModel::CellType::ProgressBar),
 
        0        // eod
 };

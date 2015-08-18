@@ -42,7 +42,7 @@ class ChapterModel : public NotifiableModel
 		Q_INVOKABLE void setComicIdx(int comicIdx);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 	private:
-		mutable RowCache<CachedScanlationRow, 8> cache;
+		mutable RowCache<CachedScanlationRow, 8, 2> cache;
 		int comicIdx;
 	public:
 		enum DataRole {

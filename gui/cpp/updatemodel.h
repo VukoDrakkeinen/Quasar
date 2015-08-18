@@ -42,7 +42,7 @@ class UpdateInfoModel : public NotifiableModel
 	public:
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
 	private:
-		mutable RowCache<UpdateInfoRow, 6> cache;
+		mutable RowCache<UpdateInfoRow, 6, 2> cache;
 	public:
 		enum DataRole {
 			CellTypeRole = Qt::UserRole,
@@ -53,6 +53,7 @@ class UpdateInfoModel : public NotifiableModel
 			Normal,
 			ProgressBar
 		};
+		Q_ENUM(CellType)
 };
 
 Q_DECLARE_METATYPE(UpdateInfoModel::CellType)
