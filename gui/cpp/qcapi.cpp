@@ -206,11 +206,13 @@ void* copyRawGoData(void* data, int size) {
 }
 
 void registerQMLTypes() {
+	auto enumText = QString("Uncreatable enumeration provider");
 	qmlRegisterType<ProgressBar>("QuasarGUI", 1, 0, "SaneProgressBar");
-	qmlRegisterType<UpdateStatus>("QuasarGUI", 1, 0, "UpdateStatus");
-	qmlRegisterType<ComicType>("QuasarGUI", 1, 0, "ComicType");
-	qmlRegisterType<ComicStatus>("QuasarGUI", 1, 0, "ComicStatus");
-	qmlRegisterType<ScanlationStatus>("QuasarGUI", 1, 0, "ScanlationStatus");
+	qmlRegisterUncreatableType<UpdateStatus>("QuasarGUI", 1, 0, "UpdateStatus", enumText);
+	qmlRegisterUncreatableType<ComicType>("QuasarGUI", 1, 0, "ComicType", enumText);
+	qmlRegisterUncreatableType<ComicStatus>("QuasarGUI", 1, 0, "ComicStatus", enumText);
+	qmlRegisterUncreatableType<ScanlationStatus>("QuasarGUI", 1, 0, "ScanlationStatus", enumText);
+	qmlRegisterUncreatableType<UpdateInfoModel>("QuasarGUI", 1, 0, "CellType", enumText);
 }
 
 void modelSetGoData(NotifiableModel_* model, void* goData) {
