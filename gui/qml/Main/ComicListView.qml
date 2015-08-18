@@ -56,20 +56,22 @@ TableView {
 			SaneProgressBar {
 				id: spb
 				anchors.fill: parent
-				//value: styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "progress") : 0
+				visible: false
+				value: styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "progress") : 0
 			}
 			
 			Label {
-				visible: true
 				anchors.left: parent.left
 				anchors.right: parent.right
 				anchors.verticalCenter: parent.verticalCenter
 				anchors.margins: 4
 				text: {
 					var status = styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "status") : UpdateStatus.Error
+					spb.visible = false
 					if (status == UpdateStatus.NoUpdates) {	return qsTr("No Updates") }
 					if (status == UpdateStatus.Updating) {
 						spb.indeterminate = true //temporary?
+						spb.visible = true
 						return qsTr("Updating...")
 					}
 					if (status == UpdateStatus.NewChapters) { return qsTr("New Chapters!") }
