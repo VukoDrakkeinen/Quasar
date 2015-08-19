@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io"
 	"io/ioutil"
@@ -123,10 +124,8 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 		go func(pluginName FetcherPluginName) {
 			defer wg.Done()
 			defer func() {
-				offender := pluginName
 				if err := recover(); err != nil {
-					qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
-					this.settings.Plugins[offender] = PluginEnabled(false)
+					this.pluginPanicked(pluginName, err)
 				}
 			}()
 			comic.SetInfo(*comic.Info().MergeWith(this.plugins[pluginName].fetchComicInfo(comic)))
@@ -243,6 +242,12 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 	return nil, errors.New(`Maximum amount of retries exceeded!`)
 }
 
+func (this *fetcher) pluginPanicked(offender FetcherPluginName, err interface{}) {
+	qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
+	qlog.Logf(qlog.Error, "\n%s\n", qutils.Stack())
+	this.settings.Plugins[offender] = PluginEnabled(false)
+}
+
 func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
 	this.notifyView(func() {
 		var wg sync.WaitGroup
@@ -252,9 +257,7 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 				defer wg.Done()
 				defer func() {
 					if err := recover(); err != nil {
-						offender := pluginName
-						qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
-						this.settings.Plugins[offender] = PluginEnabled(false)
+						this.pluginPanicked(pluginName, err)
 					}
 				}()
 
@@ -281,8 +284,7 @@ func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
-			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
-			this.settings.Plugins[offender] = PluginEnabled(false)
+			this.pluginPanicked(offender, err)
 		}
 	}()
 
@@ -302,8 +304,7 @@ func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 	var offender FetcherPluginName
 	defer func() {
 		if err := recover(); err != nil {
-			qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
-			this.settings.Plugins[offender] = PluginEnabled(false)
+			this.pluginPanicked(offender, err)
 		}
 	}()
 

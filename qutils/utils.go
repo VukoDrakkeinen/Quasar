@@ -2,8 +2,10 @@ package qutils
 
 import (
 	"errors"
+	"github.com/VukoDrakkeinen/Quasar/qregexp"
 	"github.com/VukoDrakkeinen/Quasar/qutils/math"
 	"reflect"
+	"runtime/debug"
 )
 
 func GrownCap(newSize int) int {
@@ -114,4 +116,12 @@ func BitLen(x uint64) (n int) {
 		n++
 	}
 	return
+}
+
+var stackRegexp = qregexp.MustCompile(`(?<=panicindex: panic\(indexError\)\n)(?s).+(?=\n[^\n]+runtime/asm)`)
+
+func Stack() string {
+	stack := debug.Stack()
+	stackRegexp.Find(stack)
+	return string(stackRegexp.Find(stack))
 }
