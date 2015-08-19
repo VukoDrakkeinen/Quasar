@@ -212,12 +212,9 @@ func go_Comic_Info(goComic unsafe.Pointer) unsafe.Pointer {
 		bridged.Categories = append(bridged.Categories, tag)
 	}
 	sort.Strings(bridged.AltTitles) //TODO?: return unsorted, sort in C++-land?
-	var compileTimeTypeCheck int
-	var failurePoint idsdict.Id
-	compileTimeTypeCheck = int(failurePoint)        //Will fail if Id's underlying type will be ever changed from int
-	failurePoint = idsdict.Id(compileTimeTypeCheck) //I'm just too lazy to write sortable SomethingIdSlice structs :3
-	sort.Ints(*(*[]int)(unsafe.Pointer(&bridged.Genres)))
-	sort.Ints(*(*[]int)(unsafe.Pointer(&bridged.Categories)))
+
+	sort.Ints(*(*[]int)(unsafe.Pointer(&bridged.Genres)))     //Will break if Id's underlying type will be ever changed from int
+	sort.Ints(*(*[]int)(unsafe.Pointer(&bridged.Categories))) //I'm just too lazy to write sortable SomethingIdSlice structs :3
 
 	disableGcFor(unsafe.Pointer(bridged))
 

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
-	"strconv"
-	"strings"
+	"sort"
+	"unsafe"
 )
 
 var Scanlators = NewScanlatorsDict()
@@ -60,30 +60,85 @@ func (this ScanlatorId) Value() (driver.Value, error) {
 	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
-//TODO: rework this hack
-type JointScanlatorIds struct { //Can't have slices as keys in maps? Here's a dirty ha-, I mean, a workaround for you!
-	data  string
+type JointScanlatorIds struct {
+	data  string //Can't have slices as keys in maps. Fortunately strings work, so we can pack data in them
 	count int
 }
 
+type ScanlatorSlice []ScanlatorId
+
+func (slice ScanlatorSlice) Len() int {
+	return len(slice)
+}
+
+func (slice ScanlatorSlice) Less(i, j int) bool {
+	return slice[i].ordinal < slice[j].ordinal
+}
+
+func (slice ScanlatorSlice) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
 func JoinScanlators(ids []ScanlatorId) JointScanlatorIds {
-	stringNums := make([]string, 0, len(ids))
+	sort.Sort(ScanlatorSlice(ids))
+	runes := make([]rune, 0, len(ids))
 	for _, id := range ids {
-		stringNums = append(stringNums, strconv.FormatInt(int64(id.ordinal), 10))
+		runes = append(runes, rune(id.ordinal)) //possibly narrowing from 64 to 32 bits, shouldn't matter in the long run
 	}
-	return JointScanlatorIds{data: strings.Join(stringNums, "&"), count: len(ids)}
+	return JointScanlatorIds{data: *(*string)(unsafe.Pointer(&runes)), count: len(ids)}
+
 }
 
 func (this *JointScanlatorIds) ToSlice() []ScanlatorId {
 	ids := make([]ScanlatorId, 0, this.count)
-	for _, stringNum := range strings.Split(this.data, "&") {
-		num, _ := strconv.ParseInt(stringNum, 10, 32)
-		ids = append(ids, ScanlatorId{Id(num)})
+	for _, drune := range *(*[]rune)(unsafe.Pointer(&this.data)) {
+		ids = append(ids, ScanlatorId{Id(drune)})
 	}
 	return ids
 }
 
 func (this JointScanlatorIds) String() string {
-	ids := this.ToSlice()
-	return fmt.Sprintf("%v", ids)
+	return fmt.Sprintf("%v", this.ToSlice())
 }
+
+/*
+const ratio = int(unsafe.Sizeof(Id(0)) / unsafe.Sizeof(' '))	//architecture-independent implementation
+
+func JoinScanlators_(ids []ScanlatorId) JointScanlatorIds {
+	sort.Sort(ScanlatorSlice(ids))
+	runes := make([]rune, 0, len(ids)*ratio)
+	switch ratio {
+	case 1:
+	for _, id := range ids {
+		runes = append(runes, rune(id.ordinal))
+	}
+	case 2:
+	for _, id := range ids {
+		runes = append(runes, rune(id.ordinal))
+		runes = append(runes, rune(id.ordinal>>32))
+	}
+	}
+	return JointScanlatorIds{data: *(*string)(unsafe.Pointer(&runes)), count: len(ids)}
+}
+
+func (this *JointScanlatorIds) ToSlice_() []ScanlatorId {
+	ids := make([]ScanlatorId, 0, this.count)
+	switch ratio {
+	case 1:
+	for _, drune := range *(*[]rune)(unsafe.Pointer(&this.data)) {
+		ids = append(ids, ScanlatorId{Id(drune)})
+	}
+	case 2:
+		var rune0 rune
+	for i, drune := range *(*[]rune)(unsafe.Pointer(&this.data)) {
+		switch i % 2 {
+		case 0:
+			rune0 = drune
+		case 1:
+			ids = append(ids, ScanlatorId{(Id(drune) << 32) | Id(rune0)})
+			rune0 = 0
+		}
+	}
+	}
+	return ids
+}//*/
