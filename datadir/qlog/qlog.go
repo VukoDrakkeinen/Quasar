@@ -135,7 +135,8 @@ func rotateLogs(path string) {
 }
 
 func (this *QLogger) Log(s msgSeverity, what ...interface{}) {
-	msg := logMessage{s, time.Now().UTC(), fmt.Sprint(what...)}
+	m := fmt.Sprintln(what...)
+	msg := logMessage{s, time.Now().UTC(), m[:len(m)-1]}
 	for _, writer := range this.writers {
 		writer.Write(msg)
 	}
