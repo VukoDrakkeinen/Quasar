@@ -121,6 +121,7 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 	for _, source := range comic.Sources() {
 		wg.Add(1)
 		go func(pluginName FetcherPluginName) {
+			defer wg.Done()
 			defer func() {
 				offender := pluginName
 				if err := recover(); err != nil {
@@ -129,7 +130,6 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 				}
 			}()
 			comic.SetInfo(*comic.Info().MergeWith(this.plugins[pluginName].fetchComicInfo(comic)))
-			wg.Done()
 		}(source.PluginName)
 	}
 	wg.Wait()
@@ -249,6 +249,7 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 		for _, source := range comic.Sources() {
 			wg.Add(1)
 			go func(pluginName FetcherPluginName) {
+				defer wg.Done()
 				defer func() {
 					if err := recover(); err != nil {
 						offender := pluginName
@@ -270,7 +271,6 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 					}
 				}
 				comic.AddMultipleChapters(identities, chapters)
-				wg.Done()
 			}(source.PluginName)
 		}
 		wg.Wait()
