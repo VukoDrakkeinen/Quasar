@@ -281,9 +281,10 @@ func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIde
 			scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
 			newIdentities, err := parseBakaIdentities(volumeString, numberString, prevIdentity)
 			if err != nil {
-				qlog.Logf(qlog.Error, "Parsing identity \"%s\"+\"%s\" failed: %v\n", volumeString, numberString, err)
+				qlog.Logf(qlog.Error, "Parsing %s identity failed: %v", this.HumanReadableName(), err)
+			} else {
+				prevIdentity = newIdentities[len(newIdentities)-1]
 			}
-			prevIdentity = newIdentities[len(newIdentities)-1]
 			for _, identity := range newIdentities {
 				chapter := NewChapter(source.MarkAsRead)
 				chapter.AddScanlation(ChapterScanlation{
@@ -405,7 +406,7 @@ func parseBakaIdentities(volumeStr, numberStr string, previous ChapterIdentity) 
 		identity.MinorNum += 1 //so we treat it as a special chapter
 		identities = append(identities, identity)
 		return
-	} else { //numberStr is empty, which means whole volume got scanlated, but we have no way to tell how many chapters is that
-		return []ChapterIdentity{}, qerr.NewParse("Whole volume scanlated, unknown number of chapters", nil, inputStr)
+	} else { //numberStr is empty, which means Entire volume got scanlated, but we have no way to tell how many chapters is that
+		return []ChapterIdentity{}, qerr.NewParse("Entire volume scanlated, unknown number of chapters", nil, inputStr)
 	}
 }
