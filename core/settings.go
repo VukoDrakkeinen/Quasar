@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io/ioutil"
 	"os"
@@ -129,8 +130,13 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 		os.Rename(configPath, corruptedConfigPath)
 		return nil, qerr.NewParse("Error while unmarshaling settings", err, string(jsonData))
 	}
-	if proxy.MaxConnectionsToHost > 10 {
+
+	if proxy.MaxConnectionsToHost < 1 { //TODO: better validation
+		proxy.MaxConnectionsToHost = 1
+		qlog.Log(qlog.Warning, "Invalid number of maximum connections! Can't be zero.")
+	} else if proxy.MaxConnectionsToHost > 10 {
 		proxy.MaxConnectionsToHost = 10 //bigger values seem to trigger a DDoS protection, so clamp for now
+		qlog.Log(qlog.Warning, "More than 10 simultaneous connections may trigger a DDoS protection!")
 	}
 	settings = proxy.toSettings()
 

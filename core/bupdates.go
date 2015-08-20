@@ -96,11 +96,11 @@ func (this *bakaUpdates) Settings() PerPluginSettings {
 }
 
 func (this *bakaUpdates) SetSettings(new PerPluginSettings) {
+	var maxConns uint
 	if overrideMaxConns := new.OverrideDefaults[4]; overrideMaxConns {
-		this.fetcher().connLimits[this.name] = new.MaxConnectionsToHost
-	} else {
-		this.fetcher().connLimits[this.name] = 0
+		maxConns = new.MaxConnectionsToHost
 	}
+	this.fetcher().PluginLimitsUpdated(this.name, maxConns)
 	this.settings = new
 }
 

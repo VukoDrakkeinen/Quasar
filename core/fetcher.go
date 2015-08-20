@@ -50,8 +50,9 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 	webClient   *http.Client
 	settings    *GlobalSettings
 	cache       *DataCache
-	connLimiter map[string]chan struct{}
-	connLimits  map[FetcherPluginName]uint
+	connsToHost map[string]uint
+	maxConns    map[FetcherPluginName]uint
+	cond        *sync.Cond
 	notifyView  func(work func())
 }
 
@@ -63,8 +64,9 @@ func NewFetcher(settings *GlobalSettings, notifyViewFunc func(work func()), plug
 		},
 		settings:    settings,
 		cache:       NewDataCache(),
-		connLimiter: make(map[string]chan struct{}),
-		connLimits:  make(map[FetcherPluginName]uint),
+		connsToHost: make(map[string]uint, 10),
+		maxConns:    make(map[FetcherPluginName]uint, 10),
+		cond:        sync.NewCond(&sync.Mutex{}),
 		notifyView:  notifyViewFunc,
 	}
 	if fet.settings == nil {
@@ -88,12 +90,21 @@ func (this *fetcher) RegisterPlugins(plugins ...FetcherPlugin) (successes, repla
 			langName := LangName(lang)
 			this.settings.Languages[langName] = this.settings.Languages[langName] || LanguageEnabled(false)
 		}
-		this.connLimits[name] = plugin.Settings().MaxConnectionsToHost
 		this.settings.Plugins[name] = PluginEnabled(true)
 		successes = append(successes, true) //TODO?
 		replaced = append(replaced, pluginReplaced)
 	}
 	return
+}
+
+func (this *fetcher) PluginLimitsUpdated(pluginName FetcherPluginName, maxConns uint) {
+	this.cond.L.Lock()
+	if maxConns != 0 {
+		this.maxConns[pluginName] = maxConns
+	} else {
+		this.maxConns[pluginName] = this.settings.MaxConnectionsToHost
+	}
+	this.cond.L.Unlock()
 }
 
 func (this *fetcher) PluginProvidedLanguages() (langNames []string) {
@@ -135,40 +146,20 @@ func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
 }
 
 func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host string) {
-	if c, ok := this.connLimiter[host]; ok {
-		if maxConns := this.connLimits[pluginName]; uint(cap(c)) != maxConns {
-			oldLen := len(c)
-			this.connLimiter[host] = make(chan struct{}, maxConns)
-			c = this.connLimiter[host]
-			for i := 0; i < oldLen; i++ {
-				c <- struct{}{}
-			}
-		}
-		<-c
-	} else {
-		maxConns := this.connLimits[pluginName]
-		if maxConns == 0 {
-			maxConns = this.settings.MaxConnectionsToHost
-			if maxConns == 0 {
-				maxConns = 1
-				this.settings.MaxConnectionsToHost = 1
-				this.settings.Save()
-				qlog.Log(qlog.Warning, "Invalid number of maximum connections! Can't be zero.")
-			}
-		}
-
-		this.connLimiter[host] = make(chan struct{}, maxConns)
-		c = this.connLimiter[host]
-		for i := uint(0); i < maxConns; i++ {
-			c <- struct{}{}
-		}
-		<-c
+	this.cond.L.Lock()
+	for this.connsToHost[host] == this.maxConns[pluginName] {
+		this.cond.Wait()
 	}
+	this.connsToHost[host]++
+	this.cond.L.Unlock()
 	return
 }
 
 func (this *fetcher) giveupConnectionPermit(host string) {
-	this.connLimiter[host] <- struct{}{}
+	this.cond.L.Lock()
+	this.connsToHost[host]--
+	this.cond.L.Unlock()
+	this.cond.Signal()
 }
 
 func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forceCaching bool) (data []byte, err error) {
