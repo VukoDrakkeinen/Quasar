@@ -107,9 +107,9 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	infoModel := gui.NewComicInfoModel(nil)
 
 	qlog.Log(qlog.Info, "Creating Fetcher")
+	notify := gui.DefaultNotifyFunc()
 	fet := core.NewFetcher(settings, func(work func()) {
 		//println("Notifying chapter model - reset")
-		notify := gui.DefaultNotifyFunc()
 		notify(chapterModel, core.Reset, -1, -1, work) //row and count values are unused, hence -1
 	})
 
@@ -119,7 +119,6 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	qlog.Log(qlog.Info, "Creating comic list")
 	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
 		//println("Notifying updateModel with ntype", ntype, "row", row, "count", count)
-		notify := gui.DefaultNotifyFunc()
 		notify(updateModel, ntype, row, count, work)
 	})
 	dontGC = &list

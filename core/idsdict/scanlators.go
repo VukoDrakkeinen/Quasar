@@ -60,7 +60,7 @@ func (this ScanlatorId) Value() (driver.Value, error) {
 	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
-type JointScanlatorIds struct {
+type JointScanlatorIds struct { //TODO: Go 1.5 - use an array of ScanlatorIds instead of rune slice packed in string
 	data  string //Can't have slices as keys in maps. Fortunately strings work, so we can pack data in them
 	count int
 }

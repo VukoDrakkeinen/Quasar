@@ -2,14 +2,14 @@ package core
 
 import (
 	"database/sql"
-	//"fmt"
+	"fmt"
 	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"github.com/VukoDrakkeinen/Quasar/qutils/math"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
-	//"runtime"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,7 +68,6 @@ type syncRWMutex struct {
 	internal sync.RWMutex
 }
 
-/*
 func (this *syncRWMutex) Lock() {
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Printf("#+Locking at %s:%d\n", file, line)
