@@ -40,28 +40,26 @@ SplitView {
 		Button {
 			text: qsTr("Select all")
 			action: Action {
-				onTriggered: chapterListView.selection.selectAll()
+				onTriggered: chapterListView.selection.select(chapterModel.index(0, 0), ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Columns)
 			}
 		}
 		Button {
 			text: qsTr("Mark as read")
 			action: Action {
-				onTriggered: chapterListView.selection.forEach(function (i){console.log("Chapter", i, "marked as read")})
+				onTriggered: console.log(chapterListView.selection.selectedIndexes())	//Need a conversion
+				//onTriggered: chapterListView.selection.forEach(function (i){console.log("Chapter", i, "marked as read")})
 			}
 		}
 		Button {
 			text: qsTr("Mark as unread")
 			action: Action {
-				onTriggered: chapterListView.selection.forEach(function (i){console.log("Chapter", i, "marked as unread")})
+				onTriggered: console.log(chapterListView.selection.selectedIndexes())
+				//onTriggered: chapterListView.selection.forEach(function (i){console.log("Chapter", i, "marked as unread")})
 			}
 		}
 		
 	}
 	
-	ColumnLayout {
-		Layout.fillWidth: true
-		
-		ChapterListView { id: chapterListView }
-	}
-} 
+	ChapterListView { id: chapterListView }
+}
 

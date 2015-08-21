@@ -5,14 +5,13 @@ import QtQml.Models 2.2
 import "../utils.js" as U
 
 TreeView {
-	Layout.fillHeight: true
-	Layout.fillWidth: true
 	id: tree
 	implicitWidth: 500
 	model: chapterModel
-	/*selection: ItemSelectionModel {
-		model: chapterModel
-	}//*/
+	selection: ItemSelectionModel {
+		model: tree.model
+	}
+	selectionMode: SelectionMode.ExtendedSelection
 	itemDelegate: Item {  
 		Label {  
 			anchors.verticalCenter: parent.verticalCenter
@@ -20,7 +19,7 @@ TreeView {
 			color: model ? model.foreground : styleData.textColor
 			elide: styleData.elideMode
 		}  
-	}  
+	}
 	
 	TableViewColumn {
 		role: "display"
