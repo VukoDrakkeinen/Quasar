@@ -57,6 +57,11 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 }
 
 func NewFetcher(settings *GlobalSettings, notifyViewFunc func(work func()), plugins ...FetcherPlugin) *fetcher {
+	if notifyViewFunc == nil {
+		notifyViewFunc = func(work func()) {
+			work()
+		}
+	}
 	fet := &fetcher{
 		plugins: make(map[FetcherPluginName]FetcherPlugin),
 		webClient: &http.Client{

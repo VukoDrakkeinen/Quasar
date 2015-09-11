@@ -68,6 +68,11 @@ var (
 )
 
 func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) ComicList {
+	if notifyViewFunc == nil {
+		notifyViewFunc = func(a ViewNotificationType, b, c int, work func()) {
+			work()
+		}
+	}
 	list := ComicList{
 		comics:     make([]*Comic, 0, 10),
 		metadata:   make([]comicMetadata, 0, 10),

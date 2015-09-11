@@ -8,6 +8,11 @@ import (
 )
 
 func NewCoreConnector(list *core.ComicList, notifyViewsFunc func(row int, selections [][2]int, work func())) *coreConnector {
+	if notifyViewsFunc == nil {
+		notifyViewsFunc = func(a int, b [][2]int, work func()) {
+			work()
+		}
+	}
 	return &coreConnector{
 		list:        list,
 		notifyViews: notifyViewsFunc,

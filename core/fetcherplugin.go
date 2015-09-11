@@ -41,7 +41,7 @@ func titleFromIdentity(identity ChapterIdentity) string {
 
 func (this *FetcherPluginName) Scan(src interface{}) error {
 	switch s := src.(type) {
-	case string: //yeah, can't do "case string, []byte" for some reason. o_O Google fix pls
+	case string: //yeah, can't do "case string, []byte", can't fallthrough for some reason. o_O Google fix pls
 		*this = FetcherPluginName(s)
 		return nil
 	case []byte:
