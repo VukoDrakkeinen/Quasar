@@ -241,7 +241,12 @@ func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIde
 	}
 	firstRegion := bakaUpdates_rChaptersRegion.Find(region)
 	pageCountString := string(bakaUpdates_rChpListPageCount.Find(firstRegion))
-	pageCount, _ := strconv.ParseUint(pageCountString, 10, 32)
+	var pageCount uint64
+	if pageCountString != "" {
+		pageCount, _ = strconv.ParseUint(pageCountString, 10, 32)
+	} else {
+		pageCount = 1
+	}
 	regionsSlice := make([][]byte, pageCount)
 	regionsSlice[0] = firstRegion
 	var wg sync.WaitGroup

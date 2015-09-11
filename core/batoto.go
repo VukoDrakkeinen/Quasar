@@ -36,7 +36,7 @@ var (
 
 	batoto_rChaptersRegion   = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
 	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")https?://bato.to/read/_/[^"]+(?=" title)`)
-	batoto_rIdentityAndTitle = qregexp.MustCompile(`/> ([^ ]* *[^ ]+)(?: Read Online|: ([^<]+))`)
+	batoto_rIdentityAndTitle = qregexp.MustCompile(`/> ([^ ]* *[^ ]+(?: [^ ]+)?)(?: Read Online|: ([^<]+))`)
 	batoto_rScanlator        = qregexp.MustCompile(`(?<=bato.to/group/_/[^"]+">)[^<]+`)
 	batoto_rLang             = qregexp.MustCompile(`(?<=<div title=")[^"]+`)
 
@@ -246,9 +246,15 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 		url := string(batoto_rChapterURL.Find(chapterInfo))
 
 		identityAndTitle := batoto_rIdentityAndTitle.FindSubmatch(chapterInfo)
+		if identityAndTitle == nil {
+			qlog.Logf(qlog.Error, `Failed to extract identity and title for comic %s\n`, comic.Info().Title)
+			qlog.Logf(qlog.Error, "\n%s\n", string(chapterInfo))
+			continue
+		}
 		identity, err := parseBatotoIdentity(string(identityAndTitle[1]))
 		if err != nil {
 			qlog.Log(qlog.Error, `Identity parsing for comic "`+comic.Info().Title+`" (Batoto i:`+strconv.FormatInt(int64(i), 10)+`) failed. Err:`, err)
+			continue
 		}
 		missingVolumes = missingVolumes || identity.Volume == 0
 		title := html.UnescapeString(string(identityAndTitle[2]))
