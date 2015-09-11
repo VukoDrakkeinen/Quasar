@@ -2,6 +2,8 @@
 
 #include <QBrush>
 #include <QLocale>
+#include <QApplication>
+#include <QPalette>
 #include <QDebug>
 
 ChapterModel::ChapterModel(void* goComicList): NotifiableModel(goComicList), comicIdx(-1) {}
@@ -17,7 +19,7 @@ int ChapterModel::rowCount(const QModelIndex& parent) const
 		return 0;
 	}
 
-	auto comic = go_ComicList_GetComic(this->goComicList, comicIdx);
+	auto comic = go_ComicList_GetComic(this->goComicList, comicIdx);    //TODO: cache for as long comicId doesn't change
 	
 	if (!parent.isValid()) {
 		return go_Comic_ChaptersCount(comic);
@@ -83,7 +85,8 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
 			if (!readStatus) {
 				return QBrush(QColor("green"));
 			}
-			return QBrush(QColor());
+			return QApplication::palette().text();
+			//return QBrush(QColor());
 		}
 		break;
 
@@ -242,6 +245,11 @@ Qt::ItemFlags ChapterModel::flags(const QModelIndex& index) const {
 	return flags;
 }
 
+int ChapterModel::ccomicIdx() const
+{
+	return this->comicIdx;
+}
+
 void ChapterModel::setComicIdx(int comicIdx) {
 	this->beginResetModel();
     this->comicIdx = comicIdx;
@@ -260,7 +268,7 @@ QHash<int, QByteArray> ChapterModel::roleNames() const
 	return roles;
 }
 
-QVariant ChapterModel::qmlGet(int row, int column, const QString& roleName)
+QVariant ChapterModel::qmlGet(int row, int column, const QString& roleName) const
 {
 	auto role = this->roleNames().key(roleName.toLatin1(), -1);
 	return this->data(this->createIndex(row, column), role);

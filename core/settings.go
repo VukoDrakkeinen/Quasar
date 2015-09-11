@@ -70,6 +70,8 @@ type GlobalSettings struct {
 	Plugins               map[FetcherPluginName]PluginEnabled
 	Languages             map[LangName]LanguageEnabled //TODO: languages validation
 	//TODO: default plugin priority?
+	//TODO: color scheme
+	//TODO: user-agent
 }
 
 func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?

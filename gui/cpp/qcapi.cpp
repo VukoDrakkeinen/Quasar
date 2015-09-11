@@ -4,6 +4,7 @@
 #include "infomodel.h"
 #include "chaptermodel.h"
 #include "progressbar.h"
+#include "modellistconverter.h"
 #include <QModelIndex>
 #include <QList>
 #include <cstdlib>
@@ -208,6 +209,7 @@ void* copyRawGoData(void* data, int size) {
 void registerQMLTypes() {
 	auto enumText = QString("Uncreatable enumeration provider");
 	qmlRegisterType<ProgressBar>("QuasarGUI", 1, 0, "SaneProgressBar");
+	qmlRegisterSingletonType<ModelListConverter>("QuasarGUI", 1, 0, "ModelListConverter", singleton_MLC_provider);
 	qmlRegisterUncreatableType<UpdateStatus>("QuasarGUI", 1, 0, "UpdateStatus", enumText);
 	qmlRegisterUncreatableType<ComicType>("QuasarGUI", 1, 0, "ComicType", enumText);
 	qmlRegisterUncreatableType<ComicStatus>("QuasarGUI", 1, 0, "ComicStatus", enumText);
@@ -241,4 +243,8 @@ void notifyModelResetStart(NotifiableModel_* model) {
 
 void notifyModelResetEnd(NotifiableModel_* model) {
 	reinterpret_cast<NotifiableModel*>(model)->emitEndReset();
+}
+
+void notifyModelDataChanged(NotifiableModel_* model, int row, int count, int column) {
+	reinterpret_cast<NotifiableModel*>(model)->emitDataChanged(row, count, column);
 }

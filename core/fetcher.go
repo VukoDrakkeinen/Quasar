@@ -264,7 +264,7 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 						prevVol = correctiveSlice.identities[i].Volume
 					}
 				}
-				comic.AddMultipleChapters(identities, chapters)
+				comic.AddMultipleChapters(identities, chapters, false)
 			}(source.PluginName)
 		}
 		wg.Wait()
@@ -272,7 +272,7 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 }
 
 func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
-	var offender FetcherPluginName
+	var offender FetcherPluginName //TODO: notify view
 	defer func() {
 		if err := recover(); err != nil {
 			this.pluginPanicked(offender, err)

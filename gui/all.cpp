@@ -13,3 +13,6 @@
 
 #include "cpp/progressbar.cpp"
 #include "cpp/moc_progressbar.cpp"
+
+#include "cpp/modellistconverter.cpp"
+#include "cpp/moc_modellistconverter.cpp"

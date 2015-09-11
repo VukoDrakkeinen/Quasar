@@ -22,6 +22,7 @@ void notifyModelRemoveStart(NotifiableModel_* model, int row, int count);
 void notifyModelRemoveEnd(NotifiableModel_* model);
 void notifyModelResetStart(NotifiableModel_* model);
 void notifyModelResetEnd(NotifiableModel_* model);
+void notifyModelDataChanged(NotifiableModel_* model, int row, int count, int column);
 
 void* go_Offsets_ComicInfo;
 void* go_Offsets_Scanlation;

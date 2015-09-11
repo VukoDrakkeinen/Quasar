@@ -15,6 +15,7 @@ class NotifiableModel : public QAbstractTableModel
 		void emitEndRemove();
 		void emitBeginReset();
         void emitEndReset();
+        void emitDataChanged(int row, int count, int column = -1);
 	protected:
     	void* goComicList;
 };

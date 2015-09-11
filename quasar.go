@@ -134,11 +134,20 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 		os.Exit(1)
 	}
 
+	qlog.Log(qlog.Info, "Creating Core Connector")
+	coreConnector := gui.NewCoreConnector(&list, func(row int, selections [][2]int, work func()) {
+		work()
+		for _, sel := range selections {
+			gui.NotifyViewUpdated(chapterModel, sel[0], sel[1], -1) //[0] = row, [1] = count
+		}
+		gui.NotifyViewUpdated(updateModel, row, 1, -1)
+	})
+
 	qlog.Log(qlog.Info, "Setting QML variables")
 	context.SetVar("updateModel", qml.CommonOf(updateModel.InternalPtr(), engine))
 	context.SetVar("infoModel", qml.CommonOf(infoModel.InternalPtr(), engine))
 	context.SetVar("chapterModel", qml.CommonOf(chapterModel.InternalPtr(), engine))
-	context.SetVar("quasarCore", gui.NewCoreConnector(&list))
+	context.SetVar("quasarCore", coreConnector)
 
 	qlog.Log(qlog.Info, "Launching GUI")
 	control, err := engine.LoadFile("qml/main.qml") //TODO: load from resources

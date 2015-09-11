@@ -21,6 +21,28 @@ int UpdateInfoModel::columnCount(const QModelIndex& parent) const
 
 QVariant UpdateInfoModel::data(const QModelIndex& index, int role) const
 {
+	static auto formatTime = [](const QDateTime& updated) -> auto {
+		auto date = updated.date();
+        auto time = updated.time();
+        auto currentDate = QDate::currentDate();
+
+        if (date == currentDate)
+        {
+            return tr("Today") + " \t" + time.toString(Qt::SystemLocaleShortDate);
+        }
+        else if (date == currentDate.addDays(-1))
+        {
+            return tr("Yesterday") + " \t" + time.toString(Qt::SystemLocaleShortDate);
+        } else if (date >= currentDate.addDays(-7)) {
+            return date.toString("dddd") + " \t" + time.toString(Qt::SystemLocaleShortDate);
+        }
+        return date.toString(Qt::SystemLocaleShortDate) + " \t" + time.toString(Qt::SystemLocaleShortDate);
+	};
+
+	static auto formatRead = [](int chapTotal, int chapRead) -> auto {
+		return QString("%1 (%2%)").arg(chapRead).arg(chapRead ? int(float(chapRead*100/chapTotal)) : 0);
+	};
+
 	if (!index.isValid()) return QVariant();
 
 	UpdateInfoRow updateInfo;
@@ -73,42 +95,23 @@ QVariant UpdateInfoModel::data(const QModelIndex& index, int role) const
 					break;
 
 				case 2:
-					return QString("%1 (%2%)").arg(updateInfo.chapRead).arg(updateInfo.chapRead ? (int)((float) updateInfo.chapRead*100/updateInfo.chapTotal) : 0);
+					return formatRead(updateInfo.chapTotal, updateInfo.chapRead);
 					break;
 
 				case 3:
 				{
-					auto dateTime = updateInfo.updated;
-					auto date = dateTime.date();
-					auto time = dateTime.time();
-					auto currentDate = QDate::currentDate();
-
-					if (date == currentDate)
-					{
-						return tr("Today") + " \t" + time.toString(Qt::SystemLocaleShortDate);
-					}
-					else if (date == currentDate.addDays(-1))
-					{
-						return tr("Yesterday") + " \t" + time.toString(Qt::SystemLocaleShortDate);
-					} else if (date >= currentDate.addDays(-7)) {
-						return date.toString("dddd") + " \t" + time.toString(Qt::SystemLocaleShortDate);
-					}
-					return date.toString(Qt::SystemLocaleShortDate) + " \t" + time.toString(Qt::SystemLocaleShortDate);
+					return formatTime(updateInfo.updated);
 				}
 				break;
 			}
 			break;
 
 		case UpdateInfoModel::CellTypeRole:
-			if (index.column() == 4)
-			{
+			if (index.column() == 4) {
 				return QVariant::fromValue(CellType::ProgressBar);
-			}
-			else
-			{
+			} else {
 				return QVariant::fromValue(CellType::Normal);
 			}
-
 			break;
 
 		case UpdateInfoModel::ProgressRole:
@@ -117,6 +120,22 @@ QVariant UpdateInfoModel::data(const QModelIndex& index, int role) const
 
 		case UpdateInfoModel::StatusRole:
 			return QVariant::fromValue(updateInfo.status);
+			break;
+			
+		case UpdateInfoModel::TitleRole:
+			return updateInfo.comicTitle;
+			break;
+			
+		case UpdateInfoModel::ChaptersRole:
+		  	return updateInfo.chapTotal;
+			break;
+			
+		case UpdateInfoModel::ReadRole:
+			return formatRead(updateInfo.chapTotal, updateInfo.chapRead);
+			break;
+						
+		case UpdateInfoModel::TimeRole:
+			return formatTime(updateInfo.updated);
 			break;
 	}
 
@@ -174,6 +193,10 @@ QHash<int, QByteArray> UpdateInfoModel::roleNames() const
 	roles[UpdateInfoModel::CellTypeRole] = "cellType";
 	roles[UpdateInfoModel::ProgressRole] = "progress";
 	roles[UpdateInfoModel::StatusRole] = "status";
+	roles[UpdateInfoModel::TitleRole] = "title";
+	roles[UpdateInfoModel::ChaptersRole] = "chapters";
+	roles[UpdateInfoModel::ReadRole] = "read";
+	roles[UpdateInfoModel::TimeRole] = "time";
 	return roles;
 }
 

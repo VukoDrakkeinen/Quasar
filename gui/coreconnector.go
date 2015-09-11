@@ -4,16 +4,19 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"gopkg.in/qml.v1"
 	"reflect"
+	"sort"
 )
 
-func NewCoreConnector(list *core.ComicList) *coreConnector {
+func NewCoreConnector(list *core.ComicList, notifyViewsFunc func(row int, selections [][2]int, work func())) *coreConnector {
 	return &coreConnector{
-		list: list,
+		list:        list,
+		notifyViews: notifyViewsFunc,
 	}
 }
 
 type coreConnector struct {
-	list *core.ComicList
+	list        *core.ComicList
+	notifyViews func(row int, selections [][2]int, work func())
 }
 
 func (this *coreConnector) PluginNames() (names []core.FetcherPluginName, humanReadableNames []string) {
@@ -159,4 +162,56 @@ func (this *coreConnector) UpdateComics(comicIndices *qml.List) {
 	for _, i := range ids {
 		go this.list.UpdateComic(i)
 	}
+}
+
+func (this *coreConnector) MarkAsRead(comicIdx int, chapterIndicesList *qml.List, read bool) {
+	comic := this.list.GetComic(comicIdx)
+	var chapterIndices []int
+	chapterIndicesList.Convert(&chapterIndices)
+	sort.Ints(chapterIndices)
+	chapters := make([]core.Chapter, 0, len(chapterIndices))
+	identities := make(core.ChapterIdentitiesSlice, 0, len(chapterIndices)) //TODO: will be quite slow
+	last := -2
+	selections := make([][2]int, 0, len(chapterIndices))
+	for _, i := range chapterIndices { //consider modifying in-place (pointers!)
+		if i == last {
+			continue
+		} else if i != last+1 {
+			selections = append(selections, [2]int{i, 1}) //add row, count 1
+		} else {
+			selections[len(selections)-1][1]++ //increment count
+		}
+		chapter, id := comic.GetChapter(i)
+		chapter.AlreadyRead = read
+		chapter.SetParent(nil) //FIXME: hack - avoid a code path that will deadlock
+		chapters = append(chapters, chapter)
+		identities = append(identities, id)
+		last = i
+	}
+	this.notifyViews(comicIdx, selections, func() {
+		comic.AddMultipleChapters(identities, chapters, true)
+	})
+}
+
+func (this *coreConnector) DownloadPages(comicIdx int, chapterIndicesList, scanlationIndicesList *qml.List) {
+	comic := this.list.GetComic(comicIdx)
+	var chapterIndices, scanlationIndices []int
+	chapterIndicesList.Convert(&chapterIndices)
+	scanlationIndicesList.Convert(&scanlationIndices)
+	for i := range chapterIndices {
+		go this.list.Fetcher().DownloadPageLinksFor(comic, chapterIndices[i], scanlationIndices[i])
+		//TODO: don't download needlessly
+	}
+	//TODO: save to files
+	//TODO: show progress
+}
+
+func (this *coreConnector) GetQueuedChapter(comicIdx int) (chapterIdx int) {
+	comic := this.list.GetComic(comicIdx)
+	return comic.QueuedChapter()
+}
+
+func (this *coreConnector) GetLastReadChapter(comicIdx int) (chapterIdx int) {
+	comic := this.list.GetComic(comicIdx)
+	return comic.LastReadChapter()
 }

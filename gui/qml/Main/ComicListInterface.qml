@@ -1,7 +1,6 @@
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
-import "../utils.js" as U
 
 SplitView {	
 	id: root
@@ -14,6 +13,10 @@ SplitView {
 			action: Action {
 				onTriggered: addComic.resetAndShow()
 			}
+		}
+		Button {
+			text: qsTr("Quick add")
+			enabled: false
 		}
 		Button {
 			text: qsTr("Remove comic")
@@ -29,6 +32,10 @@ SplitView {
 				}
 			}
 			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})
+		}
+		Button {
+			text: qsTr("Search")
+			enabled: false
 		}
 		Button {
 			text: qsTr("Select all")

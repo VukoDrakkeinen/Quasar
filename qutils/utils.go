@@ -17,9 +17,7 @@ func Vals(args ...interface{}) []interface{} {
 }
 
 func Contains(list interface{}, elem interface{}) bool {
-	if reflect.TypeOf(list) != reflect.SliceOf(reflect.TypeOf(elem)) {
-		panic("Contains: types do not match!")
-	}
+	indexableTypeAssert(list, elem, "Contains")
 	slice := reflect.ValueOf(list)
 	sliceLen := slice.Len()
 	for i := 0; i < sliceLen; i++ {
@@ -31,9 +29,7 @@ func Contains(list interface{}, elem interface{}) bool {
 }
 
 func IndexOf(list interface{}, elem interface{}) (int, error) {
-	if reflect.TypeOf(list) != reflect.SliceOf(reflect.TypeOf(elem)) {
-		panic("IndexOf: types do not match!")
-	}
+	indexableTypeAssert(list, elem, "IndexOf")
 	slice := reflect.ValueOf(list)
 	sliceLen := slice.Len()
 	for i := 0; i < sliceLen; i++ {
@@ -42,6 +38,18 @@ func IndexOf(list interface{}, elem interface{}) (int, error) {
 		}
 	}
 	return -1, errors.New("IndexOf: element not found")
+}
+
+func indexableTypeAssert(list interface{}, elem interface{}, funcName string) {
+	listType := reflect.TypeOf(list)
+	switch listType.Kind() {
+	case reflect.Array, reflect.Slice: //continue
+	default:
+		panic(funcName + ": list type is not indexable!")
+	}
+	if listType.Elem().Kind() != reflect.TypeOf(elem).Kind() {
+		panic(funcName + ": types do not match!")
+	}
 }
 
 func SetAppend(list interface{}, elems ...interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged

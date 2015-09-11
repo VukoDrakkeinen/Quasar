@@ -19,6 +19,7 @@ const (
 	Insert ViewNotificationType = iota
 	Remove
 	Reset
+	Update
 )
 
 var (
@@ -192,7 +193,7 @@ func (this ComicList) UpdateComic(comicId int) {
 func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 	now := time.Now().UTC()
 	canUpdate := true
-	this.notifyView(Reset, -1, -1, func() {
+	this.notifyView(Update, comicIdx, 1, func() {
 		canUpdate = atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)),
 			uint32(ComicNotUpdating), uint32(ComicUpdating),
 		)
@@ -207,7 +208,7 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 		this.lock.Unlock()
 	}
 
-	this.notifyView(Reset, -1, -1, func() {
+	this.notifyView(Update, comicIdx, 1, func() {
 		comic := this.GetComic(comicIdx)
 		freq := this.comicUpdateFrequency(comicIdx)
 

@@ -47,7 +47,11 @@ class UpdateInfoModel : public NotifiableModel
 		enum DataRole {
 			CellTypeRole = Qt::UserRole,
 			ProgressRole,
-			StatusRole
+			StatusRole,
+			TitleRole,
+			ChaptersRole,
+			ReadRole,
+			TimeRole
 		};
 		enum class CellType {
 			Normal,

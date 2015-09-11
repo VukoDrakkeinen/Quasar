@@ -11,15 +11,27 @@ import (
 )
 
 func NewComicInfoModel(list *core.ComicList) qtProxyModel {
-	return qtProxyModel{ptr: C.newInfoModel(unsafe.Pointer(list))}
+	var ptr unsafe.Pointer
+	qml.RunMain(func() { //create in GUI thread
+		ptr = C.newInfoModel(unsafe.Pointer(list))
+	})
+	return qtProxyModel{ptr: ptr}
 }
 
 func NewComicUpdateModel(list *core.ComicList) qtProxyModel {
-	return qtProxyModel{ptr: C.newUpdateModel(unsafe.Pointer(list))}
+	var ptr unsafe.Pointer
+	qml.RunMain(func() {
+		ptr = C.newUpdateModel(unsafe.Pointer(list))
+	})
+	return qtProxyModel{ptr: ptr}
 }
 
 func NewComicChapterModel(list *core.ComicList) qtProxyModel {
-	return qtProxyModel{ptr: C.newChapterModel(unsafe.Pointer(list))}
+	var ptr unsafe.Pointer
+	qml.RunMain(func() {
+		ptr = C.newChapterModel(unsafe.Pointer(list))
+	})
+	return qtProxyModel{ptr: ptr}
 }
 
 func ModelSetGoData(model qtProxyModel, list *core.ComicList) {
@@ -78,6 +90,14 @@ func NotifyViewResetEnd(model qtProxyModel) {
 	})
 }
 
+func NotifyViewUpdated(model qtProxyModel, row, count, column int) {
+	model.lock.Lock()
+	defer model.lock.Unlock()
+	qml.RunMain(func() {
+		C.notifyModelDataChanged(model.ptr, C.int(row), C.int(count), C.int(column))
+	})
+}
+
 type qtProxyModel struct {
 	ptr  unsafe.Pointer
 	lock sync.Mutex
@@ -87,7 +107,7 @@ func (this *qtProxyModel) InternalPtr() unsafe.Pointer {
 	return this.ptr
 }
 
-//work() function is provided by the model and must be executed between notification calls
+//work() function is provided by the model and must be executed in-between notification calls
 type NotifyViewFunc func(ntype core.ViewNotificationType, row, count int, work func())
 
 type defaultNotifyViewFunc func(model qtProxyModel, ntype core.ViewNotificationType, row, count int, work func())
@@ -113,6 +133,9 @@ func DefaultNotifyFunc() defaultNotifyViewFunc {
 				defer NotifyViewResetEnd(model)
 				work()
 			}()
+		case core.Update:
+			work()
+			NotifyViewUpdated(model, row, count, -1)
 		}
 	}
 }

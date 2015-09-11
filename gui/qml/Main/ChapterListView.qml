@@ -2,7 +2,6 @@ import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
 import QtQml.Models 2.2
-import "../utils.js" as U
 
 TreeView {
 	id: tree
@@ -50,5 +49,4 @@ TreeView {
 		title: "Plugin"
 		width: 100
 	}
-	
 } 

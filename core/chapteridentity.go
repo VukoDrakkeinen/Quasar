@@ -62,6 +62,11 @@ func (this *ChapterIdentity) Scan(src interface{}) error {
 	return nil
 }
 
+func ChapterIdentityFromInt64(n int64) (ci ChapterIdentity) {
+	ci.Scan(n)
+	return
+}
+
 type ChapterIdentitiesSlice []ChapterIdentity
 
 func (this ChapterIdentitiesSlice) Len() int {
@@ -97,9 +102,4 @@ func (this ChapterIdentitiesSlice) InsertMultiple(at int, cis []ChapterIdentity)
 		copy(this[at:], cis)
 		return this
 	}
-}
-
-func ChapterIdentityFromInt64(n int64) (ci ChapterIdentity) {
-	ci.Scan(n)
-	return
 }

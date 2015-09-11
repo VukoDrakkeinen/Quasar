@@ -3,9 +3,15 @@ import QtQuick.Layouts 1.2
 import QtQuick.Controls 1.4
 
 Rectangle {
+	id: root
 	width: 600
 	height: 400
 	color: colorOf.window
+	
+	property int comicId: -1
+	property int chapterId: 0
+	property int scanlationId: 0
+	
 	SystemPalette { id: colorOf }
 	
 	RowLayout {
@@ -57,13 +63,19 @@ Rectangle {
 		}
 		
 		Item {
+			Text {
+				anchors.centerIn: parent
+				font.pointSize: 30
+				color: Qt.rgba(1, 0, 0, 1)
+				text: "Comic " + root.comicId + ", chapter " + root.chapterId + "[" + root.scanlationId + "]"
+			}
 			Layout.fillWidth: true
 			Layout.fillHeight: true
-			Image {
+			/*Image {
 				anchors.centerIn: parent
 				scale: 5
 				source: "placeholder.png"
-			}
+			}*/
 		}
 	}
 }

@@ -81,6 +81,8 @@ Window {
 				}
 			}
 		}
+		
+		//TODO: scanlators priority
 
         OptionsBottomButtons {
 			onCancel: root.hide()

@@ -5,6 +5,10 @@ import QtQuick.Layouts 1.2
 SplitView {
 	orientation: Qt.Horizontal
 	
+	property alias comicId: view.comicId
+	property alias chapterId: view.chapterId
+	property alias scanlationId: view.scanlationId
+	
 	ControlButtons {
 		Button {
 			text: qsTr("Back")
@@ -17,7 +21,9 @@ SplitView {
 	ColumnLayout {
 		Layout.fillWidth: true
 		
-		ComicView {}
+		ComicView {
+			id: view
+		}
 	}
 } 
 

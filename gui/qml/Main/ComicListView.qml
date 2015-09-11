@@ -1,7 +1,6 @@
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
-import "../utils.js" as U
 import QuasarGUI 1.0
 
 TableView {
@@ -18,38 +17,43 @@ TableView {
 			Label {
 				anchors.fill: parent
 				anchors.leftMargin: 4
-				text: styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "display") : ""
-				color: styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "foreground") : Qt.rgba(0, 0, 0, 1)
+				text: styleData.value
+				color: model ? model.foreground : styleData.textColor
 				elide: styleData.row != -1 ? styleData.elideMode : Text.ElideNone
 			}
 		}
 	}
 
 	TableViewColumn {
+		role: "title"
 		title: "Title"
 		width: 200
 		delegate: infoDelegate
 	}
 	
 	TableViewColumn {
+		role: "chapters"
 		title: "Chapters"
 		width: 70
 		delegate: infoDelegate
 	}
 	
 	TableViewColumn {
+		role: "read"
 		title: "Read"
 		width: 90
 		delegate: infoDelegate
 	}
 	
 	TableViewColumn {
+		role: "time"
 		title: "Last Checked"
 		width: 140
 		delegate: infoDelegate
 	}
 	
 	TableViewColumn {
+		role: "status"
 		title: "Status"
 		width: 200
 		delegate: Item {
@@ -57,7 +61,7 @@ TableView {
 				id: spb
 				anchors.fill: parent
 				visible: false
-				value: styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "progress") : 0
+				value: model ? model.progress : 0
 			}
 			
 			Label {
@@ -66,22 +70,22 @@ TableView {
 				anchors.verticalCenter: parent.verticalCenter
 				anchors.margins: 4
 				text: {
-					var status = styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "status") : UpdateStatus.Error
+					var status = styleData.value
 					spb.visible = false
-					if (status == UpdateStatus.NoUpdates) {	return qsTr("No Updates") }
-					if (status == UpdateStatus.Updating) {
-						spb.indeterminate = true //temporary?
-						spb.visible = true
-						return qsTr("Updating...")
+					switch (status|0) {
+						case UpdateStatus.NoUpdates: return qsTr("No Updates")
+						case UpdateStatus.Updating: 
+							spb.indeterminate = true //temporary?
+							spb.visible = true
+							return qsTr("Updating...")
+						case UpdateStatus.NewChapters: return qsTr("New Chapters")
+						case UpdateStatus.Error: return qsTr("ERROR")
+						default: return "???"
 					}
-					if (status == UpdateStatus.NewChapters) { return qsTr("New Chapters!") }
-					if (status == UpdateStatus.Error) { return qsTr("ERROR") }
-					return "???"
 				}
-				color: styleData.row != -1 ? table.model.qmlGet(styleData.row, styleData.column, "foreground") : Qt.rgba(0, 0, 0, 1)
+				color: model ? model.foreground : styleData.textColor
 				elide: Text.ElideRight
 			}
 		}
-	}
-	
+	}	
 }

@@ -49,8 +49,7 @@ ApplicationWindow {
 	StackView {
 		id: stos
 		anchors.fill: parent
-		ReadingInterface { id: readInterface; visible: false }
-		ChapterListInterface{ id: chapterInterface; visible: false  }
+		ChapterListInterface{ id: chapterInterface; visible: false; comicId: comicInterface.comicId  }
 		ComicListInterface{ id: comicInterface; visible: false }
 		initialItem: comicInterface
 	}

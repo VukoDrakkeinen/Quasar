@@ -24,7 +24,7 @@ struct CachedScanlationRow {
 class ChapterModel : public NotifiableModel
 {
 		Q_OBJECT
-
+		Q_PROPERTY(int comicId READ ccomicIdx WRITE setComicIdx NOTIFY comicIdxChanged)
 	public:
 		ChapterModel(void* goComicList);
 		virtual ~ChapterModel();
@@ -39,8 +39,11 @@ class ChapterModel : public NotifiableModel
 		QHash<int, QByteArray> roleNames() const;
 		Qt::ItemFlags flags(const QModelIndex& index) const;
 	public:
+		Q_INVOKABLE int ccomicIdx() const;
 		Q_INVOKABLE void setComicIdx(int comicIdx);
-		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
+		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName) const;
+	signals:
+		void comicIdxChanged(int comicId);
 	private:
 		mutable RowCache<CachedScanlationRow, 8, 2> cache;
 		int comicIdx;

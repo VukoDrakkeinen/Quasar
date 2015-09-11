@@ -97,6 +97,10 @@ type Comic struct {
 	sources           []UpdateSource                    //also pluginPriority
 	chaptersOrder     ChapterIdentitiesSlice
 	chapters          map[ChapterIdentity]Chapter
+	lastReadChapter   struct {
+		identity ChapterIdentity
+		valid    bool
+	}
 	scanlatorPriority []JointScanlatorIds
 	cachedReadCount   int
 
@@ -194,6 +198,10 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 	defer this.lock.Unlock()
 	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
+	if chapter.AlreadyRead && this.lastReadChapter.identity.LessEq(identity) {
+		this.lastReadChapter.identity = identity
+		this.lastReadChapter.valid = true
+	}
 	if merged {
 		existingChapter.MergeWith(chapter)
 		this.chapters[identity] = existingChapter //reinsert //TODO?: use pointers instead?
@@ -208,7 +216,11 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 	return
 }
 
-func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter) {
+func (this *Comic) SetChaptersRead(indices []int, read bool) {
+
+}
+
+func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter, overwriteRead bool) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 	if len(identities) != len(chapters) {
@@ -223,6 +235,10 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		chapter := chapters[i]
 		existingChapter, exists := this.chapters[identity]
 		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
+		if chapter.AlreadyRead && this.lastReadChapter.identity.LessEq(identity) {
+			this.lastReadChapter.identity = identity
+			this.lastReadChapter.valid = true
+		}
 		if exists {
 			existingRead := existingChapter.AlreadyRead
 			existingChapter.MergeWith(&chapter)
@@ -230,9 +246,14 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 				nonexistentSlices = append(nonexistentSlices, identities[startIndex:i])
 				newStart = false
 			}
+			if overwriteRead {
+				existingChapter.AlreadyRead = chapter.AlreadyRead
+			}
 			this.chapters[identity] = existingChapter //reinsert //TODO?: use pointers instead?
 			if !existingRead && existingChapter.AlreadyRead {
 				this.cachedReadCount += 1
+			} else if existingRead && !existingChapter.AlreadyRead {
+				this.cachedReadCount -= 1
 			}
 		} else {
 			chapter.SetParent(this)
@@ -248,7 +269,6 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 	}
 	if newStart { //Sequence ended
 		nonexistentSlices = append(nonexistentSlices, identities[startIndex:])
-		newStart = false
 	}
 
 	for _, neSlice := range nonexistentSlices {
@@ -272,7 +292,7 @@ func (this *Comic) ScanlatorsPriority() []JointScanlatorIds {
 	return ret
 }
 
-func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) {
+func (this *Comic) SetScanlatorsPriority(priority []JointScanlatorIds) { //TODO: use this
 	this.lock.Lock()
 	defer this.lock.Unlock()
 	this.scanlatorPriority = priority
@@ -304,6 +324,31 @@ func (this *Comic) ChaptersReadCount() int {
 	defer this.lock.Unlock()
 	this.cachedReadCount = readCount
 	return readCount
+}
+
+func (this *Comic) LastReadChapter() int {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	idx, err := qutils.IndexOf(this.chaptersOrder, this.lastReadChapter.identity)
+	if err != nil {
+		return 0
+	}
+	return idx
+}
+
+func (this *Comic) QueuedChapter() int {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+	idx, err := qutils.IndexOf(this.chaptersOrder, this.lastReadChapter.identity)
+	if err != nil {
+		return 0
+	}
+	idx++
+	clen := len(this.chaptersOrder)
+	if idx < clen {
+		return idx
+	}
+	return clen - 1
 }
 
 func (this *Comic) UsesPlugin(pluginName FetcherPluginName) bool {
@@ -509,7 +554,7 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 		identities = append(identities, identity)
 		chapters = append(chapters, *chapter)
 	}
-	comic.AddMultipleChapters(identities, chapters)
+	comic.AddMultipleChapters(identities, chapters, false)
 
 	return comic, nil
 }
