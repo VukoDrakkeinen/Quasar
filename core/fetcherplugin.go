@@ -18,7 +18,7 @@ type FetcherPlugin interface { //TODO: shared implementation
 	SetSettings(new PerPluginSettings)
 	IsURLValid(url string) bool
 	findComicURL(title string) string
-	findComicURLList(title string) (links []string, titles []string)
+	findComicURLList(title string) (links []string, titles []string) //TODO: proper search func
 	fetchComicInfo(comic *Comic) *ComicInfo
 	fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
 	fetchChapterPageLinks(url string) []string
@@ -26,8 +26,8 @@ type FetcherPlugin interface { //TODO: shared implementation
 }
 
 type FetcherPluginCapabilities struct { //TODO: more detailed capabilities?
-	ProvidesInfo bool
-	ProvidesData bool
+	ProvidesMetadata bool
+	ProvidesData     bool
 }
 
 func titleFromIdentity(identity ChapterIdentity) string {

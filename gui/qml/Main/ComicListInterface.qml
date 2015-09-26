@@ -15,7 +15,7 @@ SplitView {
 			}
 		}
 		Button {
-			text: qsTr("Quick add")
+			text: qsTr("Quick add")	//TODO: flash on first run
 			enabled: false
 		}
 		Button {
