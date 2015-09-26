@@ -35,8 +35,10 @@ func (this correctiveSlice) Less(i, j int) bool {
 	if ident1.Volume != 0 && ident2.Volume != 0 {
 		return ident1.Less(ident2)
 	} else {
-		return ident1.MajorNum < ident2.MajorNum ||
-			(ident1.MajorNum == ident2.MajorNum && ident1.MinorNum < ident2.MinorNum)
+		return (ident1.MajorNum < ident2.MajorNum) ||
+			(ident1.MinorNum < ident2.MinorNum) ||
+			(ident1.Letter < ident2.Letter) ||
+			(ident1.Version < ident2.Version)
 	}
 }
 
@@ -257,19 +259,21 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 					}
 				}()
 
-				identities, chapters, missingVolumes := this.plugins[pluginName].fetchChapterList(comic)
-				if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
-					correctiveSlice := correctiveSlice{identities, chapters}
-					sort.Sort(correctiveSlice)
-					prevVol := byte(1)
-					for i := range correctiveSlice.identities {
-						if correctiveSlice.identities[i].Volume == 0 {
-							correctiveSlice.identities[i].Volume = prevVol
+				if plugin, success := this.plugins[pluginName]; success && plugin.Capabilities().ProvidesMetadata {
+					identities, chapters, missingVolumes := plugin.fetchChapterList(comic)
+					if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
+						correctiveSlice := correctiveSlice{identities, chapters}
+						sort.Sort(correctiveSlice)
+						prevVol := byte(1)
+						for i := range correctiveSlice.identities {
+							if correctiveSlice.identities[i].Volume == 0 {
+								correctiveSlice.identities[i].Volume = prevVol
+							}
+							prevVol = correctiveSlice.identities[i].Volume
 						}
-						prevVol = correctiveSlice.identities[i].Volume
 					}
+					comic.AddMultipleChapters(identities, chapters, false)
 				}
-				comic.AddMultipleChapters(identities, chapters, false)
 			}(source.PluginName)
 		}
 		wg.Wait()
@@ -315,4 +319,41 @@ func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
 
 func (this *fetcher) Settings() *GlobalSettings {
 	return this.settings
+}
+
+func (this *fetcher) FindComic(title string) []comicSearchResults {
+	var wg sync.WaitGroup
+	allResults := make(chan []comicSearchResults, 1)
+	allResults <- make([]comicSearchResults, 0, 2)
+	for name, plugin := range this.plugins {
+		wg.Add(1)
+		go func(pluginName FetcherPluginName, plugin FetcherPlugin) {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					this.pluginPanicked(pluginName, err)
+				}
+			}()
+
+			url := plugin.findComicURL(title) //TODO
+			if url == "" {
+				return
+			}
+
+			results := <-allResults
+			defer func() { allResults <- results }()
+			results = append(results, comicSearchResults{pluginName, title, "???", url}) //TODO
+		}(name, plugin)
+	}
+	wg.Wait()
+	return <-allResults
+}
+
+func (this *fetcher) FindComicAdvanced(title string) {} //TODO: more params
+
+type comicSearchResults struct {
+	PluginName FetcherPluginName
+	Title      string
+	Authors    string
+	URL        string
 }

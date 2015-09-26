@@ -14,27 +14,19 @@ type ChapterIdentity struct {
 }
 
 func (this ChapterIdentity) Equals(another ChapterIdentity) bool {
-	return this.Volume != another.Volume ||
-		this.MajorNum != another.MajorNum ||
-		this.MinorNum != another.MinorNum ||
-		this.Letter != another.Letter ||
-		this.Version != another.Version
+	return this.Volume == another.Volume &&
+		this.MajorNum == another.MajorNum &&
+		this.MinorNum == another.MinorNum &&
+		this.Letter == another.Letter &&
+		this.Version == another.Version
 }
 
 func (this ChapterIdentity) Less(another ChapterIdentity) bool {
-	return this.Volume < another.Volume ||
-		(this.Volume == another.Volume && this.MajorNum < another.MajorNum) ||
-		(this.Volume == another.Volume && this.MajorNum == another.MajorNum && this.MinorNum < another.MinorNum) ||
-		(this.Volume == another.Volume && this.MajorNum == another.MajorNum && this.MinorNum == another.MinorNum && this.Letter < another.Letter) ||
-		(this.Volume == another.Volume && this.MajorNum == another.MajorNum && this.MinorNum == another.MinorNum && this.Letter == another.Letter && this.Version < this.Version)
+	return this.n() < another.n()
 }
 
 func (this ChapterIdentity) More(another ChapterIdentity) bool {
-	return this.Volume > another.Volume ||
-		(this.Volume == another.Volume && this.MajorNum > another.MajorNum) ||
-		(this.Volume == another.Volume && this.MajorNum == another.MajorNum && this.MinorNum > another.MinorNum) ||
-		(this.Volume == another.Volume && this.MajorNum == another.MajorNum && this.MinorNum == another.MinorNum && this.Letter > another.Letter) ||
-		(this.Volume == another.Volume && this.MajorNum == another.MajorNum && this.MinorNum == another.MinorNum && this.Letter == another.Letter && this.Version > this.Version)
+	return this.n() > another.n()
 }
 
 func (this ChapterIdentity) LessEq(another ChapterIdentity) bool {
@@ -64,7 +56,7 @@ func (this *ChapterIdentity) Scan(src interface{}) error {
 
 func ChapterIdentityFromInt64(n int64) (ci ChapterIdentity) {
 	ci.Scan(n)
-	return
+	return ci
 }
 
 type ChapterIdentitiesSlice []ChapterIdentity
