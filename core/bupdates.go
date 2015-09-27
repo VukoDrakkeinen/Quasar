@@ -35,11 +35,6 @@ var (
 	bakaUpdates_rArtistsLine = qregexp.MustCompile(`(?<=<div class="sCat"><b>Artist\(s\)</b></div>\n<div class="sContent" >).*`)
 	bakaUpdates_rExtract     = qregexp.MustCompile(`(?<=<u>)[^<]+(?=</u>)`)
 
-	//bakaUpdates_rChaptersRegion   = qregexp.MustCompile(`(?s)<!-- Start:Center Content -->.*<!-- End:Center Content -->`)
-	//bakaUpdates_rChpListPageCount = qregexp.MustCompile(`(?<=nowrap>Pages \()\d+(?=\) <a href=)`)
-	//bakaUpdates_rChaptersInfoList = qregexp.MustCompile(`(?<=<tr >\r?\n)(?:\s+<td class='text pad.*</td>\r?\n){5}(?=\s+</tr>)`)
-	//bakaUpdates_rChpInfoPieceList = qregexp.MustCompile(`(?<=' ?>)([^<]*)(?=</(?:a|td)>)`)
-
 	bakaUpdates_rComicID = qregexp.MustCompile(`(?<=id=)\d+`) //TODO: UpdateSource holding additional plugin data?
 )
 
@@ -139,7 +134,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 		panic(err)
 	}
 	infoRegion := bakaUpdates_rInfoRegion.Find(contents)
-	title := string(bakaUpdates_rTitle.Find(infoRegion))
+	title := html.UnescapeString(string(bakaUpdates_rTitle.Find(infoRegion)))
 	description := html.UnescapeString(string(bakaUpdates_rRemoveHTML.ReplaceAll(
 		bytes.Replace(bakaUpdates_rDescription.Find(infoRegion), []byte("<BR>"), []byte("\n"), -1),
 		[]byte{},
@@ -228,89 +223,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 
 func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	_ = comic //unused
-	/*
-		source := comic.GetSource(this.name)
-		linkPrefix := "https://www.mangaupdates.com/releases.html?stype=series&perpage=100&search=" + bakaUpdates_rComicID.FindString(source.URL) + "&page="
-		region, err := this.fetcher().DownloadData(this.name, linkPrefix+"1", false)
-		if err != nil {
-			panic(err)
-		}
-		firstRegion := bakaUpdates_rChaptersRegion.Find(region)
-		pageCountString := string(bakaUpdates_rChpListPageCount.Find(firstRegion))
-		var pageCount uint64
-		if pageCountString != "" {
-			pageCount, _ = strconv.ParseUint(pageCountString, 10, 32)
-		} else {
-			pageCount = 1
-		}
-		regionsSlice := make([][]byte, pageCount)
-		regionsSlice[0] = firstRegion
-		var wg sync.WaitGroup
-		for i := 2; i <= int(pageCount); i++ {
-			i := i
-			wg.Add(1)
-			go func() {
-				region, err := this.fetcher().DownloadData(this.name, linkPrefix+strconv.FormatInt(int64(i), 10), false)
-				if err != nil {
-					panic(err)
-				}
-				regionsSlice[i-1] = bakaUpdates_rChaptersRegion.Find(region)
-				wg.Done()
-			}()
-		}
-		wg.Wait()
-		identities = make([]ChapterIdentity, 0, pageCount*100)
-		chapters = make([]Chapter, 0, pageCount*100)
-
-		prevIdentity := make(map[JointScanlatorIds]ChapterIdentity, 5)
-		for i := len(regionsSlice) - 1; i >= 0; i-- { //cannot use range, because we're iterating in reverse :(
-			chaptersInfos := bakaUpdates_rChaptersInfoList.FindAll(regionsSlice[i], -1)
-			for j := len(chaptersInfos) - 1; j >= 0; j-- { //Where is my revrange keyword, Google?
-				infoPieces := bakaUpdates_rChpInfoPieceList.FindAll(chaptersInfos[j], -1)
-				// [0] is date
-				// [1] is comic title (wut)
-				// [2] is volume number
-				// [3] is chapter number/s
-				// [4-?] is scanlators
-				volumeString := html.UnescapeString(string(infoPieces[2]))
-				missingVolumes = missingVolumes || volumeString == ""
-				numberString := html.UnescapeString(string(infoPieces[3]))
-				scanlatorNames := infoPieces[4:]
-				for i, scanlator := range scanlatorNames {
-					scanlatorNames[i] = []byte(html.UnescapeString(string(scanlator)))
-				}
-				scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
-				joint := JoinScanlators(scanlators)
-				newIdentities, irregular, _, _, err := parseBakaIdentities(volumeString, numberString, prevIdentity[joint])
-				if err != nil {
-					qlog.Logf(qlog.Error, "Parsing %s identity for comic \"%s\" failed: %v", this.HumanReadableName(), comic.Info().Title, err)
-					continue
-				}
-				prevIdentity[joint] = newIdentities[len(newIdentities)-1]
-				if irregular {
-					qlog.Logf(qlog.Warning, "Irregular %s identity \"%s | %s\" for comic \"%s\"; parsed as %v-%v",
-						this.HumanReadableName(), volumeString, numberString, comic.Info().Title,
-						newIdentities[0], newIdentities[len(newIdentities)-1],
-					)
-				}
-				for _, identity := range newIdentities {
-					chapter := NewChapter(source.MarkAsRead)
-					chapter.AddScanlation(ChapterScanlation{
-						Title:      titleFromIdentity(identity),
-						Language:   ENGLISH_LANG(),
-						Scanlators: JoinScanlators(scanlators),
-						PluginName: this.name,
-						URL:        "",
-						PageLinks:  make([]string, 0),
-					})
-
-					identities = append(identities, identity)
-					chapters = append(chapters, *chapter)
-				}
-			}
-		}
-	*/
-	return
+	return    //plugin doesn't provide metadata, return empty lists
 }
 
 func (this *bakaUpdates) fetchChapterPageLinks(url string) []string {
