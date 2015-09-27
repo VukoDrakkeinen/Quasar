@@ -4,6 +4,7 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"math"
 	"strings"
@@ -113,7 +114,14 @@ func (this *ComicList) AddComics(comics ...*Comic) {
 		defer this.lock.Unlock()
 		this.comics = append(this.comics, comics...)
 		mlen := len(this.metadata)
-		this.metadata = this.metadata[:mlen+len(comics)]
+		newLen := mlen + len(comics)
+		if cap(this.metadata) < newLen {
+			metadata := make([]comicMetadata, newLen, qutils.GrownCap(newLen))
+			copy(metadata, this.metadata)
+			this.metadata = metadata
+		} else {
+			this.metadata = this.metadata[:newLen]
+		}
 		for i := range this.metadata[mlen:] {
 			this.metadata[mlen+i].schedInterrupt = make(chan struct{})
 		}
@@ -339,19 +347,20 @@ func (this ComicList) SaveToDB() {
 	defer dbStmts.Close()
 	for i, comic := range this.comics {
 		transaction, _ := db.Begin()
-		stmts := dbStmts.ToTransactionSpecific(transaction)
 
-		err := comic.SQLInsert(stmts)
+		err := comic.SQLInsert(dbStmts.ToTransactionSpecific(transaction))
 		if err != nil { // no need to manually close statements, Commit() or Rollback() take care of that
 			qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
 			transaction.Rollback()
-		} else {
-			transaction.Commit()
-			_, err := scheduleInsertionStmt.Exec(comic.sqlId, this.metadata[i].nextFetchAt, this.metadata[i].updatedAt) //TODO: move to comic Tx
-			if err != nil {
-				qlog.Log(qlog.Error, qerr.NewLocated(err))
-			}
+			continue
 		}
+		_, err = transaction.Stmt(scheduleInsertionStmt).Exec(comic.sqlId, this.metadata[i].nextFetchAt, this.metadata[i].updatedAt)
+		if err != nil {
+			qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
+			transaction.Rollback()
+			continue
+		}
+		transaction.Commit()
 	}
 }
 
