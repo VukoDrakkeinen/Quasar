@@ -6,9 +6,11 @@ import (
 	"errors"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils/math"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	neturl "net/url"
 	"sort"
@@ -17,34 +19,48 @@ import (
 )
 
 type correctiveSlice struct {
-	identities []ChapterIdentity
-	chapters   []Chapter
+	identities     []ChapterIdentity
+	chapters       []Chapter
+	missingVolumes bool
 }
 
 func (this correctiveSlice) Len() int {
-	if ilen := len(this.identities); ilen == len(this.chapters) {
-		return ilen
-	} else {
-		return 0
-	}
+	return int(math.Min(int64(len(this.identities)), int64(len(this.chapters))))
 }
 
 func (this correctiveSlice) Less(i, j int) bool {
-	ident1 := this.identities[i]
-	ident2 := this.identities[j]
-	if ident1.Volume != 0 && ident2.Volume != 0 {
-		return ident1.Less(ident2)
-	} else {
-		return (ident1.MajorNum < ident2.MajorNum) ||
-			(ident1.MinorNum < ident2.MinorNum) ||
-			(ident1.Letter < ident2.Letter) ||
-			(ident1.Version < ident2.Version)
-	}
+	return this.identities[i].Less(this.identities[j])
 }
 
 func (this correctiveSlice) Swap(i, j int) {
 	this.identities[i], this.identities[j] = this.identities[j], this.identities[i]
 	this.chapters[i], this.chapters[j] = this.chapters[j], this.chapters[i]
+}
+
+func (this correctiveSlice) Correct() {
+	if this.missingVolumes {
+		maxLen := this.Len()
+		for i := 0; i < maxLen; i++ {
+			if this.identities[i].Version != 1 && i+1 < maxLen {
+				for j := i + 1; j < maxLen; j++ {
+					if this.identities[j].n()&^0xFFFF != this.identities[i].n()&^0xFFFF { //compare only vol:num
+						//sort.Sort(correctiveSlice{this.identities[i:j], this.chapters[i:j]})
+						qutils.Reverse(correctiveSlice{this.identities[i:j], this.chapters[i:j], this.missingVolumes})
+						i = j
+						break
+					}
+				}
+			}
+		}
+		prevVol := byte(1)
+		for i := range this.identities {
+			if this.identities[i].Volume == 0 {
+				this.identities[i].Volume = prevVol
+			}
+			prevVol = this.identities[i].Volume
+		}
+	}
+	sort.Sort(this)
 }
 
 type fetcher struct { //TODO: handle missing plugin errors gracefully
@@ -212,7 +228,7 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 				defer body.Close()
 			}
 
-			data, err = ioutil.ReadAll(body)
+			data, err = ioutil.ReadAll(body) //TODO: progress (channels should be useful here)
 			if err != nil {
 				return []byte{}, err
 			} else if forceCaching {
@@ -230,8 +246,10 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 				defer this.giveupConnectionPermit(parsedRedirect.Host)
 			}
 			continue
-		case 502, 503, 504:
-			time.Sleep(2 * time.Second)
+		case 502, 503, 504: //TODO: be smarter here (try avoiding triggering the DDoS protection by spreading retries)
+			waitTime := 10*time.Second + (time.Duration(rand.Intn(100)+1)*200+time.Duration(rand.Intn(2))*100)*time.Millisecond
+			qlog.Logf(qlog.Warning, "Connection to %s rejected (%d/5). Retrying in %v", parsedUrl.Host, i, waitTime)
+			time.Sleep(waitTime)
 			continue
 		default:
 			return nil, errors.New(`Unhandled response status code "` + response.Status + `" received!`)
@@ -241,7 +259,7 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 }
 
 func (this *fetcher) pluginPanicked(offender FetcherPluginName, err interface{}) {
-	qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", err)
+	qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", "Message:", err)
 	qlog.Logf(qlog.Error, "\n%s\n", qutils.Stack())
 	this.settings.Plugins[offender] = PluginEnabled(false)
 }
@@ -261,17 +279,8 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 
 				if plugin, success := this.plugins[pluginName]; success && plugin.Capabilities().ProvidesMetadata {
 					identities, chapters, missingVolumes := plugin.fetchChapterList(comic)
-					if missingVolumes { //some plugins return ChapterIdentities with no Volume data, correct it
-						correctiveSlice := correctiveSlice{identities, chapters}
-						sort.Sort(correctiveSlice)
-						prevVol := byte(1)
-						for i := range correctiveSlice.identities {
-							if correctiveSlice.identities[i].Volume == 0 {
-								correctiveSlice.identities[i].Volume = prevVol
-							}
-							prevVol = correctiveSlice.identities[i].Volume
-						}
-					}
+					//some plugins return ChapterIdentities with no Volume data, correct it, then sort
+					correctiveSlice{identities, chapters, missingVolumes}.Correct()
 					comic.AddMultipleChapters(identities, chapters, false)
 				}
 			}(source.PluginName)

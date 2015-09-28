@@ -35,6 +35,9 @@ func titleFromIdentity(identity ChapterIdentity) string {
 	if identity.MinorNum != 0 {
 		title += "." + strconv.FormatInt(int64(identity.MinorNum), 10)
 	}
+	if identity.Letter != 0 {
+		title += strconv.FormatInt(int64(identity.Letter+'a'-1), 10)
+	}
 	title += "]"
 	return title
 }

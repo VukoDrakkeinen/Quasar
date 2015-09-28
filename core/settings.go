@@ -136,9 +136,9 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 	if proxy.MaxConnectionsToHost < 1 { //TODO: better validation
 		proxy.MaxConnectionsToHost = 1
 		qlog.Log(qlog.Warning, "Invalid number of maximum connections! Can't be zero.")
-	} else if proxy.MaxConnectionsToHost > 10 {
-		proxy.MaxConnectionsToHost = 10 //bigger values seem to trigger a DDoS protection, so clamp for now
-		qlog.Log(qlog.Warning, "More than 10 simultaneous connections may trigger a DDoS protection!")
+	} else if proxy.MaxConnectionsToHost > 5 {
+		proxy.MaxConnectionsToHost = 5 //bigger values seem to trigger a DDoS protection, so clamp for now
+		qlog.Log(qlog.Warning, "More than 5 simultaneous connections may trigger a DDoS protection!")
 	}
 	settings = proxy.toSettings()
 
