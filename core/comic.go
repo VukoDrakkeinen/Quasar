@@ -116,7 +116,6 @@ func NewComic(settings IndividualSettings) *Comic {
 		settings:          settings,
 		sourceIdxByPlugin: make(map[FetcherPluginName]sourceIndex),
 		chapters:          make(map[ChapterIdentity]Chapter),
-		cachedReadCount:   -1,
 	}
 }
 
@@ -203,8 +202,14 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 		this.lastReadChapter.valid = true
 	}
 	if merged {
+		existingRead := existingChapter.AlreadyRead
 		existingChapter.MergeWith(chapter)
 		this.chapters[identity] = existingChapter //reinsert //TODO?: use pointers instead?
+		if !existingRead && existingChapter.AlreadyRead {
+			this.cachedReadCount += 1
+		} else if existingRead && !existingChapter.AlreadyRead {
+			this.cachedReadCount -= 1
+		}
 	} else {
 		chapter.SetParent(this)
 		this.chapters[identity] = *chapter
@@ -214,10 +219,6 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 		}
 	}
 	return
-}
-
-func (this *Comic) SetChaptersRead(indices []int, read bool) {
-
 }
 
 func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []Chapter, overwriteRead bool) {
@@ -306,24 +307,8 @@ func (this *Comic) ChaptersCount() int {
 
 func (this *Comic) ChaptersReadCount() int {
 	this.lock.RLock()
-	if this.cachedReadCount != -1 {
-		this.lock.RUnlock()
-		return this.cachedReadCount
-	}
-
-	var readCount int
-	chapterCount := this.ChaptersCount() //IT'S CALLED EVERY ITERATION?! O_O
-	for i := 0; i < chapterCount; i++ {
-		if chapter, _ := this.GetChapter(i); chapter.AlreadyRead {
-			readCount++
-		}
-	}
-
-	this.lock.RUnlock()
-	this.lock.Lock()
-	defer this.lock.Unlock()
-	this.cachedReadCount = readCount
-	return readCount
+	defer this.lock.RUnlock()
+	return this.cachedReadCount
 }
 
 func (this *Comic) LastReadChapter() int {
