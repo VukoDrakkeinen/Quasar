@@ -126,10 +126,20 @@ func BitLen(x uint64) (n int) {
 	return
 }
 
-var stackRegexp = qregexp.MustCompile(`(?<=panicindex: panic\(indexError\)\n)(?s).+(?=\n[^\n]+runtime/asm)`)
+var stackRegexp = qregexp.MustCompile(`(?<=runtime/panic.go:\d+ \(0x.{6}\)\n.+\n)(?s:.+)(?=\n.+runtime/asm)`)
 
 func Stack() string {
 	stack := debug.Stack()
-	stackRegexp.Find(stack)
 	return string(stackRegexp.Find(stack))
+}
+
+func Reverse(data sliceWrapper) {
+	for min, max := 0, data.Len()-1; min < max; min, max = min+1, max-1 {
+		data.Swap(min, max)
+	}
+}
+
+type sliceWrapper interface {
+	Len() int
+	Swap(i, j int)
 }
