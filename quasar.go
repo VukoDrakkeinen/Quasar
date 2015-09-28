@@ -6,6 +6,7 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/gui"
+	"github.com/VukoDrakkeinen/Quasar/qutils/cores"
 	"gopkg.in/qml.v1"
 	"log"
 	"os"
@@ -19,6 +20,7 @@ var _ = os.DevNull
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
+	cores.UseAll()
 
 	flag.Parse()
 	if *cpuprofile != "" {
