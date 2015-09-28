@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	batoto_rURLValidator    = qregexp.MustCompile(`^http://bato.to/comic/_(?:/comics)?/[\w-]+r\d+$`)
+	batoto_rURLValidator    = qregexp.MustCompile(`^http://bato.to/comic/_(?:/comics)?/[\w-%]+r\d+/?$`)
 	batoto_rInfoRegion      = qregexp.MustCompile(`(?s)class='rating.*class='ipsPad'`)
 	batoto_rTitle           = qregexp.MustCompile(`(?<=ipsType_pagetitle'>\s+)[^\r\n]+`)
 	batoto_rRating          = qregexp.MustCompile(`(?<=\()\d\.\d\d(?= - \d+votes\))`)
@@ -34,7 +34,8 @@ var (
 	batoto_rExtract         = qregexp.MustCompile(`(?<=> ?)[^<]+(?=<)`)
 	batoto_rExtractStrict   = qregexp.MustCompile(`(?<=">)[^<]+(?=<)`)
 
-	batoto_rChaptersRegion   = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
+	batoto_rChaptersRegion = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*</tbody>`)
+	//batoto_rChaptersRegion   = qregexp.MustCompile(`(?s)class="ipb_table chapters_list".*?</tbody>`)
 	batoto_rChapterURL       = qregexp.MustCompile(`(?<=<a href=")https?://bato.to/read/_/[^"]+(?=" title)`)
 	batoto_rIdentityAndTitle = qregexp.MustCompile(`title="(.+?)(?: ?(?:Read Online)|(?: ?: ?(.+?))) \| Sort: (\d+(?:\.\d\d?)?)\d*"><img src=`)
 	batoto_rScanlator        = qregexp.MustCompile(`(?<=bato.to/group/_/[^"]+">)[^<]+`)
