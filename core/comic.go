@@ -195,7 +195,6 @@ func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-	this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 	existingChapter, merged := this.chapters[identity]
 	if chapter.AlreadyRead && this.lastReadChapter.identity.LessEq(identity) {
 		this.lastReadChapter.identity = identity
@@ -211,6 +210,8 @@ func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merge
 			this.cachedReadCount -= 1
 		}
 	} else {
+		chapter.SetParent(nil)
+		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 		chapter.SetParent(this)
 		this.chapters[identity] = *chapter
 		this.chaptersOrder = this.chaptersOrder.Insert(this.chaptersOrder.vestedIndexOf(identity), identity)
@@ -235,7 +236,6 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 		identity := identities[i]
 		chapter := chapters[i]
 		existingChapter, exists := this.chapters[identity]
-		this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 		if chapter.AlreadyRead && this.lastReadChapter.identity.LessEq(identity) {
 			this.lastReadChapter.identity = identity
 			this.lastReadChapter.valid = true
@@ -257,6 +257,8 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 				this.cachedReadCount -= 1
 			}
 		} else {
+			chapter.SetParent(nil)
+			this.scanlatorPriority = qutils.SetAppendSlice(this.scanlatorPriority, chapter.Scanlators()).([]JointScanlatorIds) //TODO FIXME: purge this hack
 			chapter.SetParent(this)
 			this.chapters[identity] = chapter
 			if chapter.AlreadyRead {

@@ -188,7 +188,6 @@ func (this *coreConnector) MarkAsRead(comicIdx int, chapterIndicesList *qml.List
 		}
 		chapter, id := comic.GetChapter(i)
 		chapter.AlreadyRead = read
-		chapter.SetParent(nil) //FIXME: hack - avoid a code path that will deadlock
 		chapters = append(chapters, chapter)
 		identities = append(identities, id)
 		last = i
