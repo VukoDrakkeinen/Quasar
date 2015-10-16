@@ -177,7 +177,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	rating, _ := strconv.ParseFloat(ratingString, 32)
 	var thumbnailFilename string
 	imageUrl := string(bakaUpdates_rImageURL.Find(infoRegion))
-	if imageUrl != "" { //TODO
+	if imageUrl != "" {
 		thumbnailFilename = path.Base(imageUrl)
 		thumbnail, err := this.fetcher().DownloadData(this.name, imageUrl, false)
 		if err != nil {

@@ -13,13 +13,10 @@ func (this ChapterIdentitiesSlice) vestedIndexOf(ci ChapterIdentity) (index int)
 		return this.Len()
 	}
 	for this[low].n() <= ci.n() && this[high].n() >= ci.n() {
-		//The following four lines are equivalent to
+		//The following is equivalent to
 		//mid = low + ((ci.n()-this[low].n())*(high-low))/(this[high].n()-this[low].n())
-		//(except the longer implementation doesn't overflow int64)
-		diff0 := ci.n() - this[low].n()
-		diff1 := high - low
-		diff2 := this[high].n() - this[low].n()
-		mid = low + qutils.MultiplyThenDivide(diff0, diff1, diff2)
+		//except it doesn't overflow int64
+		mid = low + qutils.MultiplyThenDivide(ci.n()-this[low].n(), high-low, this[high].n()-this[low].n())
 		if this[mid].n() < ci.n() {
 			low = mid + 1
 		} else if this[mid].n() > ci.n() {

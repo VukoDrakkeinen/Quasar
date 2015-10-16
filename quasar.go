@@ -128,7 +128,7 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	gui.ModelSetGoData(updateModel, &list)
 	gui.ModelSetGoData(infoModel, &list)
 
-	qlog.Log(qlog.Info, "Loading from DB")
+	qlog.Log(qlog.Info, "Loading from DB") //TODO: parallelize
 	err = list.LoadFromDB()
 	//err = list.LoadFromDB()	//Test consecutive loads
 	if err != nil {
