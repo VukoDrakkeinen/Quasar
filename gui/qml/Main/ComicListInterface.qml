@@ -84,7 +84,11 @@ SplitView {
 			Layout.fillHeight: true
 			Layout.fillWidth: true
 			id: comicListView
-			onCurrentRowChanged: chapterModel.setComicIdx(this.currentRow)
+			Binding {
+				target: chapterModel
+				property: "comicId"
+				value: comicListView.currentRow
+			}
 		}
 		
 		LabeledProgressBar {

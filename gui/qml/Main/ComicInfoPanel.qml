@@ -11,7 +11,7 @@ Item {
 	implicitWidth: 250
 	implicitHeight: 400
 	
-	property int comicId: 0
+	property int comicId: -1
 	property QtObject model: null
 	
 	QtObject {

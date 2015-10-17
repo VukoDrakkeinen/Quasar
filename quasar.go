@@ -11,15 +11,18 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
-	"time"
+	"unsafe"
 )
 
-var _ = time.Kitchen
-var _ = os.DevNull
+type qmlContextVariables []struct {
+	name      string
+	ptr       interface{}
+	isGoValue bool
+}
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
-func main() { //TODO: messy code, move all that stuff to a dedicated testing suite
+func main() { //TODO: fix messy code; write some unit tests
 	cores.UseAll()
 
 	flag.Parse()
@@ -32,68 +35,20 @@ func main() { //TODO: messy code, move all that stuff to a dedicated testing sui
 		defer pprof.StopCPUProfile()
 	}
 
-	if err := qml.Run(launchGUI); err != nil {
+	settings, list, vars := initQuasar()
+
+	if err := qml.Run(func() error { return launchGUI(vars) }); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 
-	return
-
-	/*globals, _ := core.LoadGlobalSettings()
-	qlog.Log(qlog.Info, "Creating Fetcher")
-	fet := core.NewFetcher(nil)
-	qlog.Log(qlog.Info, "Registering plugins")
-	batoto := core.NewBatoto()
-	bupdates := core.NewBakaUpdates()
-	fet.RegisterPlugin(batoto)
-	fet.RegisterPlugin(bupdates)
-	qlog.Log(qlog.Info, "Creating Comic")
-	comic := core.NewComic(*core.NewIndividualSettings(globals))
-	qlog.Log(qlog.Info, "Finding comic URL")
-	fet.TestFind(comic, batoto.PluginName(), "Kingdom") //Has lots of data to process, good for testing
-	fet.TestFind(comic, bupdates.PluginName(), "Kingdom")
-	qlog.Log(qlog.Info, "Downloading ComicInfo")
-	fet.DownloadComicInfoFor(comic)
-	qlog.Log(qlog.Info, "Downloading Chapter List")
-	fet.DownloadChapterListFor(comic)
-	for i := 0; i < comic.ChaptersCount(); i++ {
-		chapter, id := comic.GetChapter(i)
-		sc0 := chapter.Scanlation(0)
-		fmt.Printf("%v %v (%v)\n", id, sc0.Title, sc0.Scanlators)
-	}
-
-	//return
-
-	qlog.Log(qlog.Info, "Saving to DB")
-	list := core.NewComicList(fet, nil)
-	list.AddComics([]*core.Comic{comic})
-	//list.ScheduleComicFetches()
-	//time.Sleep(5 * time.Second) //Wait for the background tasks to complete
-	list.SaveToDB()
-	qlog.Log(qlog.Info, "Saved")
-	qlog.Log(qlog.Info, "Loading from DB")
-	err := list.LoadFromDB()
-	if err != nil {
-		qlog.Log(qlog.Error, err)
-		return
-	}
-	qlog.Log(qlog.Info, "Loaded")
+	settings.Save()
+	list.SaveToDB() //FIXME: there are still some bugs lurking there
 
 	return
-
-	fmt.Println("\nDownloading Page Links for Chapter:0 Scanlation:0")
-	fet.DownloadPageLinksFor(comic, 0, 0)
-	chapter, id := comic.GetChapter(0)
-	fmt.Println(id, chapter)//*/
 }
 
-var dontGC *core.ComicList //TODO: It's a tra- I mean, a HACK! Remove it!
-
-func launchGUI() error { //TODO: move some things out of GUI thread
-	engine := qml.NewEngine()
-	engine.On("quit", func() { fmt.Println("Save to DB here?"); os.Exit(0) })
-	context := engine.Context()
-
+func initQuasar() (*core.GlobalSettings, core.ComicList, qmlContextVariables) {
 	qlog.Log(qlog.Info, "Loading settings")
 	settings, err := core.LoadGlobalSettings()
 	if err != nil {
@@ -101,7 +56,6 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 		qlog.Log(qlog.Warning, "Falling back on defaults")
 		settings = core.NewGlobalSettings()
 	}
-	//fmt.Printf("%#v\n", settings)
 
 	qlog.Log(qlog.Info, "Creating proxy models")
 	chapterModel := gui.NewComicChapterModel(nil)
@@ -111,7 +65,6 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 	qlog.Log(qlog.Info, "Creating Fetcher")
 	notify := gui.DefaultNotifyFunc()
 	fet := core.NewFetcher(settings, func(work func()) {
-		//println("Notifying chapter model - reset")
 		notify(chapterModel, core.Reset, -1, -1, work) //row and count values are unused, hence -1
 	})
 
@@ -120,21 +73,22 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 
 	qlog.Log(qlog.Info, "Creating comic list")
 	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
-		//println("Notifying updateModel with ntype", ntype, "row", row, "count", count)
 		notify(updateModel, ntype, row, count, work)
 	})
-	dontGC = &list
 	gui.ModelSetGoData(chapterModel, &list)
 	gui.ModelSetGoData(updateModel, &list)
 	gui.ModelSetGoData(infoModel, &list)
 
-	qlog.Log(qlog.Info, "Loading from DB") //TODO: parallelize
-	err = list.LoadFromDB()
-	//err = list.LoadFromDB()	//Test consecutive loads
-	if err != nil {
-		qlog.Log(qlog.Error, err)
-		os.Exit(1)
-	}
+	qlog.Log(qlog.Info, "Loading from DB intiated")
+	go func() {
+		err = list.LoadFromDB()
+		//err = list.LoadFromDB()	//Test consecutive loads
+		if err != nil {
+			qlog.Log(qlog.Error, err)
+			os.Exit(1)
+		}
+
+	}()
 
 	qlog.Log(qlog.Info, "Creating Core Connector")
 	coreConnector := gui.NewCoreConnector(&list, func(row int, selections [][2]int, work func()) {
@@ -145,11 +99,28 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 		gui.NotifyViewUpdated(updateModel, row, 1, -1)
 	})
 
+	vars := qmlContextVariables{
+		{name: "updateModel", ptr: updateModel.InternalPtr()},
+		{name: "infoModel", ptr: infoModel.InternalPtr()},
+		{name: "chapterModel", ptr: chapterModel.InternalPtr()},
+		{name: "quasarCore", ptr: coreConnector, isGoValue: true},
+	}
+	return settings, list, vars
+}
+
+func launchGUI(contextVars qmlContextVariables) error {
+	engine := qml.NewEngine()
+	engine.On("quit", func() { println("Save to DB here?"); os.Exit(0) })
+	context := engine.Context()
+
 	qlog.Log(qlog.Info, "Setting QML variables")
-	context.SetVar("updateModel", qml.CommonOf(updateModel.InternalPtr(), engine))
-	context.SetVar("infoModel", qml.CommonOf(infoModel.InternalPtr(), engine))
-	context.SetVar("chapterModel", qml.CommonOf(chapterModel.InternalPtr(), engine))
-	context.SetVar("quasarCore", coreConnector)
+	for _, cVar := range contextVars {
+		if !cVar.isGoValue {
+			context.SetVar(cVar.name, qml.CommonOf(cVar.ptr.(unsafe.Pointer), engine))
+		} else {
+			context.SetVar(cVar.name, cVar.ptr)
+		}
+	}
 
 	qlog.Log(qlog.Info, "Launching GUI")
 	control, err := engine.LoadFile("qml/main.qml") //TODO: load from resources
@@ -160,7 +131,6 @@ func launchGUI() error { //TODO: move some things out of GUI thread
 
 	window.Show()
 	window.Wait()
-	settings.Save()
-	list.SaveToDB() //FIXME: there are still some bugs lurking there
+
 	return nil
 }

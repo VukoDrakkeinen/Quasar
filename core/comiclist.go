@@ -74,34 +74,35 @@ func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType
 			work()
 		}
 	}
-	list := ComicList{
+
+	return ComicList{
 		comics:     make([]*Comic, 0, 10),
 		metadata:   make([]comicMetadata, 0, 10),
 		fetcher:    fetcher,
 		notifyView: notifyViewFunc,
 	}
-	return list
 }
 
 const (
-	ComicNotUpdating ComicUpdatingBool = iota
+	ComicNotUpdating ComicUpdatingEnum = iota
 	ComicUpdating
 )
 
 type comicMetadata struct {
-	status         ComicUpdatingBool
+	status         ComicUpdatingEnum
 	updatedAt      time.Time
 	nextFetchAt    time.Time
 	schedInterrupt chan struct{}
 }
 
-type ComicUpdatingBool uint32
+type ComicUpdatingEnum uint32
 type ComicList struct {
 	comics     []*Comic
 	metadata   []comicMetadata
 	fetcher    *fetcher
 	notifyView func(typ ViewNotificationType, row, count int, work func())
-	lock       sync.RWMutex
+	dataLock   sync.RWMutex
+	metaLock   sync.RWMutex
 }
 
 func (list ComicList) Fetcher() *fetcher {
@@ -110,11 +111,15 @@ func (list ComicList) Fetcher() *fetcher {
 
 func (this *ComicList) AddComics(comics ...*Comic) {
 	this.notifyView(Insert, len(this.comics), len(comics), func() {
-		this.lock.Lock()
-		defer this.lock.Unlock()
+		this.dataLock.Lock()
+		this.metaLock.Lock()
+		defer this.dataLock.Unlock()
+		defer this.metaLock.Unlock()
+
 		this.comics = append(this.comics, comics...)
 		mlen := len(this.metadata)
 		newLen := mlen + len(comics)
+
 		if cap(this.metadata) < newLen {
 			metadata := make([]comicMetadata, newLen, qutils.GrownCap(newLen))
 			copy(metadata, this.metadata)
@@ -122,6 +127,7 @@ func (this *ComicList) AddComics(comics ...*Comic) {
 		} else {
 			this.metadata = this.metadata[:newLen]
 		}
+
 		for i := range this.metadata[mlen:] {
 			this.metadata[mlen+i].schedInterrupt = make(chan struct{})
 		}
@@ -130,12 +136,16 @@ func (this *ComicList) AddComics(comics ...*Comic) {
 
 func (this *ComicList) RemoveComics(index, count int) {
 	this.notifyView(Remove, int(index), int(count), func() {
-		this.lock.Lock()
-		defer this.lock.Unlock()
+		this.dataLock.Lock()
+		this.metaLock.Lock()
+		defer this.dataLock.Unlock()
+		defer this.metaLock.Unlock()
+
 		this.comics = this.comics[:index+copy(this.comics[index:], this.comics[index+count:])]
 		for i := index; i < (index + count); i++ {
 			this.cancelScheduleForComic(i)
 		}
+
 		this.metadata = this.metadata[:index+copy(this.metadata[index:], this.metadata[index+count:])]
 		for i := index + count; i < len(this.metadata); i++ {
 			this.scheduleComicFetchFor(i, true)
@@ -144,22 +154,29 @@ func (this *ComicList) RemoveComics(index, count int) {
 }
 
 func (this ComicList) ComicLastUpdated(idx int) time.Time {
-	this.lock.RLock()
-	defer this.lock.RUnlock()
+	this.metaLock.RLock()
+	defer this.metaLock.RUnlock()
 	return this.metadata[idx].updatedAt
 }
 
 func (this ComicList) ComicIsUpdating(idx int) bool {
-	return ComicUpdatingBool(atomic.LoadUint32((*uint32)(unsafe.Pointer(&this.metadata[idx])))) == ComicUpdating
+	this.metaLock.Lock()
+	defer this.metaLock.Unlock()
+	return this.metadata[idx].status == ComicUpdating
 }
 
 func (this ComicList) GetComic(idx int) *Comic {
-	return (*Comic)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&this.comics[idx]))))
+	this.dataLock.Lock()
+	defer this.dataLock.Unlock()
+	return this.comics[idx]
 }
 
-func (this ComicList) Len() int {
-	//this.lock.RLock()
-	//defer this.lock.RUnlock()
+func (this *ComicList) Len() int {
+	this.dataLock.RLock()
+	//if clen := len(this.comics); clen > 0 {
+	//	println(clen, this.comics[clen - 1].info.Title)
+	//}
+	defer this.dataLock.RUnlock()
 	return len(this.comics)
 }
 
@@ -170,9 +187,9 @@ func (this ComicList) ScheduleComicFetches() {
 }
 
 func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
-	this.lock.Lock()
+	this.dataLock.Lock()
 	this.cancelScheduleForComic(comicIdx)
-	this.lock.Unlock()
+	this.dataLock.Unlock()
 
 	fetchOnStartup := this.fetcher.settings.FetchOnStartup
 	intervalFetching := this.fetcher.settings.IntervalFetching
@@ -216,9 +233,9 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 	}
 
 	if manual {
-		this.lock.Lock()
+		this.dataLock.Lock()
 		this.cancelScheduleForComic(comicIdx)
-		this.lock.Unlock()
+		this.dataLock.Unlock()
 	}
 
 	this.notifyView(Update, comicIdx, 1, func() {
@@ -249,12 +266,10 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 }
 
 func (this ComicList) comicUpdateFrequency(comicIdx int) time.Duration {
-	this.lock.RLock()
-	defer this.lock.RUnlock()
-
 	comic := this.GetComic(comicIdx)
 	cSettings := comic.Settings()
 	fSettings := this.fetcher.settings
+
 	if overrideFrequency := cSettings.OverrideDefaults[2]; overrideFrequency {
 		return cSettings.FetchFrequency
 	} else {
@@ -263,11 +278,11 @@ func (this ComicList) comicUpdateFrequency(comicIdx int) time.Duration {
 }
 
 func (this *ComicList) cancelSchedule() {
-	this.lock.Lock()
+	this.metaLock.Lock()
+	defer this.metaLock.Unlock()
 	for i := range this.comics {
 		this.cancelScheduleForComic(i)
 	}
-	this.lock.Unlock()
 }
 
 func (this *ComicList) cancelScheduleForComic(comicId int) { //How?!
@@ -304,9 +319,6 @@ func CreateDB(db *qdb.QDB) (err error) {
 //TODO: write some unit tests
 //TODO: return errors, so we can show the user a pop-up
 func (this ComicList) SaveToDB() {
-	this.lock.RLock()
-	defer this.lock.RUnlock()
-
 	db := qdb.DB()
 	if db == nil {
 		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
@@ -342,6 +354,11 @@ func (this ComicList) SaveToDB() {
 		transaction.Commit()
 	}
 
+	this.dataLock.RLock()
+	this.metaLock.RLock()
+	defer this.dataLock.RUnlock()
+	defer this.metaLock.RUnlock()
+
 	scheduleInsertionStmt := db.MustPrepare(scheduleInsertionCmd)
 	dbStmts := SQLComicInsertStmts(db)
 	defer dbStmts.Close()
@@ -366,7 +383,6 @@ func (this ComicList) SaveToDB() {
 
 func (list *ComicList) LoadFromDB() (err error) {
 	list.cancelSchedule()
-	list.lock.Lock()
 
 	db := qdb.DB()
 	CreateDB(db)
@@ -396,10 +412,12 @@ func (list *ComicList) LoadFromDB() (err error) {
 
 	idsdict.Langs.AssignIds(list.fetcher.PluginProvidedLanguages())
 
+	list.dataLock.RLock()
 	comicSqlIds := make(map[int64]struct{}) //TODO: not satisfied with this part, rewrite
 	for _, comic := range list.comics {
 		comicSqlIds[comic.sqlId] = struct{}{}
 	}
+	list.dataLock.RUnlock()
 
 	dbStmts := SQLComicQueryStmts(db)
 	defer dbStmts.Close()
@@ -409,22 +427,34 @@ func (list *ComicList) LoadFromDB() (err error) {
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
+
 	for comicRows.Next() {
 		comic, err := SQLComicQuery(comicRows, stmts)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
+
 		if _, exists := comicSqlIds[comic.sqlId]; exists { //TODO: don't skip, merge
 			qlog.Logf(qlog.Info, "Skipped one comic while loading from DB (already exists). Id: %d", comic.sqlId)
 			continue
 		}
-		list.notifyView(Insert, len(list.comics), 1, func() {
+
+		list.dataLock.RLock()
+		clen := len(list.comics)
+		list.dataLock.RUnlock()
+		list.notifyView(Insert, clen, 1, func() {
+			list.dataLock.Lock()
+			list.metaLock.Lock()
+			defer list.dataLock.Unlock()
+			defer list.metaLock.Unlock()
+
 			list.comics = append(list.comics, comic)
 			var nextFetchTime, lastUpdated time.Time
 			err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime, &lastUpdated)
 			if err != nil {
 				return
 			}
+
 			list.metadata = append(list.metadata,
 				comicMetadata{
 					status:         ComicNotUpdating,
@@ -441,7 +471,6 @@ func (list *ComicList) LoadFromDB() (err error) {
 
 	transaction.Commit()
 
-	list.lock.Unlock()
 	list.ScheduleComicFetches() //TODO: only the new ones
 	return
 }

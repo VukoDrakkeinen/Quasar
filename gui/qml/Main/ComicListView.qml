@@ -3,12 +3,27 @@ import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
 import QuasarGUI 1.0
 
-TableView {
+TableView {	//why is this implementation so buggy...
 	id: table
 	implicitWidth: 500
 	selectionMode: SelectionMode.ExtendedSelection
 	model: updateModel
 	//itemDelegate: //can't use, bugged x_x
+	
+	onCurrentRowChanged: {	//BUG WORKAROUND: even after resetting the view (see the next workaround comment), you can still click and activate the non-existent entry
+		if (this.currentRow >= this.rowCount) {
+			this.currentRow = -1
+		}
+	}
+	
+	onRowCountChanged: {
+		if (this.rowCount > updateModel.rowCount()) {	//BUG WORKAROUND (sometimes the view will show one too many entries after being updated many times quickly; reset it then)
+			console.log("KNOWN BUG:")
+			table.model = null							//note: unfortunately causes a binding loop
+			table.model = updateModel
+			this.currentRow = -1						//for some reason it's set to 0 on view reset, change it back
+		}
+	}
 	
 	Component {
 		id: infoDelegate
@@ -87,5 +102,5 @@ TableView {
 				elide: Text.ElideRight
 			}
 		}
-	}	
+	}
 }

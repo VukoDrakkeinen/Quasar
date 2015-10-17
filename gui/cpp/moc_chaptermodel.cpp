@@ -19,8 +19,8 @@
 
 QT_BEGIN_MOC_NAMESPACE
 struct qt_meta_stringdata_ChapterModel_t {
-    QByteArrayData data[11];
-    char stringdata0[96];
+    QByteArrayData data[10];
+    char stringdata0[84];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -30,21 +30,20 @@ struct qt_meta_stringdata_ChapterModel_t {
 static const qt_meta_stringdata_ChapterModel_t qt_meta_stringdata_ChapterModel = {
     {
 QT_MOC_LITERAL(0, 0, 12), // "ChapterModel"
-QT_MOC_LITERAL(1, 13, 15), // "comicIdxChanged"
-QT_MOC_LITERAL(2, 29, 0), // ""
-QT_MOC_LITERAL(3, 30, 7), // "comicId"
-QT_MOC_LITERAL(4, 38, 9), // "ccomicIdx"
-QT_MOC_LITERAL(5, 48, 11), // "setComicIdx"
-QT_MOC_LITERAL(6, 60, 8), // "comicIdx"
-QT_MOC_LITERAL(7, 69, 6), // "qmlGet"
-QT_MOC_LITERAL(8, 76, 3), // "row"
-QT_MOC_LITERAL(9, 80, 6), // "column"
-QT_MOC_LITERAL(10, 87, 8) // "roleName"
+QT_MOC_LITERAL(1, 13, 14), // "comicIdChanged"
+QT_MOC_LITERAL(2, 28, 0), // ""
+QT_MOC_LITERAL(3, 29, 7), // "comicId"
+QT_MOC_LITERAL(4, 37, 10), // "setComicId"
+QT_MOC_LITERAL(5, 48, 8), // "comicIdx"
+QT_MOC_LITERAL(6, 57, 6), // "qmlGet"
+QT_MOC_LITERAL(7, 64, 3), // "row"
+QT_MOC_LITERAL(8, 68, 6), // "column"
+QT_MOC_LITERAL(9, 75, 8) // "roleName"
 
     },
-    "ChapterModel\0comicIdxChanged\0\0comicId\0"
-    "ccomicIdx\0setComicIdx\0comicIdx\0qmlGet\0"
-    "row\0column\0roleName"
+    "ChapterModel\0comicIdChanged\0\0comicId\0"
+    "setComicId\0comicIdx\0qmlGet\0row\0column\0"
+    "roleName"
 };
 #undef QT_MOC_LITERAL
 
@@ -65,20 +64,20 @@ static const uint qt_meta_data_ChapterModel[] = {
        1,    1,   34,    2, 0x06 /* Public */,
 
  // methods: name, argc, parameters, tag, flags
-       4,    0,   37,    2, 0x02 /* Public */,
-       5,    1,   38,    2, 0x02 /* Public */,
-       7,    3,   41,    2, 0x02 /* Public */,
+       3,    0,   37,    2, 0x02 /* Public */,
+       4,    1,   38,    2, 0x02 /* Public */,
+       6,    3,   41,    2, 0x02 /* Public */,
 
  // signals: parameters
     QMetaType::Void, QMetaType::Int,    3,
 
  // methods: parameters
     QMetaType::Int,
-    QMetaType::Void, QMetaType::Int,    6,
-    QMetaType::QVariant, QMetaType::Int, QMetaType::Int, QMetaType::QString,    8,    9,   10,
+    QMetaType::Void, QMetaType::Int,    5,
+    QMetaType::QVariant, QMetaType::Int, QMetaType::Int, QMetaType::QString,    7,    8,    9,
 
  // properties: name, type, flags
-       3, QMetaType::Int, 0x00495003,
+       3, QMetaType::Int, 0x00495103,
 
  // properties: notify_signal_id
        0,
@@ -92,10 +91,10 @@ void ChapterModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id
         ChapterModel *_t = static_cast<ChapterModel *>(_o);
         Q_UNUSED(_t)
         switch (_id) {
-        case 0: _t->comicIdxChanged((*reinterpret_cast< int(*)>(_a[1]))); break;
-        case 1: { int _r = _t->ccomicIdx();
+        case 0: _t->comicIdChanged((*reinterpret_cast< int(*)>(_a[1]))); break;
+        case 1: { int _r = _t->comicId();
             if (_a[0]) *reinterpret_cast< int*>(_a[0]) = _r; }  break;
-        case 2: _t->setComicIdx((*reinterpret_cast< int(*)>(_a[1]))); break;
+        case 2: _t->setComicId((*reinterpret_cast< int(*)>(_a[1]))); break;
         case 3: { QVariant _r = _t->qmlGet((*reinterpret_cast< int(*)>(_a[1])),(*reinterpret_cast< int(*)>(_a[2])),(*reinterpret_cast< const QString(*)>(_a[3])));
             if (_a[0]) *reinterpret_cast< QVariant*>(_a[0]) = _r; }  break;
         default: ;
@@ -105,7 +104,7 @@ void ChapterModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id
         void **func = reinterpret_cast<void **>(_a[1]);
         {
             typedef void (ChapterModel::*_t)(int );
-            if (*reinterpret_cast<_t *>(func) == static_cast<_t>(&ChapterModel::comicIdxChanged)) {
+            if (*reinterpret_cast<_t *>(func) == static_cast<_t>(&ChapterModel::comicIdChanged)) {
                 *result = 0;
             }
         }
@@ -115,14 +114,14 @@ void ChapterModel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id
         ChapterModel *_t = static_cast<ChapterModel *>(_o);
         void *_v = _a[0];
         switch (_id) {
-        case 0: *reinterpret_cast< int*>(_v) = _t->ccomicIdx(); break;
+        case 0: *reinterpret_cast< int*>(_v) = _t->comicId(); break;
         default: break;
         }
     } else if (_c == QMetaObject::WriteProperty) {
         ChapterModel *_t = static_cast<ChapterModel *>(_o);
         void *_v = _a[0];
         switch (_id) {
-        case 0: _t->setComicIdx(*reinterpret_cast< int*>(_v)); break;
+        case 0: _t->setComicId(*reinterpret_cast< int*>(_v)); break;
         default: break;
         }
     } else if (_c == QMetaObject::ResetProperty) {
@@ -184,7 +183,7 @@ int ChapterModel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 }
 
 // SIGNAL 0
-void ChapterModel::comicIdxChanged(int _t1)
+void ChapterModel::comicIdChanged(int _t1)
 {
     void *_a[] = { Q_NULLPTR, const_cast<void*>(reinterpret_cast<const void*>(&_t1)) };
     QMetaObject::activate(this, &staticMetaObject, 0, _a);

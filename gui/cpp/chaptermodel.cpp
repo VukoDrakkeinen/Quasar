@@ -19,7 +19,7 @@ int ChapterModel::rowCount(const QModelIndex& parent) const
 		return 0;
 	}
 
-	auto comic = go_ComicList_GetComic(this->goComicList, comicIdx);    //TODO: cache for as long comicId doesn't change
+	auto comic = go_ComicList_GetComic(this->goComicList, this->comicIdx);    //TODO: cache for as long comicId doesn't change
 	
 	if (!parent.isValid()) {
 		return go_Comic_ChaptersCount(comic);
@@ -58,7 +58,7 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
         readStatus = extScanlation.readStatus;
         scanlationsCount = extScanlation.scanlationsCount;
     } else {
-		auto goComic = go_ComicList_GetComic(this->goComicList, comicIdx);
+		auto goComic = go_ComicList_GetComic(this->goComicList, this->comicIdx);
 		void* goChapter;
 		void* goScanlation;
 		if (parent.isValid()) {
@@ -245,12 +245,12 @@ Qt::ItemFlags ChapterModel::flags(const QModelIndex& index) const {
 	return flags;
 }
 
-int ChapterModel::ccomicIdx() const
+int ChapterModel::comicId() const
 {
 	return this->comicIdx;
 }
 
-void ChapterModel::setComicIdx(int comicIdx) {
+void ChapterModel::setComicId(int comicIdx) {
 	this->beginResetModel();
     this->comicIdx = comicIdx;
     this->endResetModel();

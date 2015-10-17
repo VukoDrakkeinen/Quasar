@@ -100,7 +100,7 @@ func NotifyViewUpdated(model qtProxyModel, row, count, column int) {
 
 type qtProxyModel struct {
 	ptr  unsafe.Pointer
-	lock sync.Mutex
+	lock sync.Mutex //TODO: remove the lock (should be unnecessary, since all signals are sent on the GUI thread)
 }
 
 func (this *qtProxyModel) InternalPtr() unsafe.Pointer {
