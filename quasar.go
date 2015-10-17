@@ -69,7 +69,7 @@ func initQuasar() (*core.GlobalSettings, *core.ComicList, qmlContextVariables) {
 	})
 
 	qlog.Log(qlog.Info, "Registering plugins")
-	fet.RegisterPlugins(core.NewBatoto(), core.NewBakaUpdates())
+	fet.RegisterPlugins(core.NewBatoto(), core.NewBakaUpdates(), core.NewKissManga())
 
 	qlog.Log(qlog.Info, "Creating comic list")
 	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
