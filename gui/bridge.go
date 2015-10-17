@@ -180,7 +180,7 @@ type comicInfoBridged struct {
 	Status            int
 	ScanlationStatus  int
 	Description       string
-	Rating            float32
+	Rating            uint16
 	Mature            bool
 	ThumbnailFilename string
 }

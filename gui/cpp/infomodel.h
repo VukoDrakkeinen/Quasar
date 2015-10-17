@@ -58,7 +58,7 @@ typedef struct {
 	ComicStatus::Enum status;
 	ScanlationStatus::Enum scanlationStatus;
 	QString desc;
-	float rating;
+	quint16 rating;
 	bool mature;
 	QString thumbnailFilename;
 } ComicInfoRow;

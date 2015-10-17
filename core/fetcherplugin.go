@@ -3,12 +3,17 @@ package core
 import (
 	"errors"
 	"fmt"
+	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/qregexp"
 	"strconv"
+)
+
+var (
+	shared_rRemoveHTML = qregexp.MustCompile(`<[^>]+>`)
 )
 
 type FetcherPluginName string
 
-//TODO: also fetch adverts (we don't want to leech!)
 type FetcherPlugin interface { //TODO: shared implementation
 	PluginName() FetcherPluginName
 	HumanReadableName() string
@@ -17,17 +22,59 @@ type FetcherPlugin interface { //TODO: shared implementation
 	Settings() PerPluginSettings
 	SetSettings(new PerPluginSettings)
 	IsURLValid(url string) bool
-	findComicURL(title string) string
-	findComicURLList(title string) (links []string, titles []string) //TODO: proper search func
+	findComic(title, author string, genres []idsdict.ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult
+	fetchAdvert() advert
 	fetchComicInfo(comic *Comic) *ComicInfo
 	fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
 	fetchChapterPageLinks(url string) []string
 	setFetcher(parent *fetcher)
+	findComicURL(title string) string //TODO: remove
 }
 
-type FetcherPluginCapabilities struct { //TODO: more detailed capabilities?
+type FetcherPluginCapabilities struct {
 	ProvidesMetadata bool
 	ProvidesData     bool
+}
+
+type advert struct {
+	simple   bool
+	imageURL string
+	link     string
+	html     []byte
+}
+
+type fetcherPluginSharedImpl struct {
+	name      FetcherPluginName
+	settings  PerPluginSettings
+	m_fetcher *fetcher
+}
+
+func (this *fetcherPluginSharedImpl) fetcher() *fetcher {
+	if this.m_fetcher == nil {
+		panic("Attempted to use orphaned plugin " + this.name + "!")
+	}
+	return this.m_fetcher
+}
+
+func (this *fetcherPluginSharedImpl) setFetcher(parent *fetcher) {
+	this.m_fetcher = parent
+}
+
+func (this *fetcherPluginSharedImpl) PluginName() FetcherPluginName {
+	return this.name
+}
+
+func (this *fetcherPluginSharedImpl) Settings() PerPluginSettings {
+	return this.settings
+}
+
+func (this *fetcherPluginSharedImpl) SetSettings(new PerPluginSettings) {
+	var maxConns uint
+	if overrideMaxConns := new.OverrideDefaults[4]; overrideMaxConns {
+		maxConns = new.MaxConnectionsToHost
+	}
+	this.fetcher().PluginLimitsUpdated(this.name, maxConns)
+	this.settings = new
 }
 
 func titleFromIdentity(identity ChapterIdentity) string {

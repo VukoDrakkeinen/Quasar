@@ -48,7 +48,7 @@ func main() { //TODO: fix messy code; write some unit tests
 	return
 }
 
-func initQuasar() (*core.GlobalSettings, core.ComicList, qmlContextVariables) {
+func initQuasar() (*core.GlobalSettings, *core.ComicList, qmlContextVariables) {
 	qlog.Log(qlog.Info, "Loading settings")
 	settings, err := core.LoadGlobalSettings()
 	if err != nil {
@@ -75,11 +75,11 @@ func initQuasar() (*core.GlobalSettings, core.ComicList, qmlContextVariables) {
 	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
 		notify(updateModel, ntype, row, count, work)
 	})
-	gui.ModelSetGoData(chapterModel, &list)
-	gui.ModelSetGoData(updateModel, &list)
-	gui.ModelSetGoData(infoModel, &list)
+	gui.ModelSetGoData(chapterModel, list)
+	gui.ModelSetGoData(updateModel, list)
+	gui.ModelSetGoData(infoModel, list)
 
-	qlog.Log(qlog.Info, "Loading from DB intiated")
+	qlog.Log(qlog.Info, "Begin DB load")
 	go func() {
 		err = list.LoadFromDB()
 		//err = list.LoadFromDB()	//Test consecutive loads
@@ -91,7 +91,7 @@ func initQuasar() (*core.GlobalSettings, core.ComicList, qmlContextVariables) {
 	}()
 
 	qlog.Log(qlog.Info, "Creating Core Connector")
-	coreConnector := gui.NewCoreConnector(&list, func(row int, selections [][2]int, work func()) {
+	coreConnector := gui.NewCoreConnector(list, func(row int, selections [][2]int, work func()) {
 		work()
 		for _, sel := range selections {
 			gui.NotifyViewUpdated(chapterModel, sel[0], sel[1], -1) //[0] = row, [1] = count

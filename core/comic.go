@@ -345,6 +345,26 @@ func (this *Comic) UsesPlugin(pluginName FetcherPluginName) bool {
 	return exists
 }
 
+func (this *Comic) ForceSetLastRead(lastIdentity ChapterIdentity) { //TODO: remove
+	ccount := this.ChaptersCount()
+	identities := make([]ChapterIdentity, 0, ccount)
+	chapters := make([]Chapter, 0, ccount)
+	for i := 0; i < ccount; i++ {
+		chapter, identity := this.GetChapter(i)
+		zvIdentity := identity
+		zvIdentity.Volume = 0
+		chapter.SetParent(nil)
+		if zvIdentity.LessEq(lastIdentity) {
+			chapter.AlreadyRead = true
+		} else {
+			break
+		}
+		identities = append(identities, identity)
+		chapters = append(chapters, chapter)
+	}
+	this.AddMultipleChapters(identities, chapters, false)
+}
+
 func (this *Comic) SQLId() int64 {
 	return atomic.LoadInt64(&this.sqlId)
 }
@@ -556,7 +576,7 @@ func SQLComicSchema() string {
 		status INTEGER NOT NULL,
 		scanStatus INTEGER NOT NULL,
 		desc TEXT NOT NULL,
-		rating REAL NOT NULL,
+		rating INTEGER NOT NULL,
 		mature INTEGER NOT NULL,
 		thumbnailFilename TEXT,
 		-- settings
@@ -703,7 +723,7 @@ type ComicInfo struct {
 	Status            comicStatus
 	ScanlationStatus  ScanlationStatus
 	Description       string
-	Rating            float32
+	Rating            uint16
 	Mature            bool
 	ThumbnailFilename string
 
@@ -779,11 +799,7 @@ func (this ComicInfo) MergeWith(another *ComicInfo) (merged *ComicInfo) {
 		this.Description = another.Description
 	}
 
-	if this.Rating == 0 {
-		this.Rating = another.Rating
-	} else if another.Rating != 0 {
-		this.Rating = (this.Rating + another.Rating) / 2
-	}
+	this.Rating = uint16(math.Max(int64(this.Rating), int64(another.Rating)))
 
 	this.Mature = another.Mature || this.Mature
 

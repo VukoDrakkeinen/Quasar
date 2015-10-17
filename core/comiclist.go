@@ -68,14 +68,14 @@ var (
 	scheduleQueryCmd = `SELECT nextFetchTime, lastUpdated FROM schedule WHERE comicId = ?;`
 )
 
-func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) ComicList {
+func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) *ComicList {
 	if notifyViewFunc == nil {
 		notifyViewFunc = func(a ViewNotificationType, b, c int, work func()) {
 			work()
 		}
 	}
 
-	return ComicList{
+	return &ComicList{
 		comics:     make([]*Comic, 0, 10),
 		metadata:   make([]comicMetadata, 0, 10),
 		fetcher:    fetcher,
@@ -173,9 +173,6 @@ func (this ComicList) GetComic(idx int) *Comic {
 
 func (this *ComicList) Len() int {
 	this.dataLock.RLock()
-	//if clen := len(this.comics); clen > 0 {
-	//	println(clen, this.comics[clen - 1].info.Title)
-	//}
 	defer this.dataLock.RUnlock()
 	return len(this.comics)
 }

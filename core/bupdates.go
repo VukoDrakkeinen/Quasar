@@ -22,7 +22,6 @@ var (
 	bakaUpdates_rInfoRegion  = qregexp.MustCompile(`(?s)<!-- Start:Series Info-->.*<!-- End:Series Info-->`) //what is this insanity, useful comments in the page code?!
 	bakaUpdates_rTitle       = qregexp.MustCompile(`(?<=tabletitle">)[^<]+`)
 	bakaUpdates_rDescription = qregexp.MustCompile(`(?<=div class="sCat"><b>Description</b></div>\n<div class="sContent" style="text-align:justify">).*`)
-	bakaUpdates_rRemoveHTML  = qregexp.MustCompile(`<[^>]+>`)
 	bakaUpdates_rType        = qregexp.MustCompile(`(?<=<div class="sCat"><b>Type</b></div>\n<div class="sContent" >).*`)
 	bakaUpdates_rAltTitles   = qregexp.MustCompile(`(?<=<div class="sCat"><b>Associated Names</b></div>\n<div class="sContent" >).*(?=<)`)
 	bakaUpdates_rStatus      = qregexp.MustCompile(`(?<=<div class="sCat"><b>Status in Country of Origin</b></div>\n<div class="sContent" >)[^(]+\(([^)]+)\)`)
@@ -39,30 +38,13 @@ var (
 )
 
 type bakaUpdates struct {
-	name      FetcherPluginName
-	settings  PerPluginSettings
-	m_fetcher *fetcher
+	fetcherPluginSharedImpl
 }
 
 func NewBakaUpdates() *bakaUpdates { //TODO: logic saved as interpreted files
 	ret := &bakaUpdates{}
 	ret.name = FetcherPluginName(reflect.TypeOf(*ret).Name())
 	return ret
-}
-
-func (this *bakaUpdates) fetcher() *fetcher { //TODO: don't panic, just log
-	if this.m_fetcher == nil {
-		panic("Fetcher is nil!")
-	}
-	return this.m_fetcher
-}
-
-func (this *bakaUpdates) setFetcher(parent *fetcher) {
-	this.m_fetcher = parent
-}
-
-func (this *bakaUpdates) PluginName() FetcherPluginName {
-	return this.name
 }
 
 func (this *bakaUpdates) HumanReadableName() string {
@@ -80,21 +62,16 @@ func (this *bakaUpdates) Capabilities() FetcherPluginCapabilities {
 	}
 }
 
-func (this *bakaUpdates) Settings() PerPluginSettings {
-	return this.settings
-}
-
-func (this *bakaUpdates) SetSettings(new PerPluginSettings) {
-	var maxConns uint
-	if overrideMaxConns := new.OverrideDefaults[4]; overrideMaxConns {
-		maxConns = new.MaxConnectionsToHost
-	}
-	this.fetcher().PluginLimitsUpdated(this.name, maxConns)
-	this.settings = new
-}
-
 func (this *bakaUpdates) IsURLValid(url string) bool {
 	return bakaUpdates_rURLValidator.MatchString(url)
+}
+
+func (this *bakaUpdates) fetchAdvert() advert {
+	return advert{} //TODO
+}
+
+func (this *bakaUpdates) findComic(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
+	return []comicSearchResult(nil)
 }
 
 func (this *bakaUpdates) findComicURL(title string) string {
@@ -111,6 +88,7 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 	if this.m_fetcher == nil {
 		panic("Fetcher is nil!")
 	}
+
 	contents, err := this.fetcher().DownloadData(
 		this.name,
 		"https://www.mangaupdates.com/series.html?page=1&stype=title&perpage=100&search="+url.QueryEscape(title),
@@ -119,6 +97,7 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 	if err != nil {
 		panic(err)
 	}
+
 	urlAndTitleList := bakaUpdates_rURLAndTitleList.FindAllSubmatch(contents, -1)
 	for _, urlAndTitle := range urlAndTitleList {
 		links = append(links, string(urlAndTitle[1]))
@@ -133,12 +112,14 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	if err != nil {
 		panic(err)
 	}
+
 	infoRegion := bakaUpdates_rInfoRegion.Find(contents)
 	title := html.UnescapeString(string(bakaUpdates_rTitle.Find(infoRegion)))
-	description := html.UnescapeString(string(bakaUpdates_rRemoveHTML.ReplaceAll(
+	description := html.UnescapeString(string(shared_rRemoveHTML.ReplaceAll(
 		bytes.Replace(bakaUpdates_rDescription.Find(infoRegion), []byte("<BR>"), []byte("\n"), -1),
-		[]byte{},
+		[]byte(nil),
 	)))
+
 	cType := InvalidComic
 	switch string(bakaUpdates_rType.Find(infoRegion)) {
 	case "Manga":
@@ -150,22 +131,24 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	default:
 		cType = Other
 	}
+
 	altTitles := make(map[string]struct{})
 	for _, altTitle := range bytes.Split(bakaUpdates_rAltTitles.Find(infoRegion), []byte("<br />")) {
 		altTitles[html.UnescapeString(string(altTitle))] = struct{}{}
 	}
-	statusString := string(bakaUpdates_rStatus.Find(infoRegion))
+
 	status := ComicStatusInvalid
-	switch {
-	case statusString == "Ongoing":
+	switch string(bakaUpdates_rStatus.Find(infoRegion)) {
+	case "Ongoing":
 		status = ComicOngoing
-	case statusString == "Complete":
+	case "Complete":
 		status = ComicComplete
-	case statusString == "Hiatus":
+	case "Hiatus":
 		status = ComicOnHiatus
-	case statusString == "Complete/Discontinued":
+	case "Complete/Discontinued":
 		status = ComicDiscontinued
 	}
+
 	scanStatus := ScanlationStatusInvalid
 	switch string(bakaUpdates_rScanStatus.Find(infoRegion)) {
 	case "Yes":
@@ -173,11 +156,13 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	case "No":
 		scanStatus = ScanlationOngoing
 	}
+
 	ratingString := string(bakaUpdates_rRating.Find(infoRegion))
 	rating, _ := strconv.ParseFloat(ratingString, 32)
+
 	var thumbnailFilename string
 	imageUrl := string(bakaUpdates_rImageURL.Find(infoRegion))
-	if imageUrl != "" {
+	if imageUrl != "" { //TODO: skip if exists
 		thumbnailFilename = path.Base(imageUrl)
 		thumbnail, err := this.fetcher().DownloadData(this.name, imageUrl, false)
 		if err != nil {
@@ -185,10 +170,12 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 		}
 		qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 	}
+
 	genres := make(map[ComicGenreId]struct{})
-	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(bytes.Split(bakaUpdates_rRemoveHTML.ReplaceAll(bakaUpdates_rGenres.Find(infoRegion), []byte{}), []byte("&nbsp; "))))[0].([]ComicGenreId) {
+	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(bytes.Split(shared_rRemoveHTML.ReplaceAll(bakaUpdates_rGenres.Find(infoRegion), []byte(nil)), []byte("&nbsp; "))))[0].([]ComicGenreId) {
 		genres[genre] = struct{}{}
 	}
+
 	ajax, err := this.fetcher().DownloadData(
 		this.name, "https://www.mangaupdates.com/ajax/show_categories.php?type=1&s="+bakaUpdates_rComicID.FindString(url),
 		false,
@@ -200,6 +187,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	for _, tag := range qutils.Vals(ComicTags.AssignIdsBytes(bakaUpdates_rCategories.FindAll(ajax, -1)))[0].([]ComicTagId) {
 		categories[tag] = struct{}{}
 	}
+
 	authors, _ := Authors.AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rAuthorsLine.Find(infoRegion), -1))
 	artists, _ := Artists.AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rArtistsLine.Find(infoRegion), -1))
 	_, mature := genres[MATURE_GENRE()]
@@ -215,7 +203,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 		Status:            status,
 		ScanlationStatus:  scanStatus,
 		Description:       description,
-		Rating:            float32(rating),
+		Rating:            uint16(rating * 100), //e.g. 9.13 on a 10pt scale
 		Mature:            mature,
 		ThumbnailFilename: thumbnailFilename,
 	}

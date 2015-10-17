@@ -136,7 +136,7 @@ ComicInfoRow convertComicInfo(void* info) {
     auto status = (ComicStatus::Enum)*(GoInt*)(infoPtr + offsets->status);
     auto scanStatus = (ScanlationStatus::Enum)*(GoInt*)(infoPtr + offsets->scanlationStatus);
     auto desc = GoStringQ(infoPtr + offsets->description);
-    auto rating = *(float*)(infoPtr + offsets->rating);
+    auto rating = *(GoUint16*)(infoPtr + offsets->rating);
     bool mature = *(GoInt*)(infoPtr + offsets->mature);
     QString thumbnail = GoStringQ(infoPtr + offsets->thumbnailFilename);
 

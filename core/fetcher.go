@@ -330,10 +330,10 @@ func (this *fetcher) Settings() *GlobalSettings {
 	return this.settings
 }
 
-func (this *fetcher) FindComic(title string) []comicSearchResults {
+func (this *fetcher) FindComic(title string) []comicSearchResult {
 	var wg sync.WaitGroup
-	allResults := make(chan []comicSearchResults, 1)
-	allResults <- make([]comicSearchResults, 0, 2)
+	sharedResults := make(chan []comicSearchResult, 1)
+	sharedResults <- make([]comicSearchResult, 0, 2)
 	for name, plugin := range this.plugins {
 		wg.Add(1)
 		go func(pluginName FetcherPluginName, plugin FetcherPlugin) {
@@ -349,20 +349,25 @@ func (this *fetcher) FindComic(title string) []comicSearchResults {
 				return
 			}
 
-			results := <-allResults
-			defer func() { allResults <- results }()
-			results = append(results, comicSearchResults{pluginName, title, "???", url}) //TODO
+			results := <-sharedResults
+			defer func() { sharedResults <- results }()
+			results = append(results, comicSearchResult{PluginName: pluginName, Title: title, URL: url}) //TODO
 		}(name, plugin)
 	}
 	wg.Wait()
-	return <-allResults
+	return <-sharedResults
 }
 
 func (this *fetcher) FindComicAdvanced(title string) {} //TODO: more params
 
-type comicSearchResults struct {
+type comicSearchResult struct {
 	PluginName FetcherPluginName
 	Title      string
-	Authors    string
 	URL        string
+	//optional:
+	Authors    string
+	Rating     uint16
+	Views      int
+	Year       int
+	LastUpdate time.Time
 }

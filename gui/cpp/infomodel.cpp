@@ -115,7 +115,7 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 				break;
 				
 				case 10:
-					return info.rating;
+					return QString("%1/10").arg(float(info.rating)/100);
 				break;
 				
 				case 11:
