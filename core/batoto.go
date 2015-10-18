@@ -186,13 +186,14 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 
 	var thumbnailFilename string
 	thumbnailUrl := string(batoto_rImageURL.Find(infoRegion))
-	if thumbnailUrl != "" { //TODO: skip if exists
-		thumbnailFilename = path.Base(thumbnailUrl)
-		thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
-		if err != nil {
-			panic(err)
+	if thumbnailUrl != "" {
+		if thumbnailFilename = path.Base(thumbnailUrl); !qdb.ThumbnailExists(thumbnailFilename) {
+			thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
+			if err != nil {
+				panic(err)
+			}
+			qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 		}
-		qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 	}
 
 	return &ComicInfo{

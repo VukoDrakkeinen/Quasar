@@ -162,13 +162,14 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 
 	var thumbnailFilename string
 	imageUrl := string(bakaUpdates_rImageURL.Find(infoRegion))
-	if imageUrl != "" { //TODO: skip if exists
-		thumbnailFilename = path.Base(imageUrl)
-		thumbnail, err := this.fetcher().DownloadData(this.name, imageUrl, false)
-		if err != nil {
-			panic(err)
+	if imageUrl != "" {
+		if thumbnailFilename = path.Base(imageUrl); !qdb.ThumbnailExists(thumbnailFilename) {
+			thumbnail, err := this.fetcher().DownloadData(this.name, imageUrl, false)
+			if err != nil {
+				panic(err)
+			}
+			qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 		}
-		qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 	}
 
 	genres := make(map[ComicGenreId]struct{})

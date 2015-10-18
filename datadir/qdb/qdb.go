@@ -74,6 +74,13 @@ func GetThumbnailPath(filename string) string {
 	return filepath.Join(thumbsDir, filename)
 }
 
+func ThumbnailExists(filename string) bool {
+	if fullpath := GetThumbnailPath(filename); fullpath != "" {
+		_, err := os.Lstat(fullpath)
+		return !os.IsNotExist(err)
+	}
+}
+
 type InsertionStmtExecutor interface {
 	ExecuteInsertionStmt(stmt *sql.Stmt, additionalArgs ...interface{}) error
 }

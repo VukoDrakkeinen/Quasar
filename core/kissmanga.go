@@ -138,12 +138,13 @@ func (this *kissmanga) fetchComicInfo(comic *Comic) *ComicInfo {
 	var thumbnailFilename string
 	thumbnailUrl := string(kissmanga_rImageURL.Find(contents))
 	if thumbnailUrl != "" {
-		thumbnailFilename = path.Base(thumbnailUrl)
-		thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
-		if err != nil {
-			panic(err)
+		if thumbnailFilename = path.Base(thumbnailUrl); !qdb.ThumbnailExists(thumbnailFilename) {
+			thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
+			if err != nil {
+				panic(err)
+			}
+			qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 		}
-		qdb.SaveThumbnail(thumbnailFilename, thumbnail)
 	}
 
 	return &ComicInfo{

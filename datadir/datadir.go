@@ -25,3 +25,7 @@ func Configs() string {
 func Logs() string {
 	return logsDir
 }
+
+func OverrideLogs(newPath string) {
+	logsDir = newPath
+}
