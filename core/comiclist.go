@@ -4,6 +4,7 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/eventq"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"math"
@@ -16,11 +17,17 @@ import (
 
 type ViewNotificationType int
 
-const (
-	Insert ViewNotificationType = iota
-	Remove
-	Reset
-	Update
+var (
+	ComicsAboutToBeAdded = eventq.NewEventType()
+	ComicsAdded          = eventq.NewEventType()
+
+	ComicsAboutToBeRemoved = eventq.NewEventType()
+	ComicsRemoved          = eventq.NewEventType()
+
+	ComicsUpdateStatusChanged = eventq.NewEventType()
+
+	ChapterListAboutToChange = eventq.NewEventType()
+	ChapterListChanged       = eventq.NewEventType()
 )
 
 var (
@@ -68,18 +75,11 @@ var (
 	scheduleQueryCmd = `SELECT nextFetchTime, lastUpdated FROM schedule WHERE comicId = ?;`
 )
 
-func NewComicList(fetcher *fetcher, notifyViewFunc func(typ ViewNotificationType, row, count int, work func())) *ComicList {
-	if notifyViewFunc == nil {
-		notifyViewFunc = func(a ViewNotificationType, b, c int, work func()) {
-			work()
-		}
-	}
-
+func NewComicList(fetcher *fetcher) *ComicList {
 	return &ComicList{
-		comics:     make([]*Comic, 0, 10),
-		metadata:   make([]comicMetadata, 0, 10),
-		fetcher:    fetcher,
-		notifyView: notifyViewFunc,
+		comics:   make([]*Comic, 0, 10),
+		metadata: make([]comicMetadata, 0, 10),
+		fetcher:  fetcher,
 	}
 }
 
@@ -97,12 +97,11 @@ type comicMetadata struct {
 
 type ComicUpdatingEnum uint32
 type ComicList struct {
-	comics     []*Comic
-	metadata   []comicMetadata
-	fetcher    *fetcher
-	notifyView func(typ ViewNotificationType, row, count int, work func())
-	dataLock   sync.RWMutex
-	metaLock   sync.RWMutex
+	comics   []*Comic
+	metadata []comicMetadata
+	fetcher  *fetcher
+	dataLock sync.RWMutex
+	metaLock sync.RWMutex
 }
 
 func (list ComicList) Fetcher() *fetcher {
@@ -110,47 +109,47 @@ func (list ComicList) Fetcher() *fetcher {
 }
 
 func (this *ComicList) AddComics(comics ...*Comic) {
-	this.notifyView(Insert, len(this.comics), len(comics), func() {
-		this.dataLock.Lock()
-		this.metaLock.Lock()
-		defer this.dataLock.Unlock()
-		defer this.metaLock.Unlock()
+	this.dataLock.Lock()
+	this.metaLock.Lock()
+	eventq.Event(ComicsAboutToBeAdded, len(this.comics), len(comics))
+	defer this.dataLock.Unlock()
+	defer this.metaLock.Unlock()
+	defer eventq.Event(ComicsAdded)
 
-		this.comics = append(this.comics, comics...)
-		mlen := len(this.metadata)
-		newLen := mlen + len(comics)
+	this.comics = append(this.comics, comics...)
+	mlen := len(this.metadata)
+	newLen := mlen + len(comics)
 
-		if cap(this.metadata) < newLen {
-			metadata := make([]comicMetadata, newLen, qutils.GrownCap(newLen))
-			copy(metadata, this.metadata)
-			this.metadata = metadata
-		} else {
-			this.metadata = this.metadata[:newLen]
-		}
+	if cap(this.metadata) < newLen {
+		metadata := make([]comicMetadata, newLen, qutils.GrownCap(newLen))
+		copy(metadata, this.metadata)
+		this.metadata = metadata
+	} else {
+		this.metadata = this.metadata[:newLen]
+	}
 
-		for i := range this.metadata[mlen:] {
-			this.metadata[mlen+i].schedInterrupt = make(chan struct{})
-		}
-	})
+	for i := range this.metadata[mlen:] {
+		this.metadata[mlen+i].schedInterrupt = make(chan struct{})
+	}
 }
 
 func (this *ComicList) RemoveComics(index, count int) {
-	this.notifyView(Remove, int(index), int(count), func() {
-		this.dataLock.Lock()
-		this.metaLock.Lock()
-		defer this.dataLock.Unlock()
-		defer this.metaLock.Unlock()
+	this.dataLock.Lock()
+	this.metaLock.Lock()
+	eventq.Event(ComicsAboutToBeRemoved, index, count)
+	defer this.dataLock.Unlock()
+	defer this.metaLock.Unlock()
+	defer eventq.Event(ComicsRemoved)
 
-		this.comics = this.comics[:index+copy(this.comics[index:], this.comics[index+count:])]
-		for i := index; i < (index + count); i++ {
-			this.cancelScheduleForComic(i)
-		}
+	this.comics = this.comics[:index+copy(this.comics[index:], this.comics[index+count:])]
+	for i := index; i < (index + count); i++ {
+		this.cancelScheduleForComic(i)
+	}
 
-		this.metadata = this.metadata[:index+copy(this.metadata[index:], this.metadata[index+count:])]
-		for i := index + count; i < len(this.metadata); i++ {
-			this.scheduleComicFetchFor(i, true)
-		}
-	})
+	this.metadata = this.metadata[:index+copy(this.metadata[index:], this.metadata[index+count:])]
+	for i := index + count; i < len(this.metadata); i++ {
+		this.scheduleComicFetchFor(i, true)
+	}
 }
 
 func (this ComicList) ComicLastUpdated(idx int) time.Time {
@@ -219,12 +218,10 @@ func (this ComicList) UpdateComic(comicId int) {
 
 func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 	now := time.Now().UTC()
-	canUpdate := true
-	this.notifyView(Update, comicIdx, 1, func() {
-		canUpdate = atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)),
-			uint32(ComicNotUpdating), uint32(ComicUpdating),
-		)
-	})
+	canUpdate := atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)),
+		uint32(ComicNotUpdating), uint32(ComicUpdating),
+	)
+	eventq.Event(ComicsUpdateStatusChanged, comicIdx, 1)
 	if !canUpdate {
 		return
 	}
@@ -235,27 +232,28 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 		this.dataLock.Unlock()
 	}
 
-	this.notifyView(Update, comicIdx, 1, func() {
-		comic := this.GetComic(comicIdx)
-		freq := this.comicUpdateFrequency(comicIdx)
+	comic := this.GetComic(comicIdx)
+	freq := this.comicUpdateFrequency(comicIdx)
 
-		prev := this.metadata[comicIdx].nextFetchAt
-		if manual || prev.IsZero() {
-			prev = now
-			missedFetches = false
-		}
-		if !missedFetches {
-			this.metadata[comicIdx].nextFetchAt = prev.Add(freq)
-		} else {
-			multiplier := divCeil(now.Sub(prev), freq)
-			this.metadata[comicIdx].nextFetchAt = prev.Add(multiplier * freq)
-		}
+	prev := this.metadata[comicIdx].nextFetchAt
+	if manual || prev.IsZero() {
+		prev = now
+		missedFetches = false
+	}
+	if !missedFetches {
+		this.metadata[comicIdx].nextFetchAt = prev.Add(freq)
+	} else {
+		multiplier := divCeil(now.Sub(prev), freq)
+		this.metadata[comicIdx].nextFetchAt = prev.Add(multiplier * freq)
+	}
 
-		this.fetcher.DownloadChapterListFor(comic)
-		this.metadata[comicIdx].updatedAt = now
+	eventq.Event(ChapterListAboutToChange) //do only when comicIdx == chapterView.comicId
+	this.fetcher.DownloadChapterListFor(comic)
+	eventq.Event(ChapterListChanged)
+	this.metadata[comicIdx].updatedAt = now
 
-		atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)), uint32(ComicNotUpdating))
-	})
+	atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)), uint32(ComicNotUpdating))
+	eventq.Event(ComicsUpdateStatusChanged, comicIdx, 1)
 
 	if manual {
 		this.scheduleComicFetchFor(comicIdx, true)
@@ -436,34 +434,28 @@ func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole 
 			continue
 		}
 
-		list.dataLock.RLock()
-		clen := len(list.comics)
-		list.dataLock.RUnlock()
-		list.notifyView(Insert, clen, 1, func() {
-			list.dataLock.Lock()
-			list.metaLock.Lock()
-			defer list.dataLock.Unlock()
-			defer list.metaLock.Unlock()
+		eventq.Event(ComicsAboutToBeAdded, len(list.comics), 1)
+		list.dataLock.Lock()
+		list.metaLock.Lock()
 
-			list.comics = append(list.comics, comic)
-			var nextFetchTime, lastUpdated time.Time
-			err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime, &lastUpdated)
-			if err != nil {
-				return
-			}
-
-			list.metadata = append(list.metadata,
-				comicMetadata{
-					status:         ComicNotUpdating,
-					updatedAt:      lastUpdated,
-					nextFetchAt:    nextFetchTime.UTC(),
-					schedInterrupt: make(chan struct{}),
-				},
-			)
-		})
+		list.comics = append(list.comics, comic)
+		var nextFetchTime, lastUpdated time.Time
+		err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime, &lastUpdated)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
+
+		list.metadata = append(list.metadata,
+			comicMetadata{
+				status:         ComicNotUpdating,
+				updatedAt:      lastUpdated,
+				nextFetchAt:    nextFetchTime.UTC(),
+				schedInterrupt: make(chan struct{}),
+			},
+		)
+		list.dataLock.Unlock()
+		list.metaLock.Unlock()
+		eventq.Event(ComicsAdded)
 	}
 
 	transaction.Commit()

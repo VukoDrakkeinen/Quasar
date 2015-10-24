@@ -6,7 +6,6 @@ import "C"
 import (
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"gopkg.in/qml.v1"
-	//"sync"
 	"unsafe"
 )
 
@@ -94,37 +93,4 @@ func (model qtProxyModel) NotifyViewUpdated(row, count, column int) {
 	qml.RunMain(func() {
 		C.notifyModelDataChanged(model.ptr, C.int(row), C.int(count), C.int(column))
 	})
-}
-
-//work() function is provided by the model and must be executed in-between notification calls
-type NotifyViewFunc func(ntype core.ViewNotificationType, row, count int, work func())
-
-type defaultNotifyViewFunc func(model qtProxyModel, ntype core.ViewNotificationType, row, count int, work func())
-
-func DefaultNotifyFunc() defaultNotifyViewFunc {
-	return func(model qtProxyModel, ntype core.ViewNotificationType, row, count int, work func()) {
-		switch ntype {
-		case core.Insert:
-			func() {
-				model.NotifyViewInsertStart(row, count)
-				defer model.NotifyViewInsertEnd()
-				work()
-			}()
-		case core.Remove:
-			func() {
-				model.NotifyViewRemoveStart(row, count)
-				defer model.NotifyViewRemoveEnd()
-				work()
-			}()
-		case core.Reset:
-			func() {
-				model.NotifyViewResetStart()
-				defer model.NotifyViewResetEnd()
-				work()
-			}()
-		case core.Update:
-			work()
-			model.NotifyViewUpdated(row, count, -1)
-		}
-	}
 }

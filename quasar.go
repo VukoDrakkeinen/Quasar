@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/eventq"
 	"github.com/VukoDrakkeinen/Quasar/gui"
 	"github.com/VukoDrakkeinen/Quasar/qutils/cores"
 	"gopkg.in/qml.v1"
@@ -54,27 +55,60 @@ func initQuasar() (saveData func() error, vars qmlContextVariables) {
 		settings = core.NewGlobalSettings()
 	}
 
-	qlog.Log(qlog.Info, "Creating proxy models")
-	chapterModel := gui.NewComicChapterModel(nil)
-	updateModel := gui.NewComicUpdateModel(nil)
-	infoModel := gui.NewComicInfoModel(nil)
-
 	qlog.Log(qlog.Info, "Creating Fetcher")
-	notify := gui.DefaultNotifyFunc()
-	fet := core.NewFetcher(settings, func(work func()) {
-		notify(chapterModel, core.Reset, -1, -1, work) //row and count values are unused, hence -1
-	})
+	fet := core.NewFetcher(settings)
 
 	qlog.Log(qlog.Info, "Registering plugins")
 	fet.RegisterPlugins(core.NewBatoto(), core.NewBakaUpdates(), core.NewKissManga())
 
 	qlog.Log(qlog.Info, "Creating comic list")
-	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
-		notify(updateModel, ntype, row, count, work)
+	list := core.NewComicList(fet)
+
+	qlog.Log(qlog.Info, "Creating proxy models")
+	chapterModel := gui.NewComicChapterModel(list)
+	updateModel := gui.NewComicUpdateModel(list)
+	infoModel := gui.NewComicInfoModel(list)
+
+	qlog.Log(qlog.Info, "Registering event actions")
+	eventq.On(core.ChapterListAboutToChange).Do(func(...interface{}) {
+		chapterModel.NotifyViewResetStart()
 	})
-	chapterModel.SetGoData(list)
-	updateModel.SetGoData(list)
-	infoModel.SetGoData(list)
+	eventq.On(core.ChapterListChanged).Do(func(...interface{}) {
+		chapterModel.NotifyViewResetEnd()
+	})
+
+	eventq.On(gui.ChaptersMarked).Do(func(args ...interface{}) {
+		row := args[0].(int)
+		selections := args[1].([][2]int)
+		for _, sel := range selections {
+			chapterModel.NotifyViewUpdated(sel[0], sel[1], -1) //[0] = row, [1] = count
+		}
+		updateModel.NotifyViewUpdated(row, 1, -1)
+	})
+
+	eventq.On(core.ComicsAboutToBeAdded).Do(func(args ...interface{}) {
+		row := args[0].(int)
+		count := args[1].(int)
+		updateModel.NotifyViewInsertStart(row, count)
+	})
+	eventq.On(core.ComicsAdded).Do(func(...interface{}) {
+		updateModel.NotifyViewInsertEnd()
+	})
+
+	eventq.On(core.ComicsAboutToBeRemoved).Do(func(args ...interface{}) {
+		row := args[0].(int)
+		count := args[1].(int)
+		updateModel.NotifyViewRemoveStart(row, count)
+	})
+	eventq.On(core.ComicsRemoved).Do(func(...interface{}) {
+		updateModel.NotifyViewRemoveEnd()
+	})
+
+	eventq.On(core.ComicsUpdateStatusChanged).Do(func(args ...interface{}) {
+		row := args[0].(int)
+		count := args[1].(int)
+		updateModel.NotifyViewUpdated(row, count, -1)
+	})
 
 	qlog.Log(qlog.Info, "Begin DB load")
 	go func() {
@@ -88,13 +122,7 @@ func initQuasar() (saveData func() error, vars qmlContextVariables) {
 	}()
 
 	qlog.Log(qlog.Info, "Creating Core Connector")
-	coreConnector := gui.NewCoreConnector(list, func(row int, selections [][2]int, work func()) {
-		work()
-		for _, sel := range selections {
-			chapterModel.NotifyViewUpdated(sel[0], sel[1], -1) //[0] = row, [1] = count
-		}
-		updateModel.NotifyViewUpdated(row, 1, -1)
-	})
+	coreConnector := gui.NewCoreConnector(list)
 
 	qvars := qmlContextVariables{
 		{name: "updateModel", ptr: updateModel.QtPtr()},

@@ -2,26 +2,22 @@ package gui
 
 import (
 	"github.com/VukoDrakkeinen/Quasar/core"
+	"github.com/VukoDrakkeinen/Quasar/eventq"
 	"gopkg.in/qml.v1"
 	"reflect"
 	"sort"
 )
 
-func NewCoreConnector(list *core.ComicList, notifyViewsFunc func(row int, selections [][2]int, work func())) *coreConnector {
-	if notifyViewsFunc == nil {
-		notifyViewsFunc = func(a int, b [][2]int, work func()) {
-			work()
-		}
-	}
-	return &coreConnector{
-		list:        list,
-		notifyViews: notifyViewsFunc,
-	}
+var (
+	ChaptersMarked = eventq.NewEventType()
+)
+
+func NewCoreConnector(list *core.ComicList) *coreConnector {
+	return &coreConnector{list}
 }
 
 type coreConnector struct {
-	list        *core.ComicList
-	notifyViews func(row int, selections [][2]int, work func())
+	list *core.ComicList
 }
 
 func (this *coreConnector) PluginNames() (names []core.FetcherPluginName, humanReadableNames []string) {
@@ -192,9 +188,9 @@ func (this *coreConnector) MarkAsRead(comicIdx int, chapterIndicesList *qml.List
 		identities = append(identities, id)
 		last = i
 	}
-	this.notifyViews(comicIdx, selections, func() {
-		comic.AddMultipleChapters(identities, chapters, true)
-	})
+
+	comic.AddMultipleChapters(identities, chapters, true)
+	eventq.Event(ChaptersMarked, comicIdx, selections)
 }
 
 func (this *coreConnector) DownloadPages(comicIdx int, chapterIndicesList, scanlationIndicesList *qml.List) {

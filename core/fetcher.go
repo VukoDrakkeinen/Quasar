@@ -75,15 +75,9 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 	connsToHost map[string]uint
 	maxConns    map[FetcherPluginName]uint
 	cond        *sync.Cond
-	notifyView  func(work func())
 }
 
-func NewFetcher(settings *GlobalSettings, notifyViewFunc func(work func()), plugins ...FetcherPlugin) *fetcher {
-	if notifyViewFunc == nil {
-		notifyViewFunc = func(work func()) {
-			work()
-		}
-	}
+func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
 	fet := &fetcher{
 		plugins: make(map[FetcherPluginName]FetcherPlugin),
 		webClient: &http.Client{
@@ -94,7 +88,6 @@ func NewFetcher(settings *GlobalSettings, notifyViewFunc func(work func()), plug
 		connsToHost: make(map[string]uint, 10),
 		maxConns:    make(map[FetcherPluginName]uint, 10),
 		cond:        sync.NewCond(&sync.Mutex{}),
-		notifyView:  notifyViewFunc,
 	}
 	if fet.settings == nil {
 		fet.settings = NewGlobalSettings()
@@ -275,28 +268,26 @@ func (this *fetcher) pluginPanicked(offender FetcherPluginName, err interface{})
 }
 
 func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
-	this.notifyView(func() {
-		var wg sync.WaitGroup
-		for _, source := range comic.Sources() {
-			wg.Add(1)
-			go func(pluginName FetcherPluginName) {
-				defer wg.Done()
-				defer func() {
-					if err := recover(); err != nil {
-						this.pluginPanicked(pluginName, err)
-					}
-				}()
-
-				if plugin, success := this.plugins[pluginName]; success && plugin.Capabilities().ProvidesMetadata {
-					identities, chapters, missingVolumes := plugin.fetchChapterList(comic)
-					//some plugins return ChapterIdentities with no Volume data, correct it, then sort
-					correctiveSlice{identities, chapters, missingVolumes}.Correct()
-					comic.AddMultipleChapters(identities, chapters, false)
+	var wg sync.WaitGroup
+	for _, source := range comic.Sources() {
+		wg.Add(1)
+		go func(pluginName FetcherPluginName) {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					this.pluginPanicked(pluginName, err)
 				}
-			}(source.PluginName)
-		}
-		wg.Wait()
-	})
+			}()
+
+			if plugin, success := this.plugins[pluginName]; success && plugin.Capabilities().ProvidesMetadata {
+				identities, chapters, missingVolumes := plugin.fetchChapterList(comic)
+				//some plugins return ChapterIdentities with no Volume data, correct it, then sort
+				correctiveSlice{identities, chapters, missingVolumes}.Correct()
+				comic.AddMultipleChapters(identities, chapters, false)
+			}
+		}(source.PluginName)
+	}
+	wg.Wait()
 }
 
 func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
