@@ -228,7 +228,7 @@ func (this *Comic) AddMultipleChapters(identities []ChapterIdentity, chapters []
 	if len(identities) != len(chapters) {
 		qlog.Log(qlog.Warning, "Comic.AddMultipleChapters: provided slices lengths do not match!")
 	}
-	minLen := int(math.Min(int64(len(identities)), int64(len(chapters))))
+	minLen := math.Min(len(identities), len(chapters))
 	nonexistentSlices := make([][]ChapterIdentity, 0, minLen/2) //Slice of slices of non-existent identities
 	startIndex := 0                                             //Starting index of new slice of non-existent identities
 	newStart := false                                           //Status of creation of the slice
@@ -375,7 +375,7 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 	var newId int64
 	result, err := stmts[comicInsertion].Exec(
 		this.SQLId(),
-		this.info.Title, this.info.Type, this.info.Status, this.info.ScanlationStatus, this.info.Description,
+		this.info.MainTitle, this.info.Type, this.info.Status, this.info.ScanlationStatus, this.info.Description,
 		this.info.Rating, this.info.Mature, this.info.ThumbnailFilename,
 		qutils.BoolsToBitfield(this.settings.OverrideDefaults), this.settings.FetchOnStartup,
 		this.settings.IntervalFetching, this.settings.FetchFrequency, this.settings.NotificationMode,
@@ -451,7 +451,7 @@ func SQLComicQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Comic, error) {
 	var duration int64
 	err := rows.Scan(
 		&comicId,
-		&info.Title, &info.Type, &info.Status, &info.ScanlationStatus, &info.Description, &info.Rating, &info.Mature, &thumbnailFilename,
+		&info.MainTitle, &info.Type, &info.Status, &info.ScanlationStatus, &info.Description, &info.Rating, &info.Mature, &thumbnailFilename,
 		&overrideDefaultsBitfield, &stts.FetchOnStartup, &stts.IntervalFetching, &fetchFreq, &stts.NotificationMode,
 		&stts.AccumulativeModeCount, &duration,
 	)
@@ -713,7 +713,7 @@ func sqlAddUpdateSourceQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
 }
 
 type ComicInfo struct {
-	Title             string
+	MainTitle         string
 	AltTitles         map[string]struct{}
 	Authors           []AuthorId
 	Artists           []ArtistId
@@ -725,7 +725,7 @@ type ComicInfo struct {
 	Description       string
 	Rating            uint16
 	Mature            bool
-	ThumbnailFilename string
+	ThumbnailFilename string //TODO: multiple thumbnails to choose from
 
 	titlesSQLIds map[string]int64
 }
@@ -738,8 +738,8 @@ func (this ComicInfo) MergeWith(another *ComicInfo) (merged *ComicInfo) {
 		this.Categories = make(map[ComicTagId]struct{})
 	}
 
-	if this.Title == "" {
-		this.Title = another.Title
+	if this.MainTitle == "" {
+		this.MainTitle = another.MainTitle
 	}
 
 	for altTitle, _ := range another.AltTitles {
@@ -799,7 +799,7 @@ func (this ComicInfo) MergeWith(another *ComicInfo) (merged *ComicInfo) {
 		this.Description = another.Description
 	}
 
-	this.Rating = uint16(math.Max(int64(this.Rating), int64(another.Rating)))
+	this.Rating = uint16(math.Max(int(this.Rating), int(another.Rating)))
 
 	this.Mature = another.Mature || this.Mature
 

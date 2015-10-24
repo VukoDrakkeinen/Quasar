@@ -10,10 +10,12 @@ typedef void InfoModel_;
 typedef void ChapterModel_;
 typedef void GoComicList_;
 typedef void NotifiableModel_;
+typedef void WrappedModel_;
 
 InfoModel_* newInfoModel(GoComicList_* data);
 UpdateModel_* newUpdateModel(GoComicList_* data);
 ChapterModel_* newChapterModel(GoComicList_* data);
+WrappedModel_* wrapModel(NotifiableModel_* model);  //wrap in SortFilter proxy
 void registerQMLTypes();
 void modelSetGoData(NotifiableModel_* model, void* goData);
 void notifyModelInsertStart(NotifiableModel_* model, int row, int count);

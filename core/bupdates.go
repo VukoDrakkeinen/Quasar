@@ -194,7 +194,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	_, mature := genres[MATURE_GENRE()]
 
 	return &ComicInfo{
-		Title:             title,
+		MainTitle:         title,
 		AltTitles:         altTitles,
 		Authors:           authors,
 		Artists:           artists,

@@ -5,6 +5,8 @@
 #include "chaptermodel.h"
 #include "progressbar.h"
 #include "modellistconverter.h"
+#include "qml-regexp.h"
+#include "filtermodel.h"
 #include <QModelIndex>
 #include <QList>
 #include <cstdlib>
@@ -104,6 +106,12 @@ UpdateModel_* newUpdateModel(GoComicList_* data) {
 
 ChapterModel_* newChapterModel(GoComicList_* data) {
 	return reinterpret_cast<ChapterModel_*>(new ChapterModel(data));
+}
+
+WrappedModel_* wrapModel(NotifiableModel_* model) {
+	auto wrapper = new SortFilterModel();
+    wrapper->setSourceModel(reinterpret_cast<QAbstractItemModel*>(model));
+    return reinterpret_cast<WrappedModel_*>(wrapper);
 }
 
 ComicInfoRow convertComicInfo(void* info) {
@@ -215,6 +223,7 @@ void registerQMLTypes() {
 	qmlRegisterUncreatableType<ComicStatus>("QuasarGUI", 1, 0, "ComicStatus", enumText);
 	qmlRegisterUncreatableType<ScanlationStatus>("QuasarGUI", 1, 0, "ScanlationStatus", enumText);
 	qmlRegisterUncreatableType<UpdateInfoModel>("QuasarGUI", 1, 0, "CellType", enumText);
+	qmlRegisterType<RegExp>("QuasarGUI", 1, 0, "RegExp");
 }
 
 void modelSetGoData(NotifiableModel_* model, void* goData) {

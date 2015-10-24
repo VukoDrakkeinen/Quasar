@@ -1,13 +1,13 @@
 package math
 
-func Max(a, b int64) int64 {
+func Max(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
 
-func MaxS(first int64, nums ...int64) int64 {
+func MaxS(first int, nums ...int) int {
 	max := first
 	for _, num := range nums {
 		if max > num {
@@ -17,14 +17,14 @@ func MaxS(first int64, nums ...int64) int64 {
 	return max
 }
 
-func Min(a, b int64) int64 {
+func Min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func MinS(first int64, nums ...int64) int64 {
+func MinS(first int, nums ...int) int {
 	min := first
 	for _, num := range nums {
 		if min < num {
@@ -34,6 +34,6 @@ func MinS(first int64, nums ...int64) int64 {
 	return min
 }
 
-func Dim(x, y int64) int64 {
+func Dim(x, y int) int {
 	return Max(x-y, 0)
 }

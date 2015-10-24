@@ -197,7 +197,7 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 
 	return &ComicInfo{
-		Title:             title,
+		MainTitle:         title,
 		AltTitles:         altTitles,
 		Authors:           authors,
 		Artists:           artists,
@@ -244,19 +244,19 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 
 		identityAndTitle := batoto_rIdentityAndTitle.FindSubmatch(chapterInfo)
 		if identityAndTitle == nil {
-			qlog.Logf(qlog.Error, `Failed to extract identity and title for comic %s`, comic.Info().Title)
+			qlog.Logf(qlog.Error, `Failed to extract identity and title for comic %s`, comic.Info().MainTitle)
 			qlog.Logf(qlog.Error, "\n%s\n", string(chapterInfo))
 			continue
 		}
 		idStr, sortHint := string(identityAndTitle[1]), string(identityAndTitle[3])
 		identity, strict, color, err := parseBatotoIdentity(idStr, sortHint)
 		if err != nil {
-			qlog.Logf(qlog.Error, "Parsing %s identity for comic \"%s\" failed: %v", this.HumanReadableName(), comic.Info().Title, err)
+			qlog.Logf(qlog.Error, "Parsing %s identity for comic \"%s\" failed: %v", this.HumanReadableName(), comic.Info().MainTitle, err)
 			continue
 		}
 		if !strict {
 			qlog.Logf(qlog.Warning, "Irregular %s identity \"%s | %s\" for comic \"%s\"; parsed as %v",
-				this.HumanReadableName(), idStr, sortHint, comic.Info().Title, identity,
+				this.HumanReadableName(), idStr, sortHint, comic.Info().MainTitle, identity,
 			)
 		}
 

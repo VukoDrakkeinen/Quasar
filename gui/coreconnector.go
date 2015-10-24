@@ -203,10 +203,15 @@ func (this *coreConnector) DownloadPages(comicIdx int, chapterIndicesList, scanl
 	chapterIndicesList.Convert(&chapterIndices)
 	scanlationIndicesList.Convert(&scanlationIndices)
 	for i := range chapterIndices {
-		go this.list.Fetcher().DownloadPageLinksFor(comic, chapterIndices[i], scanlationIndices[i])
+		go func() {
+			println("step1")
+			this.list.Fetcher().DownloadPageLinksFor(comic, chapterIndices[i], scanlationIndices[i])
+			println("step2")
+			this.list.Fetcher().DownloadPages(comic, chapterIndices[i], scanlationIndices[i])
+			println("profit")
+		}()
 		//TODO: don't download needlessly
 	}
-	//TODO: save to files
 	//TODO: show progress
 }
 

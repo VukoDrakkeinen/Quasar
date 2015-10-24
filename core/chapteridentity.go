@@ -1,8 +1,10 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	. "github.com/VukoDrakkeinen/Quasar/qutils"
+	"strconv"
 )
 
 type ChapterIdentity struct {
@@ -10,7 +12,7 @@ type ChapterIdentity struct {
 	MajorNum uint16
 	MinorNum byte
 	Letter   byte
-	Version  byte
+	Version  byte //TODO: not actually significant; move to scanlation metadata?
 }
 
 func (this ChapterIdentity) Equals(another ChapterIdentity) bool {
@@ -39,6 +41,26 @@ func (this ChapterIdentity) MoreEq(another ChapterIdentity) bool {
 
 func (this ChapterIdentity) n() int64 {
 	return int64(this.Volume)<<40 | int64(this.MajorNum)<<24 | int64(this.MinorNum)<<16 | int64(this.Letter)<<8 | int64(this.Version)
+}
+
+func (this ChapterIdentity) Stringify() string {
+	buffer := bytes.NewBuffer(make([]byte, 0, 64))
+	if this.Volume != 0 {
+		buffer.WriteRune('V')
+		buffer.WriteString(strconv.FormatUint(uint64(this.Volume), 10))
+		buffer.WriteRune(' ')
+	}
+	buffer.WriteRune('C')
+	buffer.WriteString(strconv.FormatUint(uint64(this.MajorNum), 10))
+	if this.MinorNum != 0 {
+		buffer.WriteRune('.')
+		buffer.WriteString(strconv.FormatUint(uint64(this.MinorNum), 10))
+
+	}
+	if this.Letter != 0 {
+		buffer.WriteRune(rune(this.Letter-1) + 'a')
+	}
+	return buffer.String()
 }
 
 func (this *ChapterIdentity) Scan(src interface{}) error {

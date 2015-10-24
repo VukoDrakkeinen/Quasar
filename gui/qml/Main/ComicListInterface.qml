@@ -1,11 +1,18 @@
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
+import QuasarGUI 1.0
 
 SplitView {	
 	id: root
 	orientation: Qt.Horizontal
-	property alias comicId: comicListView.currentRow
+	property var comicId: updateModel.comicId	//Somebody explain to me why the fuck can't it be a goddamn alias
+	
+	Binding {
+		target: updateModel
+		property: "currentRow"
+		value: comicListView.currentRow
+	}
 	
 	ControlButtons {
 		Button {
@@ -87,7 +94,41 @@ SplitView {
 			Binding {
 				target: chapterModel
 				property: "comicId"
-				value: comicListView.currentRow
+				value: root.comicId
+			}
+		}
+		
+		RowLayout {
+			Layout.fillWidth: true
+			Label {
+				text: qsTr("Search:")
+			}
+			TextField {
+				id: rtf
+				Layout.fillWidth: true
+				onEditingFinished: {
+					regexp.pattern = this.text
+				}
+				RegExp {
+					id: regexp
+				}
+				Binding {
+					target: updateModel
+					property: "filterRegExp"
+					when: regexp.valid
+					value: regexp.regexp
+				}
+				Behavior on textColor {
+					ColorAnimation {
+						duration: 400
+					}
+				}
+				Binding {
+					target: rtf
+					property: "textColor"
+					when: !regexp.valid
+					value: "red"
+				}
 			}
 		}
 		

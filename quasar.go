@@ -75,9 +75,9 @@ func initQuasar() (*core.GlobalSettings, *core.ComicList, qmlContextVariables) {
 	list := core.NewComicList(fet, func(ntype core.ViewNotificationType, row, count int, work func()) {
 		notify(updateModel, ntype, row, count, work)
 	})
-	gui.ModelSetGoData(chapterModel, list)
-	gui.ModelSetGoData(updateModel, list)
-	gui.ModelSetGoData(infoModel, list)
+	chapterModel.SetGoData(list)
+	updateModel.SetGoData(list)
+	infoModel.SetGoData(list)
 
 	qlog.Log(qlog.Info, "Begin DB load")
 	go func() {
@@ -94,15 +94,15 @@ func initQuasar() (*core.GlobalSettings, *core.ComicList, qmlContextVariables) {
 	coreConnector := gui.NewCoreConnector(list, func(row int, selections [][2]int, work func()) {
 		work()
 		for _, sel := range selections {
-			gui.NotifyViewUpdated(chapterModel, sel[0], sel[1], -1) //[0] = row, [1] = count
+			chapterModel.NotifyViewUpdated(sel[0], sel[1], -1) //[0] = row, [1] = count
 		}
-		gui.NotifyViewUpdated(updateModel, row, 1, -1)
+		updateModel.NotifyViewUpdated(row, 1, -1)
 	})
 
 	vars := qmlContextVariables{
-		{name: "updateModel", ptr: updateModel.InternalPtr()},
-		{name: "infoModel", ptr: infoModel.InternalPtr()},
-		{name: "chapterModel", ptr: chapterModel.InternalPtr()},
+		{name: "updateModel", ptr: updateModel.QtPtr()},
+		{name: "infoModel", ptr: infoModel.QtPtr()},
+		{name: "chapterModel", ptr: chapterModel.QtPtr()},
 		{name: "quasarCore", ptr: coreConnector, isGoValue: true},
 	}
 	return settings, list, vars

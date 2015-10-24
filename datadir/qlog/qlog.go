@@ -70,10 +70,13 @@ func (this *FileLog) Write(msg logMessage) {
 }
 
 func (this *StdLog) Write(msg logMessage) {
-	if msg.s == Error {
-		fmt.Fprintln(os.Stderr, msg.m)
-	} else {
+	switch msg.s {
+	case Info:
 		fmt.Println(msg.m)
+	case Warning:
+		fmt.Println(msg.s.String()+":", msg.m)
+	case Error:
+		fmt.Fprintln(os.Stderr, msg.s.String()+":", msg.m)
 	}
 }
 
@@ -116,6 +119,10 @@ func New(writers ...LogWriter) *QLogger {
 		ret.AddWriter(writer)
 	}
 	return ret
+}
+
+func ChangeDefault(writers ...LogWriter) {
+	defaultLogger = *New(writers...)
 }
 
 func (this *QLogger) AddWriter(writer LogWriter) {

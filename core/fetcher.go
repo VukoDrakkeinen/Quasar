@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"errors"
@@ -13,7 +14,10 @@ import (
 	"math/rand"
 	"net/http"
 	neturl "net/url"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,7 +29,7 @@ type correctiveSlice struct {
 }
 
 func (this correctiveSlice) Len() int {
-	return int(math.Min(int64(len(this.identities)), int64(len(this.chapters))))
+	return math.Min(len(this.identities), len(this.chapters))
 }
 
 func (this correctiveSlice) Less(i, j int) bool {
@@ -228,7 +232,13 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 				defer body.Close()
 			}
 
-			data, err = ioutil.ReadAll(body) //TODO: progress (channels should be useful here)
+			if clen := response.ContentLength; clen > 0 {
+				data = make([]byte, response.ContentLength)
+				_, errChan := qutils.BackgroundCopy(body, bytes.NewBuffer(data)) //TODO: propagate progress info further
+				err = <-errChan
+			} else {
+				data, err = ioutil.ReadAll(body)
+			}
 			if err != nil {
 				return []byte{}, err
 			} else if forceCaching {
@@ -305,6 +315,49 @@ func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 		scanlation.PageLinks = links
 		chapter.AddScanlation(scanlation)    //reinsert after modifying
 		comic.AddChapter(identity, &chapter) //reinsert //TODO: use pointers instead?
+	}
+	return
+}
+
+func getChapterDirPath(settings *GlobalSettings, comic *Comic, ci ChapterIdentity) string { //FIXME: brittle
+	path := filepath.Join(settings.DownloadsPath, comic.Info().MainTitle, ci.Stringify())
+	os.MkdirAll(path, os.ModeDir|0755)
+	return path
+}
+
+func (this *fetcher) DownloadPages(comic *Comic, chapterIndex, scanlationIndex int) { //FIXME: temporary implementation
+	println("dp")
+	var offender FetcherPluginName //TODO: notify view
+	defer func() {
+		if err := recover(); err != nil {
+			this.pluginPanicked(offender, err)
+		}
+	}()
+
+	chapter, ci := comic.GetChapter(chapterIndex)
+	scanlation := chapter.Scanlation(scanlationIndex)
+	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
+		offender = scanlation.PluginName
+		if len(scanlation.PageLinks) == 0 {
+			this.DownloadPageLinksFor(comic, chapterIndex, scanlationIndex)
+		}
+		dirpath := getChapterDirPath(this.settings, comic, ci)
+		for _, link := range scanlation.PageLinks {
+			filename := link[strings.LastIndex(link, "/")+1:]
+			file, err := os.Create(dirpath + "/" + filename)
+			if err != nil {
+				println(err)
+				continue
+			}
+			data, err := this.DownloadData(offender, link, false) //TODO: try to avoid copying
+			if err != nil {
+				println(err)
+				continue
+			}
+			file.Write(data)
+			file.Close()
+		}
+		println("done")
 	}
 	return
 }

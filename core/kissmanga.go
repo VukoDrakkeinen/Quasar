@@ -148,7 +148,7 @@ func (this *kissmanga) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 
 	return &ComicInfo{
-		Title:             mainTitle,
+		MainTitle:         mainTitle,
 		AltTitles:         titles,
 		Authors:           author,
 		Artists:           artist,
@@ -190,10 +190,10 @@ func (this *kissmanga) fetchChapterList(comic *Comic) (identities []ChapterIdent
 		identity := ChapterIdentity{MajorNum: uint16(majorNum), MinorNum: byte(minorNum)}
 		title := html.UnescapeString(string(chapterInfo[4]))
 		if title == "" {
-			titleFromIdentity(identity)
+			title = titleFromIdentity(identity)
 		}
 
-		scanlators, _ := Scanlators.AssignIds([]string{this.HumanReadableName()})
+		scanlators, _ := Scanlators.AssignIds([]string{"Unknown - hosted by " + this.HumanReadableName()})
 
 		chapter := NewChapter(source.MarkAsRead)
 		chapter.AddScanlation(ChapterScanlation{

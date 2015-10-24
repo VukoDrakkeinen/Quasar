@@ -11,13 +11,14 @@ TreeView {
 		model: tree.model
 	}
 	selectionMode: SelectionMode.ExtendedSelection
-	itemDelegate: Item {  
-		Label {  
-			anchors.verticalCenter: parent.verticalCenter
+	itemDelegate: Item {
+		Label {
+			anchors.fill: parent
+			//anchors.leftMargin: 4
 			text: styleData.value
 			color: model ? model.foreground : styleData.textColor
 			elide: styleData.elideMode
-		}  
+		}
 	}
 	
 	TableViewColumn {

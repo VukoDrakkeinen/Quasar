@@ -16,3 +16,9 @@
 
 #include "cpp/modellistconverter.cpp"
 #include "cpp/moc_modellistconverter.cpp"
+
+#include "cpp/qml-regexp.cpp"
+#include "cpp/moc_qml-regexp.cpp"
+
+#include "cpp/filtermodel.cpp"
+#include "cpp/moc_filtermodel.cpp"

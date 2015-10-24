@@ -79,6 +79,7 @@ func ThumbnailExists(filename string) bool {
 		_, err := os.Lstat(fullpath)
 		return !os.IsNotExist(err)
 	}
+	return false
 }
 
 type InsertionStmtExecutor interface {

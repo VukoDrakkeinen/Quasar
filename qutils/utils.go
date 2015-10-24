@@ -1,11 +1,14 @@
 package qutils
 
 import (
+	"bytes"
 	"errors"
 	"github.com/VukoDrakkeinen/Quasar/qregexp"
 	"github.com/VukoDrakkeinen/Quasar/qutils/math"
+	"io"
 	"reflect"
 	"runtime/debug"
+	"time"
 )
 
 func GrownCap(newSize int) int {
@@ -88,7 +91,7 @@ func BoolsToBitfield(table []bool) (bitfield uint64) {
 		panic("BoolsToBitfield: provided bool table is too long!")
 	}
 	elvisOp := map[bool]uint64{false: 0, true: 1}
-	for i, b := range table[:int(math.Min(int64(len(table)), 64))] {
+	for i, b := range table[:math.Min(len(table), 64)] {
 		bitfield |= (elvisOp[b] << uint64(i))
 	}
 	return
@@ -100,7 +103,7 @@ func BitfieldToBools(bitfield uint64, expectedLength int) (table []bool) {
 	for i := 0; i < bitLength; i++ {
 		table = append(table, elvisOp[(bitfield>>uint64(i))&^0xFFFFFFFFFFFFFFFE])
 	}
-	table = append(table, make([]bool, int(math.Dim(int64(expectedLength), int64(len(table)))))...) //lengthen if too short
+	table = append(table, make([]bool, math.Dim(expectedLength, len(table)))...) //lengthen if too short
 	return
 }
 
@@ -142,4 +145,74 @@ func Reverse(data sliceWrapper) {
 type sliceWrapper interface {
 	Len() int
 	Swap(i, j int)
+}
+
+const bufLen = 512
+
+func BackgroundCopy(r io.Reader, w io.Writer) (copiedChan <-chan int, errChan <-chan error) {
+	copied_ := make(chan int, 10)
+	err_ := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			close(err_)
+		}()
+
+		var copied int
+
+		if wb, ok := w.(*bytes.Buffer); ok {
+			buffer := wb.Bytes()
+
+			cycleStart := time.Now()
+			for {
+				n, err := r.Read(buffer[copied:math.Min(copied+bufLen, cap(buffer))])
+				if n == 0 {
+					if err != io.EOF {
+						err_ <- err
+					}
+					return
+				}
+
+				copied += n
+				if time.Now().Sub(cycleStart) > (32*time.Millisecond) && len(copied_) != cap(copied_) {
+					copied_ <- copied
+					cycleStart = time.Now()
+				}
+
+				if copied == cap(buffer) {
+					if len(copied_) != cap(copied_) {
+						copied_ <- copied
+					}
+					return
+				}
+			}
+		} else {
+			buffer := make([]byte, bufLen)
+
+			cycleStart := time.Now()
+			for {
+				n, err := r.Read(buffer)
+				if n == 0 {
+					if err != io.EOF {
+						err_ <- err
+					}
+					return
+				}
+
+				_, err = w.Write(buffer[:n])
+				if err != nil {
+					err_ <- err
+					return
+				}
+
+				copied += n
+				if time.Now().Sub(cycleStart) > (32*time.Millisecond) && len(copied_) != cap(copied_) {
+					copied_ <- copied
+					cycleStart = time.Now()
+				}
+			}
+		}
+	}()
+
+	return copied_, err_
 }

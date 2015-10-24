@@ -6,7 +6,7 @@ import "C"
 import (
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"gopkg.in/qml.v1"
-	"sync"
+	//"sync"
 	"unsafe"
 )
 
@@ -19,11 +19,12 @@ func NewComicInfoModel(list *core.ComicList) qtProxyModel {
 }
 
 func NewComicUpdateModel(list *core.ComicList) qtProxyModel {
-	var ptr unsafe.Pointer
+	var ptr, filter unsafe.Pointer
 	qml.RunMain(func() {
 		ptr = C.newUpdateModel(unsafe.Pointer(list))
+		filter = C.wrapModel(ptr)
 	})
-	return qtProxyModel{ptr: ptr}
+	return qtProxyModel{ptr: ptr, filter: filter}
 }
 
 func NewComicChapterModel(list *core.ComicList) qtProxyModel {
@@ -34,77 +35,65 @@ func NewComicChapterModel(list *core.ComicList) qtProxyModel {
 	return qtProxyModel{ptr: ptr}
 }
 
-func ModelSetGoData(model qtProxyModel, list *core.ComicList) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+type qtProxyModel struct {
+	ptr    unsafe.Pointer
+	filter unsafe.Pointer
+}
+
+func (this qtProxyModel) QtPtr() unsafe.Pointer {
+	var null unsafe.Pointer
+	if this.filter != null { //heh, null
+		return this.filter
+	}
+	return this.ptr
+}
+
+func (model *qtProxyModel) SetGoData(list *core.ComicList) {
 	qml.RunMain(func() { //run in GUI thread
 		C.modelSetGoData(model.ptr, unsafe.Pointer(list))
 	})
 }
 
-func NotifyViewInsertStart(model qtProxyModel, row, count int) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewInsertStart(row, count int) {
 	qml.RunMain(func() {
 		C.notifyModelInsertStart(model.ptr, C.int(row), C.int(count))
 	})
 }
 
-func NotifyViewInsertEnd(model qtProxyModel) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewInsertEnd() {
 	qml.RunMain(func() {
 		C.notifyModelInsertEnd(model.ptr)
 	})
 }
 
-func NotifyViewRemoveStart(model qtProxyModel, row, count int) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewRemoveStart(row, count int) {
 	qml.RunMain(func() {
 		C.notifyModelRemoveStart(model.ptr, C.int(row), C.int(count))
 	})
 }
 
-func NotifyViewRemoveEnd(model qtProxyModel) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewRemoveEnd() {
 	qml.RunMain(func() {
 		C.notifyModelRemoveEnd(model.ptr)
 	})
 }
 
-func NotifyViewResetStart(model qtProxyModel) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewResetStart() {
 	qml.RunMain(func() {
 		C.notifyModelResetStart(model.ptr)
 	})
 }
 
-func NotifyViewResetEnd(model qtProxyModel) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewResetEnd() {
 	qml.RunMain(func() {
 		C.notifyModelResetEnd(model.ptr)
 	})
 }
 
-func NotifyViewUpdated(model qtProxyModel, row, count, column int) {
-	model.lock.Lock()
-	defer model.lock.Unlock()
+func (model qtProxyModel) NotifyViewUpdated(row, count, column int) {
 	qml.RunMain(func() {
 		C.notifyModelDataChanged(model.ptr, C.int(row), C.int(count), C.int(column))
 	})
-}
-
-type qtProxyModel struct {
-	ptr  unsafe.Pointer
-	lock sync.Mutex //TODO: remove the lock (should be unnecessary, since all signals are sent on the GUI thread)
-}
-
-func (this *qtProxyModel) InternalPtr() unsafe.Pointer {
-	return this.ptr
 }
 
 //work() function is provided by the model and must be executed in-between notification calls
@@ -117,25 +106,25 @@ func DefaultNotifyFunc() defaultNotifyViewFunc {
 		switch ntype {
 		case core.Insert:
 			func() {
-				NotifyViewInsertStart(model, row, count)
-				defer NotifyViewInsertEnd(model)
+				model.NotifyViewInsertStart(row, count)
+				defer model.NotifyViewInsertEnd()
 				work()
 			}()
 		case core.Remove:
 			func() {
-				NotifyViewRemoveStart(model, row, count)
-				defer NotifyViewRemoveEnd(model)
+				model.NotifyViewRemoveStart(row, count)
+				defer model.NotifyViewRemoveEnd()
 				work()
 			}()
 		case core.Reset:
 			func() {
-				NotifyViewResetStart(model)
-				defer NotifyViewResetEnd(model)
+				model.NotifyViewResetStart()
+				defer model.NotifyViewResetEnd()
 				work()
 			}()
 		case core.Update:
 			work()
-			NotifyViewUpdated(model, row, count, -1)
+			model.NotifyViewUpdated(row, count, -1)
 		}
 	}
 }
