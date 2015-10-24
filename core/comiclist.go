@@ -315,7 +315,7 @@ func CreateDB(db *qdb.QDB) (err error) {
 //TODO: more error checking
 //TODO: write some unit tests
 //TODO: return errors, so we can show the user a pop-up
-func (this ComicList) SaveToDB() {
+func (this ComicList) SaveToDB() { //TODO: lock during the whole function execution
 	db := qdb.DB()
 	if db == nil {
 		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
@@ -378,7 +378,7 @@ func (this ComicList) SaveToDB() {
 	}
 }
 
-func (list *ComicList) LoadFromDB() (err error) {
+func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole function execution
 	list.cancelSchedule()
 
 	db := qdb.DB()

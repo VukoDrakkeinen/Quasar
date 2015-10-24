@@ -35,20 +35,17 @@ func main() { //TODO: fix messy code; write some unit tests
 		defer pprof.StopCPUProfile()
 	}
 
-	settings, list, vars := initQuasar()
+	saveData, vars := initQuasar()
 
-	if err := qml.Run(func() error { return launchGUI(vars) }); err != nil {
+	if err := qml.Run(func() error { return launchGUI(vars, func() { saveData() }) }); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 
-	settings.Save()
-	list.SaveToDB() //FIXME: there are still some bugs lurking there
-
 	return
 }
 
-func initQuasar() (*core.GlobalSettings, *core.ComicList, qmlContextVariables) {
+func initQuasar() (saveData func() error, vars qmlContextVariables) {
 	qlog.Log(qlog.Info, "Loading settings")
 	settings, err := core.LoadGlobalSettings()
 	if err != nil {
@@ -99,18 +96,23 @@ func initQuasar() (*core.GlobalSettings, *core.ComicList, qmlContextVariables) {
 		updateModel.NotifyViewUpdated(row, 1, -1)
 	})
 
-	vars := qmlContextVariables{
+	qvars := qmlContextVariables{
 		{name: "updateModel", ptr: updateModel.QtPtr()},
 		{name: "infoModel", ptr: infoModel.QtPtr()},
 		{name: "chapterModel", ptr: chapterModel.QtPtr()},
 		{name: "quasarCore", ptr: coreConnector, isGoValue: true},
 	}
-	return settings, list, vars
+	saveDataFunc := func() error {
+		settings.Save()
+		list.SaveToDB() //FIXME: there are still some bugs lurking there
+		return nil
+	}
+	return saveDataFunc, qvars
 }
 
-func launchGUI(contextVars qmlContextVariables) error {
+func launchGUI(contextVars qmlContextVariables, onQuit func()) error {
 	engine := qml.NewEngine()
-	engine.On("quit", func() { println("Save to DB here?"); os.Exit(0) })
+	engine.On("quit", func() { /*onQuit();*/ os.Exit(0) })
 	context := engine.Context()
 
 	qlog.Log(qlog.Info, "Setting QML variables")
