@@ -1,6 +1,9 @@
 package eventq
 
 import (
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"sync"
 	"sync/atomic"
 )
@@ -47,6 +50,12 @@ func Event(event EventType, args ...interface{}) {
 	actions := eq[event]
 	lock.RUnlock()
 
+	defer func() {
+		if err := recover(); err != nil {
+			qlog.Log(qlog.Error, qerr.Chain("Processing event failed", err.(error)))
+			qlog.Logf(qlog.Error, "\n%s\n", qutils.Stack())
+		}
+	}()
 	for _, action := range actions {
 		action.do(args...)
 	}
