@@ -62,6 +62,10 @@ func Event(event EventType, args ...interface{}) {
 }
 
 func (this *ActionHandle) Cancel() {
+	if atomic.LoadUint32((*uint32)(&this.event)) == 0 {
+		return //Already cancelled
+	}
+
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -77,5 +81,7 @@ func (this *ActionHandle) Cancel() {
 	if idx != -1 {
 		actions, actions[len(actions)-1] = append(actions[:idx], actions[idx+1:]...), eventAction{0, nil} //delete, set the last elem to nil to prevent a memory leak
 		eq[this.event] = actions
+
+		this.event = EventType(0)
 	}
 }
