@@ -31,7 +31,7 @@ const (
 )
 
 var bitlength_comic = reflect.TypeOf(IndividualSettings{}).NumField() - 1
-var bitlength_plugin = reflect.TypeOf(PerPluginSettings{}).NumField() - 1
+var bitlength_plugin = reflect.TypeOf(SourceConfig{}).NumField() - 1
 
 type BitfieldType int
 
@@ -59,6 +59,7 @@ type (
 )
 
 type GlobalSettings struct {
+	IAmADirtyLeecher      bool
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        time.Duration
@@ -67,7 +68,7 @@ type GlobalSettings struct {
 	AccumulativeModeCount uint
 	DelayedModeDuration   time.Duration
 	DownloadsPath         string
-	Plugins               map[FetcherPluginName]PluginEnabled
+	Plugins               map[SourceId]PluginEnabled
 	Languages             map[LangName]LanguageEnabled //TODO: languages validation
 	//TODO: default plugin priority?
 	//TODO: color scheme
@@ -81,6 +82,7 @@ func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
 
 func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 	proxy := &globalSettingsJSONProxy{
+		IAmADirtyLeecher:      this.IAmADirtyLeecher,
 		FetchOnStartup:        this.FetchOnStartup,
 		IntervalFetching:      this.IntervalFetching,
 		FetchFrequency:        DurationToSplit(this.FetchFrequency),
@@ -98,6 +100,7 @@ func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
 
 func NewGlobalSettings() *GlobalSettings {
 	return &GlobalSettings{
+		IAmADirtyLeecher:      false,
 		FetchOnStartup:        true,
 		IntervalFetching:      true,
 		FetchFrequency:        time.Duration(time.Hour * 3),
@@ -106,7 +109,7 @@ func NewGlobalSettings() *GlobalSettings {
 		AccumulativeModeCount: 10,
 		DelayedModeDuration:   time.Duration(time.Hour * 24 * 7),
 		DownloadsPath:         downloadsPath,
-		Plugins:               make(map[FetcherPluginName]PluginEnabled),
+		Plugins:               make(map[SourceId]PluginEnabled),
 		Languages:             map[LangName]LanguageEnabled{LangName(ENGLISH_LANG_NAME): LanguageEnabled(true)},
 	}
 }
@@ -146,6 +149,7 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 }
 
 type globalSettingsJSONProxy struct {
+	IAmADirtyLeecher      bool
 	FetchOnStartup        bool
 	IntervalFetching      bool
 	FetchFrequency        SplitDuration
@@ -155,12 +159,13 @@ type globalSettingsJSONProxy struct {
 	AccumulativeModeCount uint
 	DelayedModeDuration   SplitDuration
 	DownloadsPath         string
-	Plugins               map[FetcherPluginName]PluginEnabled `json:"PluginsEnabled"`
-	Languages             map[LangName]LanguageEnabled        `json:"LangsEnabled"`
+	Plugins               map[SourceId]PluginEnabled   `json:"PluginsEnabled"`
+	Languages             map[LangName]LanguageEnabled `json:"LangsEnabled"`
 }
 
 func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
 	return &GlobalSettings{
+		IAmADirtyLeecher:      this.IAmADirtyLeecher,
 		FetchOnStartup:        this.FetchOnStartup,
 		IntervalFetching:      this.IntervalFetching,
 		FetchFrequency:        this.FetchFrequency.ToDuration(),
@@ -248,7 +253,7 @@ func ReadConfig(filename string) (contents []byte, err error) {
 	return
 }
 
-type PerPluginSettings struct {
+type SourceConfig struct {
 	OverrideDefaults      []bool
 	FetchOnStartup        bool
 	IntervalFetching      bool
@@ -260,8 +265,8 @@ type PerPluginSettings struct {
 	Languages             map[LangName]LanguageEnabled
 }
 
-func NewPerPluginSettings(defaults *GlobalSettings) PerPluginSettings {
-	return PerPluginSettings{
+func NewPerPluginSettings(defaults *GlobalSettings) SourceConfig {
+	return SourceConfig{
 		OverrideDefaults:      make([]bool, bitlength_plugin),
 		FetchOnStartup:        defaults.FetchOnStartup,
 		IntervalFetching:      defaults.IntervalFetching,

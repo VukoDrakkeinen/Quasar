@@ -20,11 +20,11 @@ type coreConnector struct {
 	list *core.ComicList
 }
 
-func (this *coreConnector) PluginNames() (names []core.FetcherPluginName, humanReadableNames []string) {
+func (this *coreConnector) PluginNames() (names []core.SourceId, humanReadableNames []string) {
 	return this.list.Fetcher().Plugins() //TODO: map?
 }
 
-func (this *coreConnector) PluginAutodetect(url string) (pluginName core.FetcherPluginName) {
+func (this *coreConnector) PluginAutodetect(url string) (pluginName core.SourceId) {
 	fetcherPluginName, _ := this.list.Fetcher().PluginNameFromURL(url)
 	return fetcherPluginName
 }
@@ -42,13 +42,13 @@ func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesLis
 
 	comic := core.NewComic(*settings)
 	for _, sourceObj := range sources {
-		var source core.UpdateSource
+		var source core.SourceLink
 		sourceObj.Unmarshal(&source)
 		comic.AddSource(source)
 	}
 
 	go func() {
-		this.list.Fetcher().DownloadComicInfoFor(comic)
+		this.list.Fetcher().FetchComicInfoFor(comic)
 		this.list.AddComics(comic)
 		this.list.ScheduleComicFetches()
 	}()
@@ -63,7 +63,7 @@ type temporaryNeuteredGlobalSettings struct { //TODO: remove? how? go-to-qml/qml
 	AccumulativeModeCount uint
 	DelayedModeDuration   core.SplitDuration
 	DownloadsPath         string
-	Plugins               map[core.FetcherPluginName]core.PluginEnabled
+	Plugins               map[core.SourceId]core.PluginEnabled
 	Languages             map[core.LangName]core.LanguageEnabled
 }
 
@@ -142,7 +142,7 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 	var sources []*qml.Map
 	sourcesList.Convert(&sources) //TODO: update comic after data changes
 	for i, sourceObj := range sources {
-		var source core.UpdateSource
+		var source core.SourceLink
 		sourceObj.Unmarshal(&source)
 		comic.AddSourceAt(i, source)
 	}
@@ -153,7 +153,7 @@ func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj,
 
 }
 
-func (this *coreConnector) ComicSources(comicIdx int) []core.UpdateSource {
+func (this *coreConnector) ComicSources(comicIdx int) []core.SourceLink {
 	return this.list.GetComic(comicIdx).Sources()
 }
 
@@ -201,7 +201,7 @@ func (this *coreConnector) DownloadPages(comicIdx int, chapterIndicesList, scanl
 	for i := range chapterIndices {
 		go func() {
 			println("step1")
-			this.list.Fetcher().DownloadPageLinksFor(comic, chapterIndices[i], scanlationIndices[i])
+			this.list.Fetcher().FetchPageLinksFor(comic, chapterIndices[i], scanlationIndices[i])
 			println("step2")
 			this.list.Fetcher().DownloadPages(comic, chapterIndices[i], scanlationIndices[i])
 			println("profit")

@@ -248,7 +248,7 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 	}
 
 	eventq.Event(ChapterListAboutToChange) //do only when comicIdx == chapterView.comicId
-	this.fetcher.DownloadChapterListFor(comic)
+	this.fetcher.FetchChapterListFor(comic)
 	eventq.Event(ChapterListChanged)
 	this.metadata[comicIdx].updatedAt = now
 

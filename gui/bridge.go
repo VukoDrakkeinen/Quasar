@@ -18,7 +18,7 @@ import (
 	"unsafe"
 )
 
-var dontGC = make(map[unsafe.Pointer]struct{})
+var preventGC = make(map[unsafe.Pointer]struct{})
 var lock sync.Mutex
 
 func init() {
@@ -43,7 +43,7 @@ func init() {
 func go_collectGarbage(ptr unsafe.Pointer) {
 	lock.Lock()
 	defer lock.Unlock()
-	delete(dontGC, ptr)
+	delete(preventGC, ptr)
 }
 
 ///Ids
@@ -264,7 +264,7 @@ func go_JointScanlators_ToSlice(goJointScanlators uintptr) uintptr {
 func disableGcFor(ptr unsafe.Pointer) {
 	lock.Lock()
 	defer lock.Unlock()
-	dontGC[ptr] = struct{}{}
+	preventGC[ptr] = struct{}{}
 }
 
 func offsets(dataPtr interface{}) (offsets unsafe.Pointer) {

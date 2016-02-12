@@ -38,16 +38,16 @@ var (
 )
 
 type bakaUpdates struct {
-	fetcherPluginSharedImpl
+	sourceSharedImpl
 }
 
 func NewBakaUpdates() *bakaUpdates { //TODO: logic saved as interpreted files
 	ret := &bakaUpdates{}
-	ret.name = FetcherPluginName(reflect.TypeOf(*ret).Name())
+	ret.id = SourceId(reflect.TypeOf(*ret).Name())
 	return ret
 }
 
-func (this *bakaUpdates) HumanReadableName() string {
+func (this *bakaUpdates) Name() string {
 	return "Baka-Updates"
 }
 
@@ -55,8 +55,8 @@ func (this *bakaUpdates) Languages() []string {
 	return []string{"English"}
 }
 
-func (this *bakaUpdates) Capabilities() FetcherPluginCapabilities {
-	return FetcherPluginCapabilities{
+func (this *bakaUpdates) Capabilities() SourceCapabilities {
+	return SourceCapabilities{
 		ProvidesMetadata: false,
 		ProvidesData:     false,
 	}
@@ -66,15 +66,15 @@ func (this *bakaUpdates) IsURLValid(url string) bool {
 	return bakaUpdates_rURLValidator.MatchString(url)
 }
 
-func (this *bakaUpdates) fetchAdvert() advert {
+func (this *bakaUpdates) advert() advert {
 	return advert{} //TODO
 }
 
-func (this *bakaUpdates) findComic(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
+func (this *bakaUpdates) search(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
 	return []comicSearchResult(nil)
 }
 
-func (this *bakaUpdates) findComicURL(title string) string {
+func (this *bakaUpdates) comicURL(title string) string {
 	links, titles := this.findComicURLList(title)
 	for i, ctitle := range titles {
 		if strings.EqualFold(title, ctitle) {
@@ -90,7 +90,7 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 	}
 
 	contents, err := this.fetcher().DownloadData(
-		this.name,
+		this.id,
 		"https://www.mangaupdates.com/series.html?page=1&stype=title&perpage=100&search="+url.QueryEscape(title),
 		false,
 	)
@@ -106,9 +106,9 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 	return
 }
 
-func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
-	url := comic.GetSource(this.name).URL
-	contents, err := this.fetcher().DownloadData(this.name, url, false)
+func (this *bakaUpdates) comicInfo(comic *Comic) *ComicInfo {
+	url := comic.GetSource(this.id).URL
+	contents, err := this.fetcher().DownloadData(this.id, url, false)
 	if err != nil {
 		panic(err)
 	}
@@ -164,7 +164,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	imageUrl := string(bakaUpdates_rImageURL.Find(infoRegion))
 	if imageUrl != "" {
 		if thumbnailFilename = path.Base(imageUrl); !qdb.ThumbnailExists(thumbnailFilename) {
-			thumbnail, err := this.fetcher().DownloadData(this.name, imageUrl, false)
+			thumbnail, err := this.fetcher().DownloadData(this.id, imageUrl, false)
 			if err != nil {
 				panic(err)
 			}
@@ -178,7 +178,7 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 
 	ajax, err := this.fetcher().DownloadData(
-		this.name, "https://www.mangaupdates.com/ajax/show_categories.php?type=1&s="+bakaUpdates_rComicID.FindString(url),
+		this.id, "https://www.mangaupdates.com/ajax/show_categories.php?type=1&s="+bakaUpdates_rComicID.FindString(url),
 		false,
 	)
 	if err != nil {
@@ -210,12 +210,12 @@ func (this *bakaUpdates) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 }
 
-func (this *bakaUpdates) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
+func (this *bakaUpdates) chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
 	_ = comic //unused
 	return    //plugin doesn't provide metadata, return empty lists
 }
 
-func (this *bakaUpdates) fetchChapterPageLinks(url string) []string {
+func (this *bakaUpdates) chapterDataLinks(url string) []string {
 	_ = url           //unused
 	return []string{} //plugin doesn't provide data, return empty list
 }

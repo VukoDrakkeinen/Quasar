@@ -8,19 +8,19 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 )
 
-const ( //SQL Statements Group keys
-	chapterInsertion    = "chapterInsertion"
-	chapterRelation     = "chapterRelation"
-	scanlationInsertion = "scanlationInsertion"
-	scanlationRelation  = "scanlationRelation"
-	scanlatorRelation   = "scanlatorRelation"
-	pageLinkInsertion   = "pageLinkInsertion"
-	pageLinkRelation    = "pageLinkRelation"
+var ( //SQL Statements Group keys
+	chapterInsertion    qdb.StmtId = qdb.NewStmtId()
+	chapterRelation                = qdb.NewStmtId()
+	scanlationInsertion            = qdb.NewStmtId()
+	scanlationRelation             = qdb.NewStmtId()
+	scanlatorRelation              = qdb.NewStmtId()
+	pageLinkInsertion              = qdb.NewStmtId()
+	pageLinkRelation               = qdb.NewStmtId()
 
-	chaptersQuery    = "chaptersQuery"
-	scanlationsQuery = "scanlationsQuery"
-	scanlatorsQuery  = "scanlatorsQuery"
-	pageLinksQuery   = "pageLinksQuery"
+	chaptersQuery    = qdb.NewStmtId()
+	scanlationsQuery = qdb.NewStmtId()
+	scanlatorsQuery  = qdb.NewStmtId()
+	pageLinksQuery   = qdb.NewStmtId()
 )
 
 const (
@@ -33,8 +33,8 @@ type scanlationIndex int
 type Chapter struct {
 	parent      *Comic
 	scanlations []ChapterScanlation
-	mapping     map[FetcherPluginName]map[JointScanlatorIds]scanlationIndex
-	usedPlugins []FetcherPluginName
+	mapping     map[SourceId]map[JointScanlatorIds]scanlationIndex
+	usedPlugins []SourceId
 	AlreadyRead bool
 
 	sqlId int64
@@ -43,7 +43,7 @@ type Chapter struct {
 func NewChapter(alreadyRead bool) *Chapter {
 	return &Chapter{
 		AlreadyRead: alreadyRead,
-		mapping:     make(map[FetcherPluginName]map[JointScanlatorIds]scanlationIndex),
+		mapping:     make(map[SourceId]map[JointScanlatorIds]scanlationIndex),
 	}
 
 }
@@ -98,7 +98,7 @@ func (this *Chapter) RemoveScanlation(index int) {
 	}
 }
 
-func (this *Chapter) RemoveScanlationsForPlugin(pluginName FetcherPluginName) {
+func (this *Chapter) RemoveScanlationsForPlugin(pluginName SourceId) {
 	for _, realIndex := range this.mapping[pluginName] {
 		this.scanlations = append(this.scanlations[:realIndex], this.scanlations[realIndex+1:]...)
 	}
@@ -129,16 +129,16 @@ func (this *Chapter) SetParent(comic *Comic) {
 	this.parent = comic
 }
 
-func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorIds) {
+func (this *Chapter) indexToPath(index int) (SourceId, JointScanlatorIds) {
 	if this.parent == nil { //We have no parent, so we can't access priority lists for plugins and scanlators
 		scanlation := this.scanlations[index]
 		return scanlation.PluginName, scanlation.Scanlators
 	}
 
-	var pluginNames []FetcherPluginName            //Create a set of plugin names with prioritized ones at the beginning
+	var pluginNames []SourceId                     //Create a set of plugin names with prioritized ones at the beginning
 	for _, source := range this.parent.Sources() { //Add prioritized plugin names
-		if _, exists := this.mapping[source.PluginName]; exists {
-			pluginNames = append(pluginNames, source.PluginName)
+		if _, exists := this.mapping[source.SourceId]; exists {
+			pluginNames = append(pluginNames, source.SourceId)
 		}
 	}
 	for _, pluginName := range this.usedPlugins { //Add the rest
@@ -147,7 +147,7 @@ func (this *Chapter) indexToPath(index int) (FetcherPluginName, JointScanlatorId
 		}
 	}
 
-	var pluginName FetcherPluginName
+	var pluginName SourceId
 	for _, pluginName = range pluginNames { //Absolute index => relative index
 		jointsPerPlugin := len(this.mapping[pluginName])
 		if index >= jointsPerPlugin {
@@ -254,7 +254,7 @@ type ChapterScanlation struct {
 	Title      string
 	Language   LangId
 	Scanlators JointScanlatorIds //TODO: see scanlators.go
-	PluginName FetcherPluginName
+	PluginName SourceId
 	URL        string
 	PageLinks  []string
 

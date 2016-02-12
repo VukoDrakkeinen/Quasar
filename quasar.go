@@ -15,7 +15,7 @@ import (
 	"unsafe"
 )
 
-type qmlContextVariables []struct {
+type qmlContextVars []struct {
 	name      string
 	ptr       interface{}
 	isGoValue bool
@@ -46,7 +46,7 @@ func main() { //TODO: fix messy code; write some unit tests
 	return
 }
 
-func initQuasar() (saveData func() error, vars qmlContextVariables) {
+func initQuasar() (saveData func() error, vars qmlContextVars) {
 	qlog.Log(qlog.Info, "Loading settings")
 	settings, err := core.LoadGlobalSettings()
 	if err != nil {
@@ -124,7 +124,7 @@ func initQuasar() (saveData func() error, vars qmlContextVariables) {
 	qlog.Log(qlog.Info, "Creating Core Connector")
 	coreConnector := gui.NewCoreConnector(list)
 
-	qvars := qmlContextVariables{
+	qvars := qmlContextVars{
 		{name: "updateModel", ptr: updateModel.QtPtr()},
 		{name: "infoModel", ptr: infoModel.QtPtr()},
 		{name: "chapterModel", ptr: chapterModel.QtPtr()},
@@ -138,7 +138,7 @@ func initQuasar() (saveData func() error, vars qmlContextVariables) {
 	return saveDataFunc, qvars
 }
 
-func launchGUI(contextVars qmlContextVariables, onQuit func()) error {
+func launchGUI(contextVars qmlContextVars, onQuit func()) error {
 	engine := qml.NewEngine()
 	engine.On("quit", func() { /*onQuit();*/ os.Exit(0) })
 	context := engine.Context()

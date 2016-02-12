@@ -57,16 +57,16 @@ var (
 )
 
 type batoto struct {
-	fetcherPluginSharedImpl
+	sourceSharedImpl
 }
 
 func NewBatoto() *batoto { //TODO: logic saved as interpreted files
 	ret := &batoto{}
-	ret.name = FetcherPluginName(reflect.TypeOf(*ret).Name())
+	ret.id = SourceId(reflect.TypeOf(*ret).Name())
 	return ret
 }
 
-func (this *batoto) HumanReadableName() string {
+func (this *batoto) Name() string {
 	return "Batoto"
 }
 
@@ -77,8 +77,8 @@ func (this *batoto) Languages() []string {
 	}
 }
 
-func (this *batoto) Capabilities() FetcherPluginCapabilities {
-	return FetcherPluginCapabilities{
+func (this *batoto) Capabilities() SourceCapabilities {
+	return SourceCapabilities{
 		ProvidesMetadata: true,
 		ProvidesData:     true,
 	}
@@ -88,15 +88,15 @@ func (this *batoto) IsURLValid(url string) bool {
 	return batoto_rURLValidator.MatchString(url)
 }
 
-func (this *batoto) fetchAdvert() advert {
+func (this *batoto) advert() advert {
 	return advert{} //TODO
 }
 
-func (this *batoto) findComic(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
+func (this *batoto) search(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
 	return []comicSearchResult(nil)
 }
 
-func (this *batoto) findComicURL(title string) string {
+func (this *batoto) comicURL(title string) string {
 	links, titles := this.findComicURLList(title)
 	for i, ctitle := range titles {
 		if strings.EqualFold(title, ctitle) {
@@ -107,7 +107,7 @@ func (this *batoto) findComicURL(title string) string {
 }
 
 func (this *batoto) findComicURLList(title string) (links []string, titles []string) {
-	contents, err := this.fetcher().DownloadData(this.name, "http://bato.to/search?name_cond=c&name="+url.QueryEscape(title), false)
+	contents, err := this.fetcher().DownloadData(this.id, "http://bato.to/search?name_cond=c&name="+url.QueryEscape(title), false)
 	if err != nil {
 		panic(err)
 	}
@@ -134,8 +134,8 @@ func (this *batoto) findComicURLList(title string) (links []string, titles []str
 	return
 }
 
-func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
-	contents, err := this.fetcher().DownloadData(this.name, comic.GetSource(this.name).URL, true)
+func (this *batoto) comicInfo(comic *Comic) *ComicInfo {
+	contents, err := this.fetcher().DownloadData(this.id, comic.GetSource(this.id).URL, true)
 	if err != nil {
 		panic(err)
 	}
@@ -188,7 +188,7 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	thumbnailUrl := string(batoto_rImageURL.Find(infoRegion))
 	if thumbnailUrl != "" {
 		if thumbnailFilename = path.Base(thumbnailUrl); !qdb.ThumbnailExists(thumbnailFilename) {
-			thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
+			thumbnail, err := this.fetcher().DownloadData(this.id, thumbnailUrl, false)
 			if err != nil {
 				panic(err)
 			}
@@ -213,9 +213,9 @@ func (this *batoto) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 }
 
-func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
-	source := comic.GetSource(this.name)
-	contents, err := this.fetcher().DownloadData(this.name, source.URL, true)
+func (this *batoto) chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
+	source := comic.GetSource(this.id)
+	contents, err := this.fetcher().DownloadData(this.id, source.URL, true)
 	if err != nil {
 		panic(err)
 	}
@@ -251,12 +251,12 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 		idStr, sortHint := string(identityAndTitle[1]), string(identityAndTitle[3])
 		identity, strict, color, err := parseBatotoIdentity(idStr, sortHint)
 		if err != nil {
-			qlog.Logf(qlog.Error, "Parsing %s identity for comic \"%s\" failed: %v", this.HumanReadableName(), comic.Info().MainTitle, err)
+			qlog.Logf(qlog.Error, "Parsing %s identity for comic \"%s\" failed: %v", this.Name(), comic.Info().MainTitle, err)
 			continue
 		}
 		if !strict {
 			qlog.Logf(qlog.Warning, "Irregular %s identity \"%s | %s\" for comic \"%s\"; parsed as %v",
-				this.HumanReadableName(), idStr, sortHint, comic.Info().MainTitle, identity,
+				this.Name(), idStr, sortHint, comic.Info().MainTitle, identity,
 			)
 		}
 
@@ -277,7 +277,7 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 			Title:      title,
 			Language:   lang,
 			Scanlators: JoinScanlators(scanlators),
-			PluginName: this.name,
+			PluginName: this.id,
 			URL:        url,
 			PageLinks:  make([]string, 0),
 		})
@@ -289,8 +289,8 @@ func (this *batoto) fetchChapterList(comic *Comic) (identities []ChapterIdentity
 	return
 }
 
-func (this *batoto) fetchChapterPageLinks(url string) []string { //TODO: also handle single-page-multiple-images chapters
-	firstContents, err := this.fetcher().DownloadData(this.name, url, false)
+func (this *batoto) chapterDataLinks(url string) []string { //TODO: also handle single-page-multiple-images chapters
+	firstContents, err := this.fetcher().DownloadData(this.id, url, false)
 	if err != nil {
 		panic(err)
 	}
@@ -304,7 +304,7 @@ func (this *batoto) fetchChapterPageLinks(url string) []string { //TODO: also ha
 		wg.Add(1)
 		go func(sliceIdx int, pageIdx int64) {
 			defer wg.Done()
-			contents, err := this.fetcher().DownloadData(this.name, url+"/"+strconv.FormatInt(pageIdx, 10), false)
+			contents, err := this.fetcher().DownloadData(this.id, url+"/"+strconv.FormatInt(pageIdx, 10), false)
 			if err != nil {
 				panic(err)
 			}

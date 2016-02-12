@@ -10,12 +10,20 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 )
 
 const dbFile = "quasar.db"
 
 var thumbsDir string
 var qdb *sql.DB
+var stmtTypeCounter uint32
+
+type StmtId uint32
+
+func NewStmtId() StmtId {
+	return StmtId(atomic.AddUint32(&stmtTypeCounter, 1))
+}
 
 func init() {
 	thumbsDir = filepath.Join(datadir.Path(), "thumbnails")
@@ -47,10 +55,10 @@ func DB() *QDB {
 	return &QDB{qdb}
 }
 
-type StmtGroup map[string]*sql.Stmt
+type StmtGroup map[StmtId]*sql.Stmt
 
 func (this StmtGroup) ToTransactionSpecific(transaction *sql.Tx) StmtGroup {
-	specific := StmtGroup(make(map[string]*sql.Stmt, len(this)))
+	specific := StmtGroup(make(map[StmtId]*sql.Stmt, len(this)))
 	for k, v := range this {
 		specific[k] = transaction.Stmt(v)
 	}

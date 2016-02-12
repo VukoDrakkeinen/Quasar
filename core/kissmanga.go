@@ -32,16 +32,16 @@ var (
 )
 
 type kissmanga struct {
-	fetcherPluginSharedImpl
+	sourceSharedImpl
 }
 
 func NewKissManga() *kissmanga { //TODO: logic saved as interpreted files
 	ret := &kissmanga{}
-	ret.name = FetcherPluginName(reflect.TypeOf(*ret).Name())
+	ret.id = SourceId(reflect.TypeOf(*ret).Name())
 	return ret
 }
 
-func (this *kissmanga) HumanReadableName() string {
+func (this *kissmanga) Name() string {
 	return "KissManga"
 }
 
@@ -49,8 +49,8 @@ func (this *kissmanga) Languages() []string {
 	return []string{"English"}
 }
 
-func (this *kissmanga) Capabilities() FetcherPluginCapabilities {
-	return FetcherPluginCapabilities{
+func (this *kissmanga) Capabilities() SourceCapabilities {
+	return SourceCapabilities{
 		ProvidesMetadata: true,
 		ProvidesData:     true,
 	}
@@ -60,20 +60,20 @@ func (this *kissmanga) IsURLValid(url string) bool {
 	return kissmanga_rURLValidator.MatchString(url)
 }
 
-func (this *kissmanga) fetchAdvert() advert {
+func (this *kissmanga) advert() advert {
 	return advert{} //TODO
 }
 
-func (this *kissmanga) findComic(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
+func (this *kissmanga) search(title, author string, genres []ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult {
 	return []comicSearchResult(nil)
 }
 
-func (this *kissmanga) findComicURL(title string) string {
+func (this *kissmanga) comicURL(title string) string {
 	return ""
 }
 
-func (this *kissmanga) fetchComicInfo(comic *Comic) *ComicInfo {
-	contents, err := this.fetcher().DownloadData(this.name, comic.GetSource(this.name).URL, true)
+func (this *kissmanga) comicInfo(comic *Comic) *ComicInfo {
+	contents, err := this.fetcher().DownloadData(this.id, comic.GetSource(this.id).URL, true)
 	if err != nil {
 		panic(err)
 	}
@@ -139,7 +139,7 @@ func (this *kissmanga) fetchComicInfo(comic *Comic) *ComicInfo {
 	thumbnailUrl := string(kissmanga_rImageURL.Find(contents))
 	if thumbnailUrl != "" {
 		if thumbnailFilename = path.Base(thumbnailUrl); !qdb.ThumbnailExists(thumbnailFilename) {
-			thumbnail, err := this.fetcher().DownloadData(this.name, thumbnailUrl, false)
+			thumbnail, err := this.fetcher().DownloadData(this.id, thumbnailUrl, false)
 			if err != nil {
 				panic(err)
 			}
@@ -164,9 +164,9 @@ func (this *kissmanga) fetchComicInfo(comic *Comic) *ComicInfo {
 	}
 }
 
-func (this *kissmanga) fetchChapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
-	source := comic.GetSource(this.name)
-	contents, err := this.fetcher().DownloadData(this.name, source.URL, true)
+func (this *kissmanga) chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
+	source := comic.GetSource(this.id)
+	contents, err := this.fetcher().DownloadData(this.id, source.URL, true)
 	if err != nil {
 		panic(err)
 	}
@@ -193,14 +193,14 @@ func (this *kissmanga) fetchChapterList(comic *Comic) (identities []ChapterIdent
 			title = titleFromIdentity(identity)
 		}
 
-		scanlators, _ := Scanlators.AssignIds([]string{"Unknown - hosted by " + this.HumanReadableName()})
+		scanlators, _ := Scanlators.AssignIds([]string{"Unknown - hosted by " + this.Name()})
 
 		chapter := NewChapter(source.MarkAsRead)
 		chapter.AddScanlation(ChapterScanlation{
 			Title:      title,
 			Language:   ENGLISH_LANG(),
 			Scanlators: JoinScanlators(scanlators),
-			PluginName: this.name,
+			PluginName: this.id,
 			URL:        url,
 			PageLinks:  make([]string, 0),
 		})
@@ -212,8 +212,8 @@ func (this *kissmanga) fetchChapterList(comic *Comic) (identities []ChapterIdent
 	return identities, chapters, true
 }
 
-func (this *kissmanga) fetchChapterPageLinks(url string) []string {
-	contents, err := this.fetcher().DownloadData(this.name, url, false)
+func (this *kissmanga) chapterDataLinks(url string) []string {
+	contents, err := this.fetcher().DownloadData(this.id, url, false)
 	if err != nil {
 		panic(err)
 	}

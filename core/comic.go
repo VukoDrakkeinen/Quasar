@@ -44,24 +44,24 @@ const (
 	ScanlationInDesperateNeedOfMoreStaff
 )
 
-const ( //SQL Statements Group keys
-	comicInsertion    = "comicInsertion"
-	altTitleInsertion = "altTitleInsertion"
-	altTitleRelation  = "altTitleRelation"
-	authorRelation    = "authorRelation"
-	artistRelation    = "artistRelation"
-	genreRelation     = "genreRelation"
-	tagRelation       = "tagRelation"
-	sourceInsertion   = "sourceInsertion"
-	sourceRelation    = "sourceRelation"
+var ( //SQL Statements Group keys
+	comicInsertion    qdb.StmtId = qdb.NewStmtId()
+	altTitleInsertion            = qdb.NewStmtId()
+	altTitleRelation             = qdb.NewStmtId()
+	authorRelation               = qdb.NewStmtId()
+	artistRelation               = qdb.NewStmtId()
+	genreRelation                = qdb.NewStmtId()
+	tagRelation                  = qdb.NewStmtId()
+	sourceInsertion              = qdb.NewStmtId()
+	sourceRelation               = qdb.NewStmtId()
 
-	comicsQuery    = "comicsQuery"
-	altTitlesQuery = "altTitlesQuery"
-	authorsQuery   = "authorsQuery"
-	artistsQuery   = "artistsQuery"
-	genresQuery    = "genresQuery"
-	tagsQuery      = "tagsQuery"
-	sourcesQuery   = "sourcesQuery"
+	comicsQuery    = qdb.NewStmtId()
+	altTitlesQuery = qdb.NewStmtId()
+	authorsQuery   = qdb.NewStmtId()
+	artistsQuery   = qdb.NewStmtId()
+	genresQuery    = qdb.NewStmtId()
+	tagsQuery      = qdb.NewStmtId()
+	sourcesQuery   = qdb.NewStmtId()
 )
 
 type syncRWMutex struct {
@@ -93,13 +93,13 @@ type Comic struct {
 	info     ComicInfo
 	settings IndividualSettings
 
-	sourceIdxByPlugin map[FetcherPluginName]sourceIndex //also pluginSet
-	sources           []UpdateSource                    //also pluginPriority
+	sourceIdxByPlugin map[SourceId]sourceIndex //also pluginSet
+	sourceLinks       []SourceLink             //also pluginPriority
 	chaptersOrder     ChapterIdentitiesSlice
 	chapters          map[ChapterIdentity]Chapter
 	lastReadChapter   struct {
-		identity ChapterIdentity
 		valid    bool
+		identity ChapterIdentity
 	}
 	scanlatorPriority []JointScanlatorIds
 	cachedReadCount   int
@@ -114,7 +114,7 @@ type priorityIndex int
 func NewComic(settings IndividualSettings) *Comic {
 	return &Comic{
 		settings:          settings,
-		sourceIdxByPlugin: make(map[FetcherPluginName]sourceIndex),
+		sourceIdxByPlugin: make(map[SourceId]sourceIndex),
 		chapters:          make(map[ChapterIdentity]Chapter),
 	}
 }
@@ -143,53 +143,53 @@ func (this *Comic) SetSettings(stts IndividualSettings) {
 	this.settings = stts
 }
 
-func (this *Comic) AddSource(source UpdateSource) (alreadyAdded bool) {
-	return this.AddSourceAt(len(this.sources), source)
+func (this *Comic) AddSource(source SourceLink) (alreadyAdded bool) {
+	return this.AddSourceAt(len(this.sourceLinks), source)
 }
 
-func (this *Comic) AddSourceAt(index int, source UpdateSource) (alreadyAdded bool) {
+func (this *Comic) AddSourceAt(index int, source SourceLink) (alreadyAdded bool) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-	existingIndex, alreadyAdded := this.sourceIdxByPlugin[source.PluginName]
+	existingIndex, alreadyAdded := this.sourceIdxByPlugin[source.SourceId]
 	if alreadyAdded {
-		source.sqlId = this.sources[existingIndex].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
-		this.sources[existingIndex] = source             //replace
+		source.sqlId = this.sourceLinks[existingIndex].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
+		this.sourceLinks[existingIndex] = source             //replace
 	} else {
-		if index < len(this.sources) { //insert
-			this.sources = append(this.sources, UpdateSource{}) //grow the slice
-			copy(this.sources[index+1:], this.sources[index:])  //move the data we want to after our value by one
-			this.sources[index] = source
+		if index < len(this.sourceLinks) { //insert
+			this.sourceLinks = append(this.sourceLinks, SourceLink{})  //grow the slice
+			copy(this.sourceLinks[index+1:], this.sourceLinks[index:]) //move the data we want to after our value by one
+			this.sourceLinks[index] = source
 		} else { //append
-			this.sources = append(this.sources, source)
+			this.sourceLinks = append(this.sourceLinks, source)
 		}
-		this.sourceIdxByPlugin[source.PluginName] = sourceIndex(index)
+		this.sourceIdxByPlugin[source.SourceId] = sourceIndex(index)
 	}
 	return
 }
 
-func (this *Comic) RemoveSource(source UpdateSource) (success bool) {
+func (this *Comic) RemoveSource(source SourceLink) (success bool) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
-	index, exists := this.sourceIdxByPlugin[source.PluginName]
+	index, exists := this.sourceIdxByPlugin[source.SourceId]
 	if exists {
-		this.sources = append(this.sources[:index], this.sources[index+1:]...)
+		this.sourceLinks = append(this.sourceLinks[:index], this.sourceLinks[index+1:]...)
 	}
 	return exists
 }
 
-func (this *Comic) Sources() []UpdateSource {
+func (this *Comic) Sources() []SourceLink {
 	this.lock.RLock()
 	defer this.lock.RUnlock()
-	ret := make([]UpdateSource, len(this.sources))
-	copy(ret, this.sources)
+	ret := make([]SourceLink, len(this.sourceLinks))
+	copy(ret, this.sourceLinks)
 	return ret
 }
 
-func (this *Comic) GetSource(pluginName FetcherPluginName) UpdateSource { //TODO: not found -> error?
+func (this *Comic) GetSource(pluginName SourceId) SourceLink { //TODO: not found -> error?
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	index := this.sourceIdxByPlugin[pluginName]
-	return this.sources[index]
+	return this.sourceLinks[index]
 }
 
 func (this *Comic) AddChapter(identity ChapterIdentity, chapter *Chapter) (merged bool) {
@@ -338,7 +338,7 @@ func (this *Comic) QueuedChapter() int {
 	return clen - 1
 }
 
-func (this *Comic) UsesPlugin(pluginName FetcherPluginName) bool {
+func (this *Comic) UsesPlugin(pluginName SourceId) bool {
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 	_, exists := this.sourceIdxByPlugin[pluginName]
@@ -420,8 +420,8 @@ func (this *Comic) SQLInsert(stmts qdb.StmtGroup) (err error) {
 		stmts[tagRelation].Exec(newId, tag)
 	}
 
-	for i := range this.sources {
-		err = this.sources[i].SQLInsert(newId, stmts)
+	for i := range this.sourceLinks {
+		err = this.sourceLinks[i].SQLInsert(newId, stmts)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -654,17 +654,17 @@ func SQLComicQueryStmts(db *qdb.QDB) (stmts qdb.StmtGroup) {
 	return
 }
 
-type UpdateSource struct {
-	PluginName FetcherPluginName
+type SourceLink struct {
+	SourceId   SourceId
 	URL        string
 	MarkAsRead bool
 
 	sqlId int64
 }
 
-func (this *UpdateSource) SQLInsert(comicId int64, stmts qdb.StmtGroup) (err error) {
+func (this *SourceLink) SQLInsert(comicId int64, stmts qdb.StmtGroup) (err error) {
 	var newId int64
-	result, err := stmts[sourceInsertion].Exec(this.sqlId, string(this.PluginName), this.URL, this.MarkAsRead)
+	result, err := stmts[sourceInsertion].Exec(this.sqlId, string(this.SourceId), this.URL, this.MarkAsRead)
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
@@ -677,10 +677,10 @@ func (this *UpdateSource) SQLInsert(comicId int64, stmts qdb.StmtGroup) (err err
 	return nil
 }
 
-func SQLUpdateSourceQuery(rows *sql.Rows) (UpdateSource, error) {
-	var source UpdateSource
-	err := rows.Scan(&source.sqlId, &source.PluginName, &source.URL, &source.MarkAsRead)
-	return source, err
+func SQLUpdateSourceQuery(rows *sql.Rows) (SourceLink, error) {
+	var link SourceLink
+	err := rows.Scan(&link.sqlId, &link.SourceId, &link.URL, &link.MarkAsRead)
+	return link, err
 }
 
 func SQLUpdateSourceSchema() string {
@@ -713,18 +713,25 @@ func sqlAddUpdateSourceQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
 }
 
 type ComicInfo struct {
-	MainTitle         string
+	MainTitleIdx     int
+	Titles           []string
+	MainTitle        string
+	Authors          []AuthorId
+	Artists          []ArtistId
+	Genres2          []ComicGenreId
+	Categories2      []ComicTagId
+	Type             comicType
+	Status           comicStatus
+	ScanlationStatus ScanlationStatus
+	Description      string
+	Rating           uint16
+	Mature           bool
+	ThumbnailIdx     int
+	Thumbnails       []string
+
 	AltTitles         map[string]struct{}
-	Authors           []AuthorId
-	Artists           []ArtistId
 	Genres            map[ComicGenreId]struct{}
 	Categories        map[ComicTagId]struct{}
-	Type              comicType
-	Status            comicStatus
-	ScanlationStatus  ScanlationStatus
-	Description       string
-	Rating            uint16
-	Mature            bool
 	ThumbnailFilename string //TODO: multiple thumbnails to choose from
 
 	titlesSQLIds map[string]int64

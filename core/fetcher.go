@@ -68,25 +68,23 @@ func (this correctiveSlice) Correct() {
 }
 
 type fetcher struct { //TODO: handle missing plugin errors gracefully
-	plugins     map[FetcherPluginName]FetcherPlugin
+	plugins     map[SourceId]Source
 	webClient   *http.Client
 	settings    *GlobalSettings
 	cache       *DataCache
 	connsToHost map[string]uint
-	maxConns    map[FetcherPluginName]uint
+	maxConns    map[SourceId]uint
 	cond        *sync.Cond
 }
 
-func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
+func NewFetcher(settings *GlobalSettings, plugins ...Source) *fetcher {
 	fet := &fetcher{
-		plugins: make(map[FetcherPluginName]FetcherPlugin),
-		webClient: &http.Client{
-			CheckRedirect: nil,
-		},
+		plugins:     make(map[SourceId]Source),
+		webClient:   &http.Client{CheckRedirect: nil},
 		settings:    settings,
 		cache:       NewDataCache(),
 		connsToHost: make(map[string]uint, 10),
-		maxConns:    make(map[FetcherPluginName]uint, 10),
+		maxConns:    make(map[SourceId]uint, 10),
 		cond:        sync.NewCond(&sync.Mutex{}),
 	}
 	if fet.settings == nil {
@@ -96,16 +94,16 @@ func NewFetcher(settings *GlobalSettings, plugins ...FetcherPlugin) *fetcher {
 	return fet
 }
 
-func (this *fetcher) RegisterPlugins(plugins ...FetcherPlugin) (successes, replaced []bool) {
+func (this *fetcher) RegisterPlugins(plugins ...Source) (successes, replaced []bool) {
 	for _, plugin := range plugins {
-		name := plugin.PluginName()
+		name := plugin.Id()
 		oldPlugin, pluginReplaced := this.plugins[name]
 		if pluginReplaced {
-			oldPlugin.setFetcher(nil)
+			oldPlugin.setParent(nil)
 		}
 		this.plugins[name] = plugin
-		plugin.setFetcher(this)
-		plugin.SetSettings(NewPerPluginSettings(this.settings)) //TODO
+		plugin.setParent(this)
+		plugin.SetConfig(NewPerPluginSettings(this.settings)) //TODO
 		for _, lang := range plugin.Languages() {
 			langName := LangName(lang)
 			this.settings.Languages[langName] = this.settings.Languages[langName] || LanguageEnabled(false)
@@ -117,7 +115,7 @@ func (this *fetcher) RegisterPlugins(plugins ...FetcherPlugin) (successes, repla
 	return
 }
 
-func (this *fetcher) PluginLimitsUpdated(pluginName FetcherPluginName, maxConns uint) {
+func (this *fetcher) PluginLimitsUpdated(pluginName SourceId, maxConns uint) {
 	this.cond.L.Lock()
 	if maxConns != 0 {
 		this.maxConns[pluginName] = maxConns
@@ -140,32 +138,32 @@ func (this *fetcher) PluginProvidedLanguages() (langNames []string) {
 	return
 }
 
-func (this *fetcher) Plugins() (names []FetcherPluginName, humanReadableNames []string) {
+func (this *fetcher) Plugins() (names []SourceId, humanReadableNames []string) {
 	for pluginName, plugin := range this.plugins {
 		names = append(names, pluginName)
-		humanReadableNames = append(humanReadableNames, plugin.HumanReadableName())
+		humanReadableNames = append(humanReadableNames, plugin.Name())
 	}
 	return
 }
 
-func (this *fetcher) DownloadComicInfoFor(comic *Comic) {
+func (this *fetcher) FetchComicInfoFor(comic *Comic) {
 	var wg sync.WaitGroup
 	for _, source := range comic.Sources() {
 		wg.Add(1)
-		go func(pluginName FetcherPluginName) {
+		go func(pluginName SourceId) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
 					this.pluginPanicked(pluginName, err)
 				}
 			}()
-			comic.SetInfo(*comic.Info().MergeWith(this.plugins[pluginName].fetchComicInfo(comic)))
-		}(source.PluginName)
+			comic.SetInfo(*comic.Info().MergeWith(this.plugins[pluginName].comicInfo(comic)))
+		}(source.SourceId)
 	}
 	wg.Wait()
 }
 
-func (this *fetcher) getConnectionPermit(pluginName FetcherPluginName, host string) {
+func (this *fetcher) getConnectionPermit(pluginName SourceId, host string) {
 	this.cond.L.Lock()
 	for this.connsToHost[host] == this.maxConns[pluginName] {
 		this.cond.Wait()
@@ -182,7 +180,7 @@ func (this *fetcher) giveupConnectionPermit(host string) {
 	this.cond.Signal()
 }
 
-func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forceCaching bool) (data []byte, err error) {
+func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching bool) (data []byte, err error) {
 	if data, ok := this.cache.Get(url); ok {
 		return data, err
 	}
@@ -261,17 +259,17 @@ func (this *fetcher) DownloadData(pluginName FetcherPluginName, url string, forc
 	return nil, errors.New(`Maximum amount of retries exceeded!`)
 }
 
-func (this *fetcher) pluginPanicked(offender FetcherPluginName, err interface{}) {
+func (this *fetcher) pluginPanicked(offender SourceId, err interface{}) {
 	qlog.Log(qlog.Error, "Plugin", string(offender), "panicked!", "Message:", err)
 	qlog.Logf(qlog.Error, "\n%s\n", qutils.Stack())
 	this.settings.Plugins[offender] = PluginEnabled(false)
 }
 
-func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
+func (this *fetcher) FetchChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
 	var wg sync.WaitGroup
 	for _, source := range comic.Sources() {
 		wg.Add(1)
-		go func(pluginName FetcherPluginName) {
+		go func(pluginName SourceId) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
@@ -280,18 +278,18 @@ func (this *fetcher) DownloadChapterListFor(comic *Comic) { //TODO: skipAllowed 
 			}()
 
 			if plugin, success := this.plugins[pluginName]; success && plugin.Capabilities().ProvidesMetadata {
-				identities, chapters, missingVolumes := plugin.fetchChapterList(comic)
+				identities, chapters, missingVolumes := plugin.chapterList(comic)
 				//some plugins return ChapterIdentities with no Volume data, correct it, then sort
 				correctiveSlice{identities, chapters, missingVolumes}.Correct()
 				comic.AddMultipleChapters(identities, chapters, false)
 			}
-		}(source.PluginName)
+		}(source.SourceId)
 	}
 	wg.Wait()
 }
 
-func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
-	var offender FetcherPluginName //TODO: notify view
+func (this *fetcher) FetchPageLinksFor(comic *Comic, chapterIndex, scanlationIndex int) (success bool) {
+	var offender SourceId //TODO: notify view
 	defer func() {
 		if err := recover(); err != nil {
 			this.pluginPanicked(offender, err)
@@ -302,7 +300,7 @@ func (this *fetcher) DownloadPageLinksFor(comic *Comic, chapterIndex, scanlation
 	scanlation := chapter.Scanlation(scanlationIndex)
 	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
 		offender = scanlation.PluginName
-		links := plugin.fetchChapterPageLinks(scanlation.URL)
+		links := plugin.chapterDataLinks(scanlation.URL)
 		scanlation.PageLinks = links
 		chapter.AddScanlation(scanlation)    //reinsert after modifying
 		comic.AddChapter(identity, &chapter) //reinsert //TODO: use pointers instead?
@@ -318,7 +316,7 @@ func getChapterDirPath(settings *GlobalSettings, comic *Comic, ci ChapterIdentit
 
 func (this *fetcher) DownloadPages(comic *Comic, chapterIndex, scanlationIndex int) { //FIXME: temporary implementation
 	println("dp")
-	var offender FetcherPluginName //TODO: notify view
+	var offender SourceId //TODO: notify view
 	defer func() {
 		if err := recover(); err != nil {
 			this.pluginPanicked(offender, err)
@@ -330,7 +328,7 @@ func (this *fetcher) DownloadPages(comic *Comic, chapterIndex, scanlationIndex i
 	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
 		offender = scanlation.PluginName
 		if len(scanlation.PageLinks) == 0 {
-			this.DownloadPageLinksFor(comic, chapterIndex, scanlationIndex)
+			this.FetchPageLinksFor(comic, chapterIndex, scanlationIndex)
 		}
 		dirpath := getChapterDirPath(this.settings, comic, ci)
 		for _, link := range scanlation.PageLinks {
@@ -353,8 +351,8 @@ func (this *fetcher) DownloadPages(comic *Comic, chapterIndex, scanlationIndex i
 	return
 }
 
-func (this *fetcher) PluginNameFromURL(url string) (FetcherPluginName, error) {
-	var offender FetcherPluginName
+func (this *fetcher) PluginNameFromURL(url string) (SourceId, error) {
+	var offender SourceId
 	defer func() {
 		if err := recover(); err != nil {
 			this.pluginPanicked(offender, err)
@@ -380,7 +378,7 @@ func (this *fetcher) FindComic(title string) []comicSearchResult {
 	sharedResults <- make([]comicSearchResult, 0, 2)
 	for name, plugin := range this.plugins {
 		wg.Add(1)
-		go func(pluginName FetcherPluginName, plugin FetcherPlugin) {
+		go func(pluginName SourceId, plugin Source) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
@@ -388,14 +386,14 @@ func (this *fetcher) FindComic(title string) []comicSearchResult {
 				}
 			}()
 
-			url := plugin.findComicURL(title) //TODO
+			url := plugin.comicURL(title) //TODO
 			if url == "" {
 				return
 			}
 
 			results := <-sharedResults
 			defer func() { sharedResults <- results }()
-			results = append(results, comicSearchResult{PluginName: pluginName, Title: title, URL: url}) //TODO
+			results = append(results, comicSearchResult{SourceId: pluginName, Title: title, URL: url}) //TODO
 		}(name, plugin)
 	}
 	wg.Wait()
@@ -405,9 +403,9 @@ func (this *fetcher) FindComic(title string) []comicSearchResult {
 func (this *fetcher) FindComicAdvanced(title string) {} //TODO: more params
 
 type comicSearchResult struct {
-	PluginName FetcherPluginName
-	Title      string
-	URL        string
+	SourceId SourceId
+	Title    string
+	URL      string
 	//optional:
 	Authors    string
 	Rating     uint16

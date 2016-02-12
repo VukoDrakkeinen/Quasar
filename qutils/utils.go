@@ -55,7 +55,7 @@ func indexableTypeAssert(list interface{}, elem interface{}, funcName string) {
 	}
 }
 
-func SetAppend(list interface{}, elems ...interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
+func AppendUnique(list interface{}, elems ...interface{}) (newList interface{}) {
 	slice := reflect.ValueOf(list)
 	for _, elem := range elems {
 		if !Contains(list, elem) {

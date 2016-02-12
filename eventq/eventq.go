@@ -21,14 +21,14 @@ type ActionHandle struct {
 type doWhat EventType
 
 var (
-	eventTypeCounter EventType
+	eventTypeCounter uint32
 	actionIdCounter  actionId
-	eq               = make(map[EventType][]eventAction, 32)
+	queue            = make(map[EventType][]eventAction, 32)
 	lock             sync.RWMutex
 )
 
 func NewEventType() EventType {
-	return EventType(atomic.AddUint32((*uint32)(&eventTypeCounter), 1))
+	return EventType(atomic.AddUint32(&eventTypeCounter, 1))
 }
 
 func On(event EventType) doWhat {
@@ -40,14 +40,14 @@ func (this doWhat) Do(what func(...interface{})) ActionHandle {
 
 	event := EventType(this)
 	newId := actionId(atomic.AddUint64((*uint64)(&actionIdCounter), 1))
-	eq[event] = append(eq[event], eventAction{newId, what})
+	queue[event] = append(queue[event], eventAction{newId, what})
 
 	return ActionHandle{event, newId}
 }
 
 func Event(event EventType, args ...interface{}) {
 	lock.RLock()
-	actions := eq[event]
+	actions := queue[event]
 	lock.RUnlock()
 
 	defer func() {
@@ -70,7 +70,7 @@ func (this *ActionHandle) Cancel() {
 	defer lock.Unlock()
 
 	idx := -1
-	actions := eq[this.event]
+	actions := queue[this.event]
 	for i, action := range actions {
 		if action.id == this.id {
 			idx = i
@@ -80,7 +80,7 @@ func (this *ActionHandle) Cancel() {
 
 	if idx != -1 {
 		actions, actions[len(actions)-1] = append(actions[:idx], actions[idx+1:]...), eventAction{0, nil} //delete, set the last elem to nil to prevent a memory leak
-		eq[this.event] = actions
+		queue[this.event] = actions
 
 		this.event = EventType(0)
 	}
