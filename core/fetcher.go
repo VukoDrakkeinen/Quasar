@@ -1,14 +1,9 @@
 package core
 
 import (
-	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"errors"
-	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
-	"github.com/VukoDrakkeinen/Quasar/qutils"
-	"github.com/VukoDrakkeinen/Quasar/qutils/math"
-	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -20,6 +15,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils/math"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 )
 
 type correctiveSlice struct {
@@ -43,11 +44,12 @@ func (this correctiveSlice) Swap(i, j int) {
 
 func (this correctiveSlice) Correct() {
 	if this.missingVolumes {
-		maxLen := this.Len()
+		/*maxLen := this.Len()
 		for i := 0; i < maxLen; i++ {
-			if this.identities[i].Version != 1 && i+1 < maxLen {
+			if this.identities[i]._ != 1 && i+1 < maxLen {
 				for j := i + 1; j < maxLen; j++ {
-					if this.identities[j].n()&^0xFFFF != this.identities[i].n()&^0xFFFF { //compare only vol:num
+					if jid, iid := this.identities[j], this.identities[i]; jid.Volume != iid.Volume && jid.MajorNum != iid.MajorNum {
+						//if this.identities[j].n()&^0xFFFF != this.identities[i].n()&^0xFFFF { //compare only vol:num
 						//sort.Sort(correctiveSlice{this.identities[i:j], this.chapters[i:j]})
 						qutils.Reverse(correctiveSlice{this.identities[i:j], this.chapters[i:j], this.missingVolumes})
 						i = j
@@ -55,7 +57,7 @@ func (this correctiveSlice) Correct() {
 					}
 				}
 			}
-		}
+		}//*/
 		prevVol := byte(1)
 		for i := range this.identities {
 			if this.identities[i].Volume == 0 {
@@ -68,6 +70,7 @@ func (this correctiveSlice) Correct() {
 }
 
 type fetcher struct { //TODO: handle missing plugin errors gracefully
+	m_parent    *ComicList
 	plugins     map[SourceId]Source
 	webClient   *http.Client
 	settings    *GlobalSettings
@@ -77,8 +80,8 @@ type fetcher struct { //TODO: handle missing plugin errors gracefully
 	cond        *sync.Cond
 }
 
-func NewFetcher(settings *GlobalSettings, plugins ...Source) *fetcher {
-	fet := &fetcher{
+func NewFetcher(settings *GlobalSettings, plugins ...Source) fetcher {
+	fet := fetcher{
 		plugins:     make(map[SourceId]Source),
 		webClient:   &http.Client{CheckRedirect: nil},
 		settings:    settings,
@@ -94,6 +97,41 @@ func NewFetcher(settings *GlobalSettings, plugins ...Source) *fetcher {
 	return fet
 }
 
+func (this *fetcher) setParent(parent *ComicList) {
+	this.m_parent = parent
+}
+
+func (this *fetcher) parent() *ComicList {
+	if this.m_parent != nil {
+		return this.m_parent
+	}
+	panic("Fetcher parent is nil!")
+}
+
+func (this *fetcher) langs() *idsdict.LangsDict {
+	return &this.parent().langs
+}
+
+func (this *fetcher) scanlators() *idsdict.ScanlatorsDict {
+	return &this.parent().scanlators
+}
+
+func (this *fetcher) authors() *idsdict.AuthorsDict {
+	return &this.parent().authors
+}
+
+func (this *fetcher) artists() *idsdict.ArtistsDict {
+	return &this.parent().artists
+}
+
+func (this *fetcher) genres() *idsdict.ComicGenresDict {
+	return &this.parent().genres
+}
+
+func (this *fetcher) tags() *idsdict.ComicTagsDict {
+	return &this.parent().tags
+}
+
 func (this *fetcher) RegisterPlugins(plugins ...Source) (successes, replaced []bool) {
 	for _, plugin := range plugins {
 		name := plugin.Id()
@@ -103,7 +141,7 @@ func (this *fetcher) RegisterPlugins(plugins ...Source) (successes, replaced []b
 		}
 		this.plugins[name] = plugin
 		plugin.setParent(this)
-		plugin.SetConfig(NewPerPluginSettings(this.settings)) //TODO
+		plugin.SetConfig(NewSourceConfig(this.settings)) //TODO
 		for _, lang := range plugin.Languages() {
 			langName := LangName(lang)
 			this.settings.Languages[langName] = this.settings.Languages[langName] || LanguageEnabled(false)
@@ -115,7 +153,7 @@ func (this *fetcher) RegisterPlugins(plugins ...Source) (successes, replaced []b
 	return
 }
 
-func (this *fetcher) PluginLimitsUpdated(pluginName SourceId, maxConns uint) {
+func (this *fetcher) pluginLimitsUpdated(pluginName SourceId, maxConns uint) {
 	this.cond.L.Lock()
 	if maxConns != 0 {
 		this.maxConns[pluginName] = maxConns
@@ -148,17 +186,19 @@ func (this *fetcher) Plugins() (names []SourceId, humanReadableNames []string) {
 
 func (this *fetcher) FetchComicInfoFor(comic *Comic) {
 	var wg sync.WaitGroup
-	for _, source := range comic.Sources() {
+	for _, sourceLink := range comic.SourceLinks() {
+		sourceLink := sourceLink
+		sourceId := sourceLink.SourceId
 		wg.Add(1)
-		go func(pluginName SourceId) {
+		go func() {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					this.pluginPanicked(pluginName, err)
+					this.pluginPanicked(sourceId, err)
 				}
 			}()
-			comic.SetInfo(*comic.Info().MergeWith(this.plugins[pluginName].comicInfo(comic)))
-		}(source.SourceId)
+			comic.SetInfo(comic.Info().MergeWith(this.plugins[sourceId].comicInfo(sourceLink)))
+		}()
 	}
 	wg.Wait()
 }
@@ -187,7 +227,7 @@ func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching 
 
 	parsedUrl, err := neturl.Parse(url)
 	if err != nil {
-		return []byte{}, qerr.Chain("Unable to find host in url", err)
+		return []byte(nil), qerr.Chain("Unable to find host in url", err)
 	}
 
 	this.getConnectionPermit(pluginName, parsedUrl.Host)
@@ -204,7 +244,7 @@ func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching 
 		request.Header.Set("Cache-Control", `max-age=0`)
 		response, err := this.webClient.Do(request)
 		if err != nil {
-			return nil, err
+			return []byte(nil), err
 		}
 
 		switch response.StatusCode {
@@ -215,7 +255,7 @@ func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching 
 			case "gzip":
 				body, err = gzip.NewReader(body)
 				if err != nil {
-					return []byte{}, qerr.Chain("Corrupted GZIP data!", err)
+					return []byte(nil), qerr.Chain("Corrupted GZIP data!", err)
 				}
 				defer body.Close()
 			case "deflate":
@@ -223,16 +263,17 @@ func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching 
 				defer body.Close()
 			}
 
-			if clen := response.ContentLength; clen > 0 {
-				data = make([]byte, response.ContentLength)
-				_, errChan := qutils.BackgroundCopy(body, bytes.NewBuffer(data)) //TODO: propagate progress info further
-				err = <-errChan
-			} else {
-				data, err = ioutil.ReadAll(body)
-			}
+			//if clen := response.ContentLength; clen > 0 {
+			//	data = make([]byte, response.ContentLength)
+			//	_, errChan := qutils.BackgroundCopy(body, bytes.NewBuffer(data)) //TODO: propagate progress info further
+			//	err = <-errChan
+			//} else {
+			data, err = ioutil.ReadAll(body)
+			//}
 			if err != nil {
-				return []byte{}, err
-			} else if forceCaching {
+				return []byte(nil), err
+			}
+			if forceCaching {
 				this.cache.Add(url, data, time.Duration(0))
 			}
 			return data, err
@@ -240,7 +281,7 @@ func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching 
 			url = response.Header.Get("Location")
 			parsedRedirect, err := neturl.Parse(url)
 			if err != nil {
-				return []byte{}, qerr.Chain("Unable to find host in url", err)
+				return []byte(nil), qerr.Chain("Unable to find host in url", err)
 			}
 			if parsedUrl.Host != parsedRedirect.Host {
 				this.getConnectionPermit(pluginName, parsedRedirect.Host)
@@ -253,10 +294,10 @@ func (this *fetcher) DownloadData(pluginName SourceId, url string, forceCaching 
 			time.Sleep(waitTime)
 			continue
 		default:
-			return nil, errors.New(`Unhandled response status code "` + response.Status + `" received!`)
+			return []byte(nil), errors.New(`Unhandled response status code "` + response.Status + `" received!`)
 		}
 	}
-	return nil, errors.New(`Maximum amount of retries exceeded!`)
+	return []byte(nil), errors.New(`Maximum amount of retries exceeded!`)
 }
 
 func (this *fetcher) pluginPanicked(offender SourceId, err interface{}) {
@@ -265,25 +306,28 @@ func (this *fetcher) pluginPanicked(offender SourceId, err interface{}) {
 	this.settings.Plugins[offender] = PluginEnabled(false)
 }
 
-func (this *fetcher) FetchChapterListFor(comic *Comic) { //TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
+//TODO: skipAllowed boolean (optimisation, download only last page to update existing list, the suggestion may be disregarded) - only some plugins
+func (this *fetcher) FetchChapterListFor(comic *Comic) {
 	var wg sync.WaitGroup
-	for _, source := range comic.Sources() {
+	for _, sourceLink := range comic.SourceLinks() {
+		sourceLink := sourceLink
+		sourceId := sourceLink.SourceId
 		wg.Add(1)
-		go func(pluginName SourceId) {
+		go func() {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					this.pluginPanicked(pluginName, err)
+					this.pluginPanicked(sourceId, err)
 				}
 			}()
 
-			if plugin, success := this.plugins[pluginName]; success && plugin.Capabilities().ProvidesMetadata {
-				identities, chapters, missingVolumes := plugin.chapterList(comic)
-				//some plugins return ChapterIdentities with no Volume data, correct it, then sort
+			if plugin, success := this.plugins[sourceId]; success && plugin.Capabilities().ProvidesMetadata {
+				identities, chapters, missingVolumes := plugin.chapterList(sourceLink)
+				//some plugins return ChapterIdentities with no Volume data, correct it
 				correctiveSlice{identities, chapters, missingVolumes}.Correct()
-				comic.AddMultipleChapters(identities, chapters, false)
+				comic.AddMultipleChapters(identities, chapters)
 			}
-		}(source.SourceId)
+		}()
 	}
 	wg.Wait()
 }
@@ -298,18 +342,19 @@ func (this *fetcher) FetchPageLinksFor(comic *Comic, chapterIndex, scanlationInd
 
 	chapter, identity := comic.GetChapter(chapterIndex)
 	scanlation := chapter.Scanlation(scanlationIndex)
-	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
-		offender = scanlation.PluginName
-		links := plugin.chapterDataLinks(scanlation.URL)
+	if plugin, success := this.plugins[scanlation.SourceId]; success && plugin.Capabilities().ProvidesData {
+		offender = scanlation.SourceId
+		links := plugin.chapterDataLinks(scanlation.MetadataURL)
 		scanlation.PageLinks = links
-		chapter.AddScanlation(scanlation)    //reinsert after modifying
-		comic.AddChapter(identity, &chapter) //reinsert //TODO: use pointers instead?
+		chapter.AddScanlation(scanlation)   //reinsert after modifying
+		comic.AddChapter(identity, chapter) //reinsert
 	}
 	return
 }
 
 func getChapterDirPath(settings *GlobalSettings, comic *Comic, ci ChapterIdentity) string { //FIXME: brittle
-	path := filepath.Join(settings.DownloadsPath, comic.Info().MainTitle, ci.Stringify())
+	cinfo := comic.Info()
+	path := filepath.Join(settings.DownloadsPath, cinfo.Titles[cinfo.MainTitleIdx], ci.Stringify())
 	os.MkdirAll(path, os.ModeDir|0755)
 	return path
 }
@@ -325,8 +370,8 @@ func (this *fetcher) DownloadPages(comic *Comic, chapterIndex, scanlationIndex i
 
 	chapter, ci := comic.GetChapter(chapterIndex)
 	scanlation := chapter.Scanlation(scanlationIndex)
-	if plugin, success := this.plugins[scanlation.PluginName]; success && plugin.Capabilities().ProvidesData {
-		offender = scanlation.PluginName
+	if plugin, success := this.plugins[scanlation.SourceId]; success && plugin.Capabilities().ProvidesData {
+		offender = scanlation.SourceId
 		if len(scanlation.PageLinks) == 0 {
 			this.FetchPageLinksFor(comic, chapterIndex, scanlationIndex)
 		}
@@ -361,11 +406,11 @@ func (this *fetcher) PluginNameFromURL(url string) (SourceId, error) {
 
 	for pluginName, plugin := range this.plugins {
 		offender = pluginName
-		if plugin.IsURLValid(url) {
+		if plugin.IsURLValid(url) { //FIXME: rogue sources may hijack urls; check all, ask on ambiguous results?
 			return pluginName, nil
 		}
 	}
-	return "", errors.New("Plugin autodetect failed!")
+	return SourceId(""), errors.New("Plugin autodetect failed!")
 }
 
 func (this *fetcher) Settings() *GlobalSettings {
@@ -377,23 +422,25 @@ func (this *fetcher) FindComic(title string) []comicSearchResult {
 	sharedResults := make(chan []comicSearchResult, 1)
 	sharedResults <- make([]comicSearchResult, 0, 2)
 	for name, plugin := range this.plugins {
+		sourceId := name
+		source := plugin
 		wg.Add(1)
 		go func(pluginName SourceId, plugin Source) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					this.pluginPanicked(pluginName, err)
+					this.pluginPanicked(sourceId, err)
 				}
 			}()
 
-			url := plugin.comicURL(title) //TODO
+			url := source.comicURL(title) //TODO: use source.search()
 			if url == "" {
 				return
 			}
 
 			results := <-sharedResults
 			defer func() { sharedResults <- results }()
-			results = append(results, comicSearchResult{SourceId: pluginName, Title: title, URL: url}) //TODO
+			results = append(results, comicSearchResult{SourceId: sourceId, Title: title, URL: url}) //TODO
 		}(name, plugin)
 	}
 	wg.Wait()

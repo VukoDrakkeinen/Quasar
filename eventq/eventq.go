@@ -15,62 +15,82 @@ type eventAction struct {
 	do func(...interface{})
 }
 type ActionHandle struct {
-	event EventType
-	id    actionId
+	messenger *Messenger
+	event     EventType
+	id        actionId
 }
-type doWhat EventType
+type doWhat struct {
+	messenger *Messenger
+	event     EventType
+}
 
 var (
 	eventTypeCounter uint32
 	actionIdCounter  actionId
-	queue            = make(map[EventType][]eventAction, 32)
-	lock             sync.RWMutex
+	global           = NewMessenger()
 )
 
 func NewEventType() EventType {
 	return EventType(atomic.AddUint32(&eventTypeCounter, 1))
 }
 
-func On(event EventType) doWhat {
-	return doWhat(event)
+type Messenger struct {
+	receivers map[EventType][]eventAction
+	lock      sync.RWMutex
 }
+
+func NewMessenger() Messenger {
+	return Messenger{
+		receivers: make(map[EventType][]eventAction, 32),
+	}
+}
+
+func (this *Messenger) On(event EventType) doWhat {
+	return doWhat{this, event}
+}
+
 func (this doWhat) Do(what func(...interface{})) ActionHandle {
-	lock.Lock()
-	defer lock.Unlock()
+	messenger := this.messenger
+	messenger.lock.Lock()
+	defer messenger.lock.Unlock()
 
-	event := EventType(this)
+	event := this.event
 	newId := actionId(atomic.AddUint64((*uint64)(&actionIdCounter), 1))
-	queue[event] = append(queue[event], eventAction{newId, what})
+	messenger.receivers[event] = append(messenger.receivers[event], eventAction{newId, what})
 
-	return ActionHandle{event, newId}
+	return ActionHandle{messenger, event, newId}
 }
 
-func Event(event EventType, args ...interface{}) {
-	lock.RLock()
-	actions := queue[event]
-	lock.RUnlock()
+func (this *Messenger) Event(event EventType, args ...interface{}) {
+	this.lock.RLock()
+	actions := this.receivers[event]
+	this.lock.RUnlock()
 
-	defer func() {
-		if err := recover(); err != nil {
-			qlog.Log(qlog.Error, qerr.Chain("Processing event failed", err.(error)))
-			qlog.Logf(qlog.Error, "\n%s\n", qutils.Stack())
-		}
-	}()
 	for _, action := range actions {
-		action.do(args...)
+		func() {
+			defer func() {
+				if err := recover(); err != nil {
+					qlog.Log(qlog.Error, qerr.Chain("Processing event failed", err.(error)))
+					qlog.Logf(qlog.Error, "\n%s\n", qutils.Stack())
+				}
+			}()
+
+			action.do(args...)
+		}()
 	}
 }
 
 func (this *ActionHandle) Cancel() {
-	if atomic.LoadUint32((*uint32)(&this.event)) == 0 {
+	if atomic.SwapUint32((*uint32)(&this.event), 0) == 0 {
 		return //Already cancelled
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
+	messenger := this.messenger
+	messenger.lock.Lock()
+	defer messenger.lock.Unlock()
 
 	idx := -1
-	actions := queue[this.event]
+	actions := messenger.receivers[this.event]
 	for i, action := range actions {
 		if action.id == this.id {
 			idx = i
@@ -79,9 +99,15 @@ func (this *ActionHandle) Cancel() {
 	}
 
 	if idx != -1 {
-		actions, actions[len(actions)-1] = append(actions[:idx], actions[idx+1:]...), eventAction{0, nil} //delete, set the last elem to nil to prevent a memory leak
-		queue[this.event] = actions
-
-		this.event = EventType(0)
+		actions, actions[len(actions)-1] = append(actions[:idx], actions[idx+1:]...), eventAction{0, nil} //delete then set the last elem to nil to prevent a memory leak
+		messenger.receivers[this.event] = actions
 	}
+}
+
+func On(event EventType) doWhat {
+	return global.On(event)
+}
+
+func Event(event EventType, args ...interface{}) {
+	global.Event(event, args)
 }

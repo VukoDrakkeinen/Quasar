@@ -5,11 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
-	"sort"
-	"unsafe"
 )
-
-var Scanlators = NewScanlatorsDict()
 
 type ScanlatorsDict struct {
 	idAssigner
@@ -44,7 +40,7 @@ func (this *ScanlatorsDict) NameOf(id ScanlatorId) string {
 }
 
 func (this ScanlatorId) String() string {
-	return fmt.Sprintf("(%d)%s", int(this.ordinal), Scanlators.NameOf(this))
+	return fmt.Sprintf("(%d)%s", int(this.ordinal), "TODO") //TODO
 }
 
 func (this *ScanlatorId) Scan(src interface{}) error {
@@ -60,9 +56,10 @@ func (this ScanlatorId) Value() (driver.Value, error) {
 	return int64(this.ordinal + 1), nil //RDBMSes start counting at 1, not 0
 }
 
-type JointScanlatorIds struct { //TODO: Go 1.5 - use an array of ScanlatorIds instead of rune slice packed in string
-	data  string //Can't have slices as keys in maps. Fortunately strings work, so we can pack data in them
-	count int
+type JointScanlatorIds string //Can't have slices as keys in maps. Fortunately strings work, so we can pack data in them
+
+func (this JointScanlatorIds) String() string {
+	return fmt.Sprintf("%v", this.Slice())
 }
 
 type ScanlatorSlice []ScanlatorId
@@ -78,67 +75,3 @@ func (slice ScanlatorSlice) Less(i, j int) bool {
 func (slice ScanlatorSlice) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
-
-func JoinScanlators(ids []ScanlatorId) JointScanlatorIds {
-	sort.Sort(ScanlatorSlice(ids))
-	runes := make([]rune, 0, len(ids))
-	for _, id := range ids {
-		runes = append(runes, rune(id.ordinal)) //possibly narrowing from 64 to 32 bits, shouldn't matter in the long run
-	}
-	return JointScanlatorIds{data: *(*string)(unsafe.Pointer(&runes)), count: len(ids)}
-
-}
-
-func (this *JointScanlatorIds) ToSlice() []ScanlatorId {
-	ids := make([]ScanlatorId, 0, this.count)
-	for _, drune := range *(*[]rune)(unsafe.Pointer(&this.data)) {
-		ids = append(ids, ScanlatorId{Id(drune)})
-	}
-	return ids
-}
-
-func (this JointScanlatorIds) String() string {
-	return fmt.Sprintf("%v", this.ToSlice())
-}
-
-/*
-const ratio = int(unsafe.Sizeof(Id(0)) / unsafe.Sizeof(' '))	//architecture-independent implementation
-
-func JoinScanlators_(ids []ScanlatorId) JointScanlatorIds {
-	sort.Sort(ScanlatorSlice(ids))
-	runes := make([]rune, 0, len(ids)*ratio)
-	switch ratio {
-	case 1:
-	for _, id := range ids {
-		runes = append(runes, rune(id.ordinal))
-	}
-	case 2:
-	for _, id := range ids {
-		runes = append(runes, rune(id.ordinal))
-		runes = append(runes, rune(id.ordinal>>32))
-	}
-	}
-	return JointScanlatorIds{data: *(*string)(unsafe.Pointer(&runes)), count: len(ids)}
-}
-
-func (this *JointScanlatorIds) ToSlice_() []ScanlatorId {
-	ids := make([]ScanlatorId, 0, this.count)
-	switch ratio {
-	case 1:
-	for _, drune := range *(*[]rune)(unsafe.Pointer(&this.data)) {
-		ids = append(ids, ScanlatorId{Id(drune)})
-	}
-	case 2:
-		var rune0 rune
-	for i, drune := range *(*[]rune)(unsafe.Pointer(&this.data)) {
-		switch i % 2 {
-		case 0:
-			rune0 = drune
-		case 1:
-			ids = append(ids, ScanlatorId{(Id(drune) << 32) | Id(rune0)})
-			rune0 = 0
-		}
-	}
-	}
-	return ids
-}//*/

@@ -1,18 +1,16 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"os"
+	"unsafe"
+
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
-	"github.com/VukoDrakkeinen/Quasar/eventq"
 	"github.com/VukoDrakkeinen/Quasar/gui"
 	"github.com/VukoDrakkeinen/Quasar/qutils/cores"
-	"gopkg.in/qml.v1"
-	"log"
-	"os"
-	"runtime/pprof"
-	"unsafe"
+	"github.com/VukoDrakkeinen/qml"
+	"github.com/pkg/profile"
 )
 
 type qmlContextVars []struct {
@@ -21,20 +19,11 @@ type qmlContextVars []struct {
 	isGoValue bool
 }
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-
 func main() { //TODO: fix messy code; write some unit tests
-	cores.UseAll()
-
-	flag.Parse()
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
+	if false {
+		defer profile.Start().Stop()
 	}
+	cores.UseAll()
 
 	saveData, vars := initQuasar()
 
@@ -70,41 +59,32 @@ func initQuasar() (saveData func() error, vars qmlContextVars) {
 	infoModel := gui.NewComicInfoModel(list)
 
 	qlog.Log(qlog.Info, "Registering event actions")
-	eventq.On(core.ChapterListAboutToChange).Do(func(...interface{}) {
+	list.On(core.ChapterListAboutToChange).Do(func(...interface{}) {
 		chapterModel.NotifyViewResetStart()
 	})
-	eventq.On(core.ChapterListChanged).Do(func(...interface{}) {
+	list.On(core.ChapterListChanged).Do(func(...interface{}) {
 		chapterModel.NotifyViewResetEnd()
 	})
 
-	eventq.On(gui.ChaptersMarked).Do(func(args ...interface{}) {
-		row := args[0].(int)
-		selections := args[1].([][2]int)
-		for _, sel := range selections {
-			chapterModel.NotifyViewUpdated(sel[0], sel[1], -1) //[0] = row, [1] = count
-		}
-		updateModel.NotifyViewUpdated(row, 1, -1)
-	})
-
-	eventq.On(core.ComicsAboutToBeAdded).Do(func(args ...interface{}) {
+	list.On(core.ComicsAboutToBeAdded).Do(func(args ...interface{}) {
 		row := args[0].(int)
 		count := args[1].(int)
 		updateModel.NotifyViewInsertStart(row, count)
 	})
-	eventq.On(core.ComicsAdded).Do(func(...interface{}) {
+	list.On(core.ComicsAdded).Do(func(...interface{}) {
 		updateModel.NotifyViewInsertEnd()
 	})
 
-	eventq.On(core.ComicsAboutToBeRemoved).Do(func(args ...interface{}) {
+	list.On(core.ComicsAboutToBeRemoved).Do(func(args ...interface{}) {
 		row := args[0].(int)
 		count := args[1].(int)
 		updateModel.NotifyViewRemoveStart(row, count)
 	})
-	eventq.On(core.ComicsRemoved).Do(func(...interface{}) {
+	list.On(core.ComicsRemoved).Do(func(...interface{}) {
 		updateModel.NotifyViewRemoveEnd()
 	})
 
-	eventq.On(core.ComicsUpdateStatusChanged).Do(func(args ...interface{}) {
+	list.On(core.ComicsUpdateStatusChanged).Do(func(args ...interface{}) {
 		row := args[0].(int)
 		count := args[1].(int)
 		updateModel.NotifyViewUpdated(row, count, -1)
@@ -113,7 +93,6 @@ func initQuasar() (saveData func() error, vars qmlContextVars) {
 	qlog.Log(qlog.Info, "Begin DB load")
 	go func() {
 		err = list.LoadFromDB()
-		//err = list.LoadFromDB()	//Test consecutive loads
 		if err != nil {
 			qlog.Log(qlog.Error, err)
 			os.Exit(1)
@@ -123,6 +102,14 @@ func initQuasar() (saveData func() error, vars qmlContextVars) {
 
 	qlog.Log(qlog.Info, "Creating Core Connector")
 	coreConnector := gui.NewCoreConnector(list)
+	coreConnector.On(gui.ChaptersMarked).Do(func(args ...interface{}) {
+		row := args[0].(int)
+		selections := args[1].([][2]int)
+		for _, sel := range selections {
+			chapterModel.NotifyViewUpdated(sel[0], sel[1], -1) //[0] = row, [1] = count
+		}
+		updateModel.NotifyViewUpdated(row, 1, -1)
+	})
 
 	qvars := qmlContextVars{
 		{name: "updateModel", ptr: updateModel.QtPtr()},
@@ -132,7 +119,7 @@ func initQuasar() (saveData func() error, vars qmlContextVars) {
 	}
 	saveDataFunc := func() error {
 		settings.Save()
-		list.SaveToDB() //FIXME: there are still some bugs lurking there
+		//list.SaveToDB()
 		return nil
 	}
 	return saveDataFunc, qvars
@@ -140,15 +127,14 @@ func initQuasar() (saveData func() error, vars qmlContextVars) {
 
 func launchGUI(contextVars qmlContextVars, onQuit func()) error {
 	engine := qml.NewEngine()
-	engine.On("quit", func() { /*onQuit();*/ os.Exit(0) })
 	context := engine.Context()
 
 	qlog.Log(qlog.Info, "Setting QML variables")
-	for _, cVar := range contextVars {
-		if !cVar.isGoValue {
-			context.SetVar(cVar.name, qml.CommonOf(cVar.ptr.(unsafe.Pointer), engine))
+	for _, ctxVar := range contextVars {
+		if !ctxVar.isGoValue {
+			context.SetVar(ctxVar.name, qml.CommonOf(ctxVar.ptr.(unsafe.Pointer), engine))
 		} else {
-			context.SetVar(cVar.name, cVar.ptr)
+			context.SetVar(ctxVar.name, ctxVar.ptr)
 		}
 	}
 
@@ -158,9 +144,11 @@ func launchGUI(contextVars qmlContextVars, onQuit func()) error {
 		return err
 	}
 	window := control.CreateWindow(nil)
+	engine.On("quit", func() { onQuit(); window.Hide() /*os.Exit(0)*/ })
 
 	window.Show()
 	window.Wait()
+	//onQuit()
 
 	return nil
 }

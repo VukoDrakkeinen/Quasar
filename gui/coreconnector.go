@@ -1,11 +1,11 @@
 package gui
 
 import (
-	"github.com/VukoDrakkeinen/Quasar/core"
-	"github.com/VukoDrakkeinen/Quasar/eventq"
-	"gopkg.in/qml.v1"
 	"reflect"
 	"sort"
+
+	"github.com/VukoDrakkeinen/Quasar/core"
+	"github.com/VukoDrakkeinen/Quasar/eventq"
 )
 
 var (
@@ -13,11 +13,16 @@ var (
 )
 
 func NewCoreConnector(list *core.ComicList) *coreConnector {
-	return &coreConnector{list}
+	return &coreConnector{
+		list:      list,
+		Messenger: eventq.NewMessenger(),
+	}
 }
 
 type coreConnector struct {
 	list *core.ComicList
+
+	eventq.Messenger
 }
 
 func (this *coreConnector) PluginNames() (names []core.SourceId, humanReadableNames []string) {
@@ -25,156 +30,89 @@ func (this *coreConnector) PluginNames() (names []core.SourceId, humanReadableNa
 }
 
 func (this *coreConnector) PluginAutodetect(url string) (pluginName core.SourceId) {
-	fetcherPluginName, _ := this.list.Fetcher().PluginNameFromURL(url)
-	return fetcherPluginName
+	pluginName, _ = this.list.Fetcher().PluginNameFromURL(url)
+	return pluginName
 }
 
-func (this *coreConnector) AddComic(settingsObj, dmDuration *qml.Map, sourcesList *qml.List) {
-	settings := core.NewIndividualSettings(this.list.Fetcher().Settings())
+func (this *coreConnector) AddComic(config core.ComicConfig, sources []core.SourceLink) {
+	tempCfgMore := core.NewComicConfig(this.list.Fetcher().Settings()) //todo
+	tempCfgMore.NotificationMode = config.NotificationMode
+	tempCfgMore.AccumulativeModeCount = config.AccumulativeModeCount
+	tempCfgMore.DelayedModeDuration = config.DelayedModeDuration
 
-	var splitDuration core.SplitDuration
-	dmDuration.Unmarshal(&splitDuration)
-	settingsObj.Unmarshal(settings)
-	settings.DelayedModeDuration = splitDuration.ToDuration()
-
-	var sources []*qml.Map
-	sourcesList.Convert(&sources)
-
-	comic := core.NewComic(*settings)
-	for _, sourceObj := range sources {
-		var source core.SourceLink
-		sourceObj.Unmarshal(&source)
-		comic.AddSource(source)
+	comic := core.NewComic(tempCfgMore)
+	for _, source := range sources {
+		comic.AddSourceLink(source)
 	}
 
 	go func() {
-		this.list.Fetcher().FetchComicInfoFor(comic)
+		this.list.Fetcher().FetchComicInfoFor(&comic)
 		this.list.AddComics(comic)
 		this.list.ScheduleComicFetches()
 	}()
 }
 
-type temporaryNeuteredGlobalSettings struct { //TODO: remove? how? go-to-qml/qml-to-go type converters?
-	FetchOnStartup        bool
-	IntervalFetching      bool
-	FetchFrequency        core.SplitDuration
-	MaxConnectionsToHost  uint
-	NotificationMode      core.NotificationMode
-	AccumulativeModeCount uint
-	DelayedModeDuration   core.SplitDuration
-	DownloadsPath         string
-	Plugins               map[core.SourceId]core.PluginEnabled
-	Languages             map[core.LangName]core.LanguageEnabled
+func (this *coreConnector) GlobalSettings() *core.GlobalSettings {
+	return this.list.Fetcher().Settings()
 }
 
-func (this *coreConnector) GlobalSettings() *temporaryNeuteredGlobalSettings {
-	settings := this.list.Fetcher().Settings()
-
-	return &temporaryNeuteredGlobalSettings{
-		FetchOnStartup:        settings.FetchOnStartup,
-		IntervalFetching:      settings.IntervalFetching,
-		FetchFrequency:        core.DurationToSplit(settings.FetchFrequency),
-		MaxConnectionsToHost:  settings.MaxConnectionsToHost,
-		NotificationMode:      settings.NotificationMode,
-		AccumulativeModeCount: settings.AccumulativeModeCount,
-		DelayedModeDuration:   core.DurationToSplit(settings.DelayedModeDuration),
-		DownloadsPath:         settings.DownloadsPath,
-		Plugins:               settings.Plugins,
-		Languages:             settings.Languages,
-	}
+func (this *coreConnector) SetGlobalSettings(settings core.GlobalSettings) {
+	*this.list.Fetcher().Settings() = settings
 }
 
-func (this *coreConnector) SetGlobalSettings(settingsObj, dmDuration, fetchFrequency *qml.Map) {
-	settings := this.list.Fetcher().Settings()
-
-	var splitDuration, splitFrequency core.SplitDuration //TODO: type converters
-	dmDuration.Unmarshal(&splitDuration)
-	fetchFrequency.Unmarshal(&splitFrequency)
-	settingsObj.Unmarshal(settings)
-	settings.DelayedModeDuration = splitDuration.ToDuration()
-	settings.FetchFrequency = splitFrequency.ToDuration()
-}
-
-func (this *coreConnector) DefaultGlobalSettings() *temporaryNeuteredGlobalSettings {
+func (this *coreConnector) DefaultGlobalSettings() *core.GlobalSettings {
 	settings := this.list.Fetcher().Settings() //we still need it for some data
 	defaults := core.NewGlobalSettings()
-
-	neutered := &temporaryNeuteredGlobalSettings{
-		FetchOnStartup:        defaults.FetchOnStartup,
-		IntervalFetching:      defaults.IntervalFetching,
-		FetchFrequency:        core.DurationToSplit(defaults.FetchFrequency),
-		MaxConnectionsToHost:  defaults.MaxConnectionsToHost,
-		NotificationMode:      defaults.NotificationMode,
-		AccumulativeModeCount: defaults.AccumulativeModeCount,
-		DelayedModeDuration:   core.DurationToSplit(defaults.DelayedModeDuration),
-		DownloadsPath:         defaults.DownloadsPath,
-		Plugins:               settings.Plugins,
-		Languages:             settings.Languages,
+	defaults.Plugins = make(map[core.SourceId]core.PluginEnabled, len(settings.Plugins))
+	defaults.Languages = settings.Languages
+	for p := range defaults.Plugins {
+		defaults.Plugins[p] = core.PluginEnabled(true)
 	}
-	for p := range neutered.Plugins {
-		neutered.Plugins[p] = core.PluginEnabled(true)
-	}
-	return neutered
+	return defaults
 }
 
-func (this *coreConnector) ComicSettings(idx int) *temporaryNeuteredGlobalSettings {
-	settings := this.list.GetComic(idx).Settings()
-
-	return &temporaryNeuteredGlobalSettings{
-		NotificationMode:      settings.NotificationMode,
-		AccumulativeModeCount: settings.AccumulativeModeCount,
-		DelayedModeDuration:   core.DurationToSplit(settings.DelayedModeDuration),
-	}
+func (this *coreConnector) ComicConfig(idx int) *core.ComicConfig { //TODO: why the pointer? doesn't need to be assignable
+	cfg := this.list.GetComic(idx).Config()
+	return &cfg
 }
 
-func (this *coreConnector) SetComicSettingsAndSources(comicIdx int, settingsObj, dmDuration *qml.Map, sourcesList *qml.List) {
+func (this *coreConnector) SetComicConfigAndSources(comicIdx int, config core.ComicConfig, sources []core.SourceLink) {
 	comic := this.list.GetComic(comicIdx)
-	settings := comic.Settings()
 
-	prevSources := comic.Sources()
+	tempCfgMore := comic.Config() //todo
+	tempCfgMore.NotificationMode = config.NotificationMode
+	tempCfgMore.AccumulativeModeCount = config.AccumulativeModeCount
+	tempCfgMore.DelayedModeDuration = config.DelayedModeDuration
+	comic.SetConfig(tempCfgMore)
 
-	var splitDuration core.SplitDuration
-	dmDuration.Unmarshal(&splitDuration)
-	settingsObj.Unmarshal(&settings)
-	settings.DelayedModeDuration = splitDuration.ToDuration()
-	comic.SetSettings(settings)
+	prevSources := comic.SourceLinks()
 
-	var sources []*qml.Map
-	sourcesList.Convert(&sources) //TODO: update comic after data changes
-	for i, sourceObj := range sources {
-		var source core.SourceLink
-		sourceObj.Unmarshal(&source)
-		comic.AddSourceAt(i, source)
+	for i, source := range sources {
+		comic.AddSourceLinkAt(i, source)
 	}
 
-	if !reflect.DeepEqual(comic.Sources(), prevSources) {
+	if !reflect.DeepEqual(comic.SourceLinks(), prevSources) {
 		go this.list.UpdateComic(comicIdx)
 	}
 
 }
 
-func (this *coreConnector) ComicSources(comicIdx int) []core.SourceLink {
-	return this.list.GetComic(comicIdx).Sources()
+func (this *coreConnector) ComicSources(comicIdx int) []core.SourceLink { //todo: finish the massive renaming
+	return this.list.GetComic(comicIdx).SourceLinks()
 }
 
-func (this *coreConnector) UpdateComics(comicIndices *qml.List) {
-	var ids []int
-	comicIndices.Convert(&ids)
-	for _, i := range ids {
+func (this *coreConnector) UpdateComics(comicIndices []int) {
+	for _, i := range comicIndices {
 		go this.list.UpdateComic(i)
 	}
 }
 
-func (this *coreConnector) MarkAsRead(comicIdx int, chapterIndicesList *qml.List, read bool) {
+func (this *coreConnector) MarkAsRead(comicIdx int, chapterIndices []int, read bool) {
 	comic := this.list.GetComic(comicIdx)
-	var chapterIndices []int
-	chapterIndicesList.Convert(&chapterIndices)
 	sort.Ints(chapterIndices)
-	chapters := make([]core.Chapter, 0, len(chapterIndices))
-	identities := make(core.ChapterIdentitiesSlice, 0, len(chapterIndices)) //TODO: will be quite slow
 	last := -2
 	selections := make([][2]int, 0, len(chapterIndices))
-	for _, i := range chapterIndices { //consider modifying in-place (pointers!)
+	for _, i := range chapterIndices {
 		if i == last {
 			continue
 		} else if i != last+1 {
@@ -182,24 +120,19 @@ func (this *coreConnector) MarkAsRead(comicIdx int, chapterIndicesList *qml.List
 		} else {
 			selections[len(selections)-1][1]++ //increment count
 		}
-		chapter, id := comic.GetChapter(i)
-		chapter.AlreadyRead = read
-		chapters = append(chapters, chapter)
-		identities = append(identities, id)
+		chapter, _ := comic.Chapter(i)
+		chapter.MarkedRead = read
 		last = i
 	}
 
-	comic.AddMultipleChapters(identities, chapters, true)
-	eventq.Event(ChaptersMarked, comicIdx, selections)
+	this.Event(ChaptersMarked, comicIdx, selections)
 }
 
-func (this *coreConnector) DownloadPages(comicIdx int, chapterIndicesList, scanlationIndicesList *qml.List) {
+func (this *coreConnector) DownloadPages(comicIdx int, chapterIndices, scanlationIndices []int) {
 	comic := this.list.GetComic(comicIdx)
-	var chapterIndices, scanlationIndices []int
-	chapterIndicesList.Convert(&chapterIndices)
-	scanlationIndicesList.Convert(&scanlationIndices)
 	for i := range chapterIndices {
 		go func() {
+			i := i
 			println("step1")
 			this.list.Fetcher().FetchPageLinksFor(comic, chapterIndices[i], scanlationIndices[i])
 			println("step2")
@@ -212,11 +145,9 @@ func (this *coreConnector) DownloadPages(comicIdx int, chapterIndicesList, scanl
 }
 
 func (this *coreConnector) GetQueuedChapter(comicIdx int) (chapterIdx int) {
-	comic := this.list.GetComic(comicIdx)
-	return comic.QueuedChapter()
+	return this.list.GetComic(comicIdx).QueuedChapter()
 }
 
 func (this *coreConnector) GetLastReadChapter(comicIdx int) (chapterIdx int) {
-	comic := this.list.GetComic(comicIdx)
-	return comic.LastReadChapter()
+	return this.list.GetComic(comicIdx).LastReadChapter()
 }

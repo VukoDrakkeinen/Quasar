@@ -106,8 +106,12 @@ func (this *bakaUpdates) findComicURLList(title string) (links []string, titles 
 	return
 }
 
-func (this *bakaUpdates) comicInfo(comic *Comic) *ComicInfo {
-	url := comic.GetSource(this.id).URL
+func (this *bakaUpdates) comicInfo(source SourceLink) *ComicInfo {
+	if source.SourceId != this.id {
+		panic("Incompatible SourceLink of " + string(source.SourceId) + "::" + source.URL + " provided!")
+	}
+
+	url := source.URL
 	contents, err := this.fetcher().DownloadData(this.id, url, false)
 	if err != nil {
 		panic(err)
@@ -132,9 +136,9 @@ func (this *bakaUpdates) comicInfo(comic *Comic) *ComicInfo {
 		cType = Other
 	}
 
-	altTitles := make(map[string]struct{})
-	for _, altTitle := range bytes.Split(bakaUpdates_rAltTitles.Find(infoRegion), []byte("<br />")) {
-		altTitles[html.UnescapeString(string(altTitle))] = struct{}{}
+	titles := []string{title}
+	for _, title := range bytes.Split(bakaUpdates_rAltTitles.Find(infoRegion), []byte("<br />")) {
+		titles = append(titles, html.UnescapeString(string(title)))
 	}
 
 	status := ComicStatusInvalid
@@ -172,10 +176,7 @@ func (this *bakaUpdates) comicInfo(comic *Comic) *ComicInfo {
 		}
 	}
 
-	genres := make(map[ComicGenreId]struct{})
-	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(bytes.Split(shared_rRemoveHTML.ReplaceAll(bakaUpdates_rGenres.Find(infoRegion), []byte(nil)), []byte("&nbsp; "))))[0].([]ComicGenreId) {
-		genres[genre] = struct{}{}
-	}
+	genres, _ := this.fetcher().genres().AssignIdsBytes(bytes.Split(shared_rRemoveHTML.ReplaceAll(bakaUpdates_rGenres.Find(infoRegion), []byte(nil)), []byte("&nbsp; ")))
 
 	ajax, err := this.fetcher().DownloadData(
 		this.id, "https://www.mangaupdates.com/ajax/show_categories.php?type=1&s="+bakaUpdates_rComicID.FindString(url),
@@ -184,38 +185,34 @@ func (this *bakaUpdates) comicInfo(comic *Comic) *ComicInfo {
 	if err != nil {
 		panic(err)
 	}
-	categories := make(map[ComicTagId]struct{})
-	for _, tag := range qutils.Vals(ComicTags.AssignIdsBytes(bakaUpdates_rCategories.FindAll(ajax, -1)))[0].([]ComicTagId) {
-		categories[tag] = struct{}{}
-	}
+	categories, _ := this.fetcher().tags().AssignIdsBytes(bakaUpdates_rCategories.FindAll(ajax, -1))
 
-	authors, _ := Authors.AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rAuthorsLine.Find(infoRegion), -1))
-	artists, _ := Artists.AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rArtistsLine.Find(infoRegion), -1))
-	_, mature := genres[MATURE_GENRE()]
+	authors, _ := this.fetcher().authors().AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rAuthorsLine.Find(infoRegion), -1))
+	artists, _ := this.fetcher().artists().AssignIdsBytes(bakaUpdates_rExtract.FindAll(bakaUpdates_rArtistsLine.Find(infoRegion), -1))
+	mature := qutils.Contains(genres, MATURE_GENRE_ID())
 
 	return &ComicInfo{
-		MainTitle:         title,
-		AltTitles:         altTitles,
-		Authors:           authors,
-		Artists:           artists,
-		Genres:            genres,
-		Categories:        categories,
-		Type:              cType,
-		Status:            status,
-		ScanlationStatus:  scanStatus,
-		Description:       description,
-		Rating:            uint16(rating * 100), //e.g. 9.13 on a 10pt scale
-		Mature:            mature,
-		ThumbnailFilename: thumbnailFilename,
+		MainTitleIdx:     0,
+		Titles:           titles,
+		Authors:          authors,
+		Artists:          artists,
+		Genres:           genres,
+		Categories:       categories,
+		Type:             cType,
+		Status:           status,
+		ScanlationStatus: scanStatus,
+		Description:      description,
+		Rating:           uint16(rating * 100), //e.g. 9.13 on a 10pt scale
+		Mature:           mature,
+		ThumbnailIdx:     0,
+		Thumbnails:       []string{thumbnailFilename},
 	}
 }
 
-func (this *bakaUpdates) chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
-	_ = comic //unused
-	return    //plugin doesn't provide metadata, return empty lists
+func (this *bakaUpdates) chapterList(SourceLink) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
+	return //plugin doesn't provide metadata, return empty lists
 }
 
-func (this *bakaUpdates) chapterDataLinks(url string) []string {
-	_ = url           //unused
+func (this *bakaUpdates) chapterDataLinks(string) []string {
 	return []string{} //plugin doesn't provide data, return empty list
 }

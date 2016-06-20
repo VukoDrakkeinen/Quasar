@@ -1,7 +1,7 @@
 package gui
 
 // #cgo CPPFLAGS: -I./cpp
-// #cgo CXXFLAGS: -std=c++14 -pedantic-errors -Wall -fno-strict-aliasing -O2 -pipe
+// #cgo CXXFLAGS: -std=c++14 -pedantic-errors -Wall -fno-strict-aliasing -pipe -ggdb
 // #cgo LDFLAGS: -lstdc++
 // #cgo pkg-config: Qt5Core Qt5Widgets Qt5Quick
 //
@@ -12,8 +12,8 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/core"
 	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
+	"github.com/VukoDrakkeinen/Quasar/qutils/hashtype"
 	"reflect"
-	"sort"
 	"sync"
 	"unsafe"
 )
@@ -26,17 +26,33 @@ func init() {
 
 	var ptr unsafe.Pointer
 
-	ptr = offsets(&comicInfoBridged{})
+	ci := core.ComicInfo{}
+	ptr = offsets(&ci)
 	disableGcFor(ptr)
 	C.go_Offsets_ComicInfo = ptr
+	C.go_Hash_ComicInfo = C.ulonglong(hashtype.Struct(ci))
 
-	ptr = offsets(&core.ChapterScanlation{})
+	cs := core.ChapterScanlation{}
+	ptr = offsets(&cs)
 	disableGcFor(ptr)
 	C.go_Offsets_Scanlation = ptr
+	C.go_Hash_Scanlation = C.ulonglong(hashtype.Struct(cs))
 
-	ptr = offsets(&updateInfoBridged{})
+	ib := updateInfoBridged{}
+	ptr = offsets(&ib)
 	disableGcFor(ptr)
 	C.go_Offsets_UpdateInfo = ptr
+	C.go_Hash_UpdateInfo = C.ulonglong(hashtype.Struct(ib))
+
+	result := C.assertSyncedHashes()
+	switch result {
+	case 1:
+		panic("ComicInfo struct has changed. Update the C glue code.")
+	case 2:
+		panic("ChapterScanlation struct has changed. Update the C glue code.")
+	case 3:
+		panic("UpdateInfo struct has changed. Update the C glue code.")
+	}
 }
 
 //export go_collectGarbage
@@ -49,39 +65,45 @@ func go_collectGarbage(ptr unsafe.Pointer) {
 ///Ids
 
 //export go_authorNameById
-func go_authorNameById(id int) *C.char {
+func go_authorNameById(goComicList unsafe.Pointer, id int) *C.char {
+	list := (*core.ComicList)(goComicList)
 	authorId := *(*idsdict.AuthorId)(unsafe.Pointer(&id))
-	return C.CString(idsdict.Authors.NameOf(authorId))
+	return C.CString(list.Authors().NameOf(authorId))
 }
 
 //export go_artistNameById
-func go_artistNameById(id int) *C.char {
+func go_artistNameById(goComicList unsafe.Pointer, id int) *C.char {
+	list := (*core.ComicList)(goComicList)
 	artistId := *(*idsdict.ArtistId)(unsafe.Pointer(&id))
-	return C.CString(idsdict.Artists.NameOf(artistId))
+	return C.CString(list.Artists().NameOf(artistId))
 }
 
 //export go_genreNameById
-func go_genreNameById(id int) *C.char {
+func go_genreNameById(goComicList unsafe.Pointer, id int) *C.char {
+	list := (*core.ComicList)(goComicList)
 	comicGenreId := *(*idsdict.ComicGenreId)(unsafe.Pointer(&id))
-	return C.CString(idsdict.ComicGenres.NameOf(comicGenreId))
+	return C.CString(list.Genres().NameOf(comicGenreId))
 }
 
 //export go_categoryNameById
-func go_categoryNameById(id int) *C.char {
+func go_categoryNameById(goComicList unsafe.Pointer, id int) *C.char {
+	list := (*core.ComicList)(goComicList)
 	comicTagId := *(*idsdict.ComicTagId)(unsafe.Pointer(&id))
-	return C.CString(idsdict.ComicTags.NameOf(comicTagId))
+	return C.CString(list.Tags().NameOf(comicTagId))
 }
 
 //export go_scanlatorNameById
-func go_scanlatorNameById(id int) *C.char {
+func go_scanlatorNameById(goComicList unsafe.Pointer, id int) *C.char {
+	list := (*core.ComicList)(goComicList)
 	scanlatorId := *(*idsdict.ScanlatorId)(unsafe.Pointer(&id))
-	return C.CString(idsdict.Scanlators.NameOf(scanlatorId))
+	return C.CString(list.Scanlators().NameOf(scanlatorId))
 }
 
 //export go_langNameById
-func go_langNameById(id int) *C.char {
+func go_langNameById(goComicList unsafe.Pointer, id int) *C.char {
+	list := (*core.ComicList)(goComicList)
 	langId := *(*idsdict.LangId)(unsafe.Pointer(&id))
-	return C.CString(idsdict.Langs.NameOf(langId))
+	return C.CString(list.Langs().NameOf(langId))
 }
 
 //export go_getThumbnailPath
@@ -106,7 +128,7 @@ func go_ComicList_Len(goComicList unsafe.Pointer) C.int {
 }
 
 //export go_ComicList_ComicLastUpdated
-func go_ComicList_ComicLastUpdated(goComicList unsafe.Pointer, idx C.int) int64 {
+func go_ComicList_ComicLastUpdated(goComicList unsafe.Pointer, idx C.int) int64 { //todo: unused?
 	list := (*core.ComicList)(goComicList)
 	return list.ComicLastUpdated(int(idx)).Unix()
 }
@@ -134,8 +156,9 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 	list := (*core.ComicList)(goComicList)
 	comic := list.GetComic(int(idx))
 
+	info := comic.Info()
 	bridged := &updateInfoBridged{
-		title:         comic.Info().MainTitle,
+		title:         info.Titles[info.MainTitleIdx],
 		chaptersCount: comic.ChaptersCount(),
 		chaptersRead:  comic.ChaptersReadCount(),
 		updated:       list.ComicLastUpdated(int(idx)).Unix(),
@@ -150,9 +173,7 @@ func go_ComicList_ComicUpdateInfo(goComicList unsafe.Pointer, idx C.int) unsafe.
 		bridged.status = qNewChapters
 	}
 
-	disableGcFor(unsafe.Pointer(bridged))
-
-	return unsafe.Pointer(bridged)
+	return C.convertUpdateInfo(unsafe.Pointer(bridged))
 }
 
 ///Comic
@@ -169,64 +190,18 @@ func go_Comic_ChaptersReadCount(goComic unsafe.Pointer) C.int {
 	return C.int(comic.ChaptersReadCount())
 }
 
-type comicInfoBridged struct {
-	Title             string
-	AltTitles         []string
-	Authors           []idsdict.AuthorId
-	Artists           []idsdict.ArtistId
-	Genres            []idsdict.ComicGenreId
-	Categories        []idsdict.ComicTagId
-	Type              int
-	Status            int
-	ScanlationStatus  int
-	Description       string
-	Rating            uint16
-	Mature            bool
-	ThumbnailFilename string
-}
-
 //export go_Comic_Info
 func go_Comic_Info(goComic unsafe.Pointer) unsafe.Pointer {
 	comic := (*core.Comic)(goComic)
 	info := comic.Info()
-
-	bridged := &comicInfoBridged{
-		Title:             info.MainTitle,
-		Authors:           info.Authors,
-		Artists:           info.Artists,
-		Type:              int(info.Type),
-		Status:            int(info.Status),
-		ScanlationStatus:  int(info.ScanlationStatus),
-		Description:       info.Description,
-		Rating:            info.Rating,
-		Mature:            info.Mature,
-		ThumbnailFilename: info.ThumbnailFilename,
-	}
-	for altTitle := range info.AltTitles {
-		bridged.AltTitles = append(bridged.AltTitles, altTitle)
-	}
-	for genre := range info.Genres {
-		bridged.Genres = append(bridged.Genres, genre)
-	}
-	for tag := range info.Categories {
-		bridged.Categories = append(bridged.Categories, tag)
-	}
-	sort.Strings(bridged.AltTitles) //TODO?: return unsorted, sort in C++-land?
-
-	sort.Ints(*(*[]int)(unsafe.Pointer(&bridged.Genres)))     //Will break if Id's underlying type will be ever changed from int
-	sort.Ints(*(*[]int)(unsafe.Pointer(&bridged.Categories))) //I'm just too lazy to write sortable SomethingIdSlice structs :3
-
-	disableGcFor(unsafe.Pointer(bridged))
-
-	return unsafe.Pointer(bridged)
+	return C.convertComicInfo(unsafe.Pointer(&info))
 }
 
 //export go_Comic_GetChapter
-func go_Comic_GetChapter(goComic unsafe.Pointer, idx C.int) unsafe.Pointer {
+func go_Comic_GetChapter(goComic unsafe.Pointer, idx C.int) unsafe.Pointer { //todo: return handle?
 	comic := (*core.Comic)(goComic)
-	chapter, _ := comic.GetChapter(int(idx))
-	disableGcFor(unsafe.Pointer(&chapter))
-	return unsafe.Pointer(&chapter)
+	chapter, _ := comic.Chapter(int(idx))
+	return unsafe.Pointer(chapter)
 }
 
 ///Chapter
@@ -234,7 +209,7 @@ func go_Comic_GetChapter(goComic unsafe.Pointer, idx C.int) unsafe.Pointer {
 //export go_Chapter_AlreadyRead
 func go_Chapter_AlreadyRead(goChapter unsafe.Pointer) bool {
 	chapter := (*core.Chapter)(goChapter)
-	return chapter.AlreadyRead
+	return chapter.MarkedRead
 }
 
 //export go_Chapter_ScanlationsCount
@@ -247,16 +222,8 @@ func go_Chapter_ScanlationsCount(goChapter unsafe.Pointer) C.int {
 func go_Chapter_GetScanlation(goChapter unsafe.Pointer, idx C.int) unsafe.Pointer {
 	chapter := (*core.Chapter)(goChapter)
 	scanlation := chapter.Scanlation(int(idx))
-	disableGcFor(unsafe.Pointer(&scanlation))
-	return unsafe.Pointer(&scanlation)
-}
-
-//export go_JointScanlators_ToSlice
-func go_JointScanlators_ToSlice(goJointScanlators uintptr) uintptr {
-	jointScanlators := (*idsdict.JointScanlatorIds)(unsafe.Pointer(goJointScanlators))
-	slice := jointScanlators.ToSlice()
-	disableGcFor(unsafe.Pointer(&slice))
-	return uintptr(unsafe.Pointer(&slice))
+	scanlators := scanlation.Scanlators.Slice()
+	return C.convertScanlation(unsafe.Pointer(&scanlation), unsafe.Pointer(&scanlators))
 }
 
 ///internal

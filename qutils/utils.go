@@ -3,24 +3,21 @@ package qutils
 import (
 	"bytes"
 	"errors"
-	"github.com/VukoDrakkeinen/Quasar/qregexp"
-	"github.com/VukoDrakkeinen/Quasar/qutils/math"
 	"io"
 	"reflect"
 	"runtime/debug"
 	"time"
+
+	"github.com/VukoDrakkeinen/Quasar/qregexp"
+	"github.com/VukoDrakkeinen/Quasar/qutils/math"
 )
 
 func GrownCap(newSize int) int {
 	return (newSize*3 + 1) / 2
 }
 
-func Vals(args ...interface{}) []interface{} {
-	return args
-}
-
 func Contains(list interface{}, elem interface{}) bool {
-	indexableTypeAssert(list, elem, "Contains")
+	//indexableTypeAssert(list, elem, "Contains")
 	slice := reflect.ValueOf(list)
 	sliceLen := slice.Len()
 	for i := 0; i < sliceLen; i++ {
@@ -32,7 +29,7 @@ func Contains(list interface{}, elem interface{}) bool {
 }
 
 func IndexOf(list interface{}, elem interface{}) (int, error) {
-	indexableTypeAssert(list, elem, "IndexOf")
+	//indexableTypeAssert(list, elem, "IndexOf")
 	slice := reflect.ValueOf(list)
 	sliceLen := slice.Len()
 	for i := 0; i < sliceLen; i++ {
@@ -58,24 +55,18 @@ func indexableTypeAssert(list interface{}, elem interface{}, funcName string) {
 func AppendUnique(list interface{}, elems ...interface{}) (newList interface{}) {
 	slice := reflect.ValueOf(list)
 	for _, elem := range elems {
-		if !Contains(list, elem) {
+		if elemsSlice := reflect.ValueOf(elem); elemsSlice.Kind() == reflect.Slice {
+			for slen, i := elemsSlice.Len(), 0; i < slen; i++ {
+				elem := elemsSlice.Index(i)
+				if !Contains(list, elem.Interface()) {
+					slice = reflect.Append(slice, elem)
+				}
+			}
+		} else if !Contains(list, elem) {
 			slice = reflect.Append(slice, reflect.ValueOf(elem))
 		}
 	}
 	return slice.Interface()
-}
-
-func SetAppendSlice(list interface{}, elems interface{}) (newList interface{}) { //FIXME: this is actually only needed for a hack in comic.AddChapter/s. Remove it after the hack is purged
-	listSlice := reflect.ValueOf(list)
-	elemsSlice := reflect.ValueOf(elems)
-	sliceLen := elemsSlice.Len()
-	for i := 0; i < sliceLen; i++ {
-		elem := elemsSlice.Index(i)
-		if !Contains(list, elem.Interface()) {
-			listSlice = reflect.Append(listSlice, elem)
-		}
-	}
-	return listSlice.Interface()
 }
 
 func ByteSlicesToStrings(bss [][]byte) []string {
@@ -91,7 +82,7 @@ func BoolsToBitfield(table []bool) (bitfield uint64) {
 		panic("BoolsToBitfield: provided bool table is too long!")
 	}
 	elvisOp := map[bool]uint64{false: 0, true: 1}
-	for i, b := range table[:math.Min(len(table), 64)] {
+	for i, b := range table {
 		bitfield |= (elvisOp[b] << uint64(i))
 	}
 	return
@@ -100,10 +91,10 @@ func BoolsToBitfield(table []bool) (bitfield uint64) {
 func BitfieldToBools(bitfield uint64, expectedLength int) (table []bool) {
 	elvisOp := map[uint64]bool{0: false, 1: true}
 	bitLength := BitLen(bitfield)
+	table = make([]bool, math.Max(expectedLength, bitLength))
 	for i := 0; i < bitLength; i++ {
-		table = append(table, elvisOp[(bitfield>>uint64(i))&^0xFFFFFFFFFFFFFFFE])
+		table[i] = elvisOp[(bitfield>>uint64(i))&1]
 	}
-	table = append(table, make([]bool, math.Dim(expectedLength, len(table)))...) //lengthen if too short
 	return
 }
 
@@ -174,14 +165,18 @@ func BackgroundCopy(r io.Reader, w io.Writer) (copiedChan <-chan int, errChan <-
 				}
 
 				copied += n
-				if time.Now().Sub(cycleStart) > (32*time.Millisecond) && len(copied_) != cap(copied_) {
-					copied_ <- copied
+				if time.Now().Sub(cycleStart) > (32 * time.Millisecond) { //TODO: rethink this
+					select {
+					case copied_ <- copied:
+					default:
+					}
 					cycleStart = time.Now()
 				}
 
 				if copied == cap(buffer) {
-					if len(copied_) != cap(copied_) {
-						copied_ <- copied
+					select {
+					case copied_ <- copied:
+					default:
 					}
 					return
 				}
@@ -206,8 +201,11 @@ func BackgroundCopy(r io.Reader, w io.Writer) (copiedChan <-chan int, errChan <-
 				}
 
 				copied += n
-				if time.Now().Sub(cycleStart) > (32*time.Millisecond) && len(copied_) != cap(copied_) {
-					copied_ <- copied
+				if time.Now().Sub(cycleStart) > (32 * time.Millisecond) { //TODO: rethink this
+					select {
+					case copied_ <- copied:
+					default:
+					}
 					cycleStart = time.Now()
 				}
 			}

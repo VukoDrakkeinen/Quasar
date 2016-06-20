@@ -60,20 +60,17 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
     } else {
 		auto goComic = go_ComicList_GetComic(this->goComicList, this->comicIdx);
 		void* goChapter;
-		void* goScanlation;
 		if (parent.isValid()) {
 			goChapter = go_Comic_GetChapter(goComic, parent.row());
-			goScanlation = go_Chapter_GetScanlation(goChapter, index.row()+1);
+			scanlation = *reinterpret_cast<ScanlationRow*>(go_Chapter_GetScanlation(goChapter, index.row()+1));
 		} else {
 			goChapter = go_Comic_GetChapter(goComic, index.row());
-			goScanlation = go_Chapter_GetScanlation(goChapter, 0);
+			scanlation = *reinterpret_cast<ScanlationRow*>(go_Chapter_GetScanlation(goChapter, 0));
 		}
 		readStatus = go_Chapter_AlreadyRead(goChapter);
 		scanlationsCount = go_Chapter_ScanlationsCount(goChapter);
-	    scanlation = convertScanlation(goScanlation);
 	    this->cache.hold(index, CachedScanlationRow{scanlation, readStatus, scanlationsCount});
 	    go_collectGarbage(goChapter);
-	    go_collectGarbage(goScanlation);
 		go_collectGarbage(goComic);
 		Q_UNUSED(scanlationsCount) //TODO
 	}
@@ -112,14 +109,14 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
 					QStringList scanlators;
 					scanlators.reserve(scanlation.scanlatorIds.size());
 					for (auto id : scanlation.scanlatorIds) {
-						scanlators.append(go_scanlatorNameByIdQ(id));
+						scanlators.append(go_scanlatorNameByIdQ(this->goComicList, id));
 					}
 					return scanlators.join(" & ");
 				}
 				break;
 
 				case 3:
-					return go_langNameByIdQ(scanlation.languageId);
+					return go_langNameByIdQ(this->goComicList, scanlation.languageId);
 				break;
 					
 				case 4:
@@ -140,7 +137,7 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
 			QStringList scanlators;
 			scanlators.reserve(scanlation.scanlatorIds.size());
 			for (auto id : scanlation.scanlatorIds) {
-				scanlators.append(go_scanlatorNameByIdQ(id));
+				scanlators.append(go_scanlatorNameByIdQ(this->goComicList, id));
 			}
 			return scanlators.join(" & ");
 		}
@@ -148,7 +145,7 @@ QVariant ChapterModel::data(const QModelIndex& index, int role) const
 		
 		case ChapterModel::LangRole:
 		{
-			return go_langNameByIdQ(scanlation.languageId);
+			return go_langNameByIdQ(this->goComicList, scanlation.languageId);
 		}
 		break;
 		

@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-//TODO: qml logging integration?
-
 type msgSeverity int
 
 func (this msgSeverity) String() string {
@@ -23,7 +21,7 @@ func (this msgSeverity) String() string {
 	case Error:
 		return "ERROR"
 	}
-	return "ERROR"
+	return "-UNKNOWN-"
 }
 
 type logMessage struct {
@@ -42,7 +40,7 @@ const (
 )
 
 type LogWriter interface {
-	Write(logMessage)
+	Write(logMessage) error
 }
 
 type QLogger struct {
@@ -58,43 +56,49 @@ type FileLog struct {
 type StdLog struct{}
 type NullLog struct{}
 
-func (this *FileLog) Write(msg logMessage) {
+func (this *FileLog) Write(msg logMessage) (err error) {
 	if !this.newLined {
-		this.file.WriteString("\n")
+		_, err = this.file.WriteString("\n")
+		if err != nil {
+			return err
+		}
 		this.newLined = true
 	}
 	bstr := []byte(msg.t.Format(logTimeFormat))
 	bstr = append(bstr, []byte(" "+msg.s.String()+": [")...)
 	bstr = append(bstr, []byte(msg.m+"]\n")...)
-	this.file.Write(bstr)
+	_, err = this.file.Write(bstr)
+	return err
 }
 
-func (this *StdLog) Write(msg logMessage) {
+func (this *StdLog) Write(msg logMessage) (err error) {
 	switch msg.s {
 	case Info:
-		fmt.Println(msg.m)
+		_, err = fmt.Println(msg.m)
 	case Warning:
-		fmt.Println(msg.s.String()+":", msg.m)
+		_, err = fmt.Println(msg.s.String()+":", msg.m)
 	case Error:
-		fmt.Fprintln(os.Stderr, msg.s.String()+":", msg.m)
+		_, err = fmt.Fprintln(os.Stderr, msg.s.String()+":", msg.m)
 	}
+	return err
 }
 
-func (this *NullLog) Write(msg logMessage) { _ = msg }
+func (this *NullLog) Write(msg logMessage) error { return nil }
 
 var defaultLogger QLogger
-var cache map[string]FileLog //TODO: rename
+var logFilenames map[string]struct{}
 var cLock sync.Mutex
 
 func init() {
-	cache = make(map[string]FileLog)
-	defaultLogger = *New(NewFileLog("debug.log"), &StdLog{})
+	logFilenames = make(map[string]struct{})
+	defaultLogger = *New(&StdLog{})
+	defaultLogger.AddWriter(NewFileLog("debug.log"))
 }
 
 func NewFileLog(filename string) LogWriter {
 	cLock.Lock()
 	defer cLock.Unlock()
-	if _, exists := cache[filename]; exists {
+	if _, exists := logFilenames[filename]; exists {
 		Log(Warning, "Attempted to create another LogWriter for file", filename) //...we won't hit an infinite recurrence, will we?
 		return &NullLog{}
 	}
@@ -103,11 +107,11 @@ func NewFileLog(filename string) LogWriter {
 	rotateLogs(path)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0755)
 	if err != nil {
-		fmt.Println(`Unable to open log file "`, filename, `".`)
+		Log(Error, `Unable to open log file "`, filename, `".`)
 		return &NullLog{}
 	}
 	ret := &FileLog{file: file}
-	cache[filename] = *ret
+	logFilenames[filename] = struct{}{}
 	return ret
 }
 
@@ -119,10 +123,6 @@ func New(writers ...LogWriter) *QLogger {
 		ret.AddWriter(writer)
 	}
 	return ret
-}
-
-func ChangeDefault(writers ...LogWriter) {
-	defaultLogger = *New(writers...)
 }
 
 func (this *QLogger) AddWriter(writer LogWriter) {
@@ -141,27 +141,35 @@ func rotateLogs(path string) {
 	}
 }
 
-func (this *QLogger) Log(s msgSeverity, what ...interface{}) {
+func (this *QLogger) Log(s msgSeverity, what ...interface{}) (err error) {
 	m := fmt.Sprintln(what...)
 	msg := logMessage{s, time.Now().UTC(), m[:len(m)-1]}
 	for _, writer := range this.writers {
-		writer.Write(msg)
+		werr := writer.Write(msg)
+		if err == nil {
+			err = werr
+		}
 	}
+	return err
 }
 
-func (this *QLogger) Logf(s msgSeverity, format string, what ...interface{}) {
+func (this *QLogger) Logf(s msgSeverity, format string, what ...interface{}) (err error) {
 	msg := logMessage{s, time.Now().UTC(), fmt.Sprintf(format, what...)}
 	for _, writer := range this.writers {
-		writer.Write(msg)
+		werr := writer.Write(msg)
+		if err == nil {
+			err = werr
+		}
 	}
+	return err
 }
 
-func Log(s msgSeverity, what ...interface{}) {
-	defaultLogger.Log(s, what...)
+func Log(s msgSeverity, what ...interface{}) error {
+	return defaultLogger.Log(s, what...)
 }
 
-func Logf(s msgSeverity, format string, what ...interface{}) {
-	defaultLogger.Logf(s, format, what...)
+func Logf(s msgSeverity, format string, what ...interface{}) error {
+	return defaultLogger.Logf(s, format, what...)
 }
 
 /*

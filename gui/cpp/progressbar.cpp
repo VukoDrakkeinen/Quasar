@@ -50,7 +50,8 @@ void ProgressBar::paint(QPainter* painter) {
 	}
 	this->m_styleoption->palette.setBrush(QPalette::Base, QBrush(Qt::NoBrush));
 	//this->m_styleoption->palette.setBrush(QPalette::Base, this->m_selected ? stdPalette.highlight() : stdPalette.base());
-	this->m_styleoption->state |= QStyle::State_Horizontal & (this->m_orientation == Qt::Horizontal);
+	//this->m_styleoption->state |= QStyle::State_Horizontal & (this->m_orientation == Qt::Horizontal); //Hey, GCC, what is this
+	this->m_styleoption->state |= QFlags<QStyle::StateFlag>(QStyle::State_Horizontal) & (this->m_orientation == Qt::Horizontal);    //Clang is being sane here
 	qApp->style()->drawControl(QStyle::CE_ProgressBar, this->m_styleoption, painter);
 }
 

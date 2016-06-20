@@ -6,11 +6,13 @@
 #include "notifiablemodel.h"
 #include "rowcache.h"
 
-struct ScanlationRow {
+struct ScanlationRow {  //TODO: make use of new fields
+	QString pluginName;
+	QList<int> scanlatorIds;
+	int version;
+	bool color;
 	QString title;
 	int languageId;
-	QList<int> scanlatorIds;
-	QString pluginName;
 	QString url;
 	QStringList pageLinks;
 };

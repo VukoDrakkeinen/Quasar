@@ -7,12 +7,10 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/qutils"
 )
 
-var ComicGenres = NewComicGenresDict()
-
 const MATURE_GENRE_NAME = "Mature"
 
-func MATURE_GENRE() ComicGenreId {
-	return ComicGenres.Id(MATURE_GENRE_NAME)
+func MATURE_GENRE_ID() ComicGenreId {
+	return ComicGenreId{1}
 }
 
 type ComicGenresDict struct {
@@ -48,7 +46,7 @@ func (this *ComicGenresDict) NameOf(id ComicGenreId) string {
 }
 
 func (this ComicGenreId) String() string {
-	return fmt.Sprintf("(%d)%s", int(this.ordinal), ComicGenres.NameOf(this))
+	return fmt.Sprintf("(%d)%s", int(this.ordinal), "TODO") //TODO
 }
 
 func (this ComicGenreId) Value() (driver.Value, error) {

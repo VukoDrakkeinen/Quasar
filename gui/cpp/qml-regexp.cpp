@@ -1,12 +1,13 @@
 #include "qml-regexp.h"
 
-RegExp::RegExp(const QString& pattern, QObject* parent) : QObject(parent), internal() {
+RegExp::RegExp(const QString& pattern, bool caseSensitive, QObject* parent) : QObject(parent), internal() {
+	this->internal.setMinimal(true);
+	this->setCaseSensitive(caseSensitive);
 	this->setPattern(pattern);
 }
 
 void RegExp::setPattern(const QString& pattern) {
-	auto prevPattern = this->pattern();
-	if (prevPattern == pattern) {
+	if (this->pattern() == pattern) {
 		return;
 	}
 
@@ -33,4 +34,17 @@ bool RegExp::isValid() const {
 
 QString RegExp::errorString() const {
 	return this->internal.errorString();
+}
+
+bool RegExp::caseSensitive() const {
+	return this->internal.caseSensitivity() == Qt::CaseSensitive;
+}
+
+void RegExp::setCaseSensitive(bool cs) {
+	if (this->caseSensitive() == cs) {
+		return;
+	}
+
+	this->internal.setCaseSensitivity(cs ? Qt::CaseSensitive : Qt::CaseInsensitive);
+	emit caseSensitivityChanged(cs);
 }

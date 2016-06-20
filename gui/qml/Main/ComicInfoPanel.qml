@@ -43,6 +43,7 @@ Item {
 			Layout.preferredHeight: 200
 			Layout.preferredWidth: 200
 			fillMode: Image.PreserveAspectFit
+			mipmap: true
 			source: internal.valueOrDefault(0, "decoration", "")
 		}
 		
@@ -74,6 +75,7 @@ Item {
 					Layout.fillWidth: true
 					text: internal.valueOrDefault(1, "display", "")
 					wrapMode: Text.Wrap
+					textFormat: Text.PlainText
 				}
 				
 				Label {
@@ -84,6 +86,8 @@ Item {
 					Layout.fillWidth: true
 					text: internal.valueOrDefault(2, "display", "")
 					wrapMode: Text.Wrap
+					textFormat: Text.RichText
+					onLinkActivated: console.log("Clicked author id" + link)
 				}
 				
 				Label {
@@ -94,6 +98,7 @@ Item {
 					Layout.fillWidth: true
 					text: internal.valueOrDefault(3, "display", "")
 					wrapMode: Text.Wrap
+					textFormat: Text.RichText
 				}
 				
 				Label {
@@ -104,6 +109,7 @@ Item {
 					Layout.fillWidth: true
 					text: internal.valueOrDefault(4, "display", "")
 					wrapMode: Text.Wrap
+					textFormat: Text.RichText
 				}
 				
 				Label {
@@ -114,6 +120,7 @@ Item {
 					Layout.fillWidth: true
 					text: internal.valueOrDefault(5, "display", "")
 					wrapMode: Text.Wrap
+					textFormat: Text.RichText
 				}
 				
 				Label {
@@ -225,10 +232,10 @@ Item {
 	}
 	
 	onComicIdChanged: {
-		if (this.comicId != -1) {
-			this.state = ""
-		} else {
+		if (this.comicId < 0) {
 			this.state = "hidden"
+		} else {
+			this.state = ""
 		}
 	}
 }

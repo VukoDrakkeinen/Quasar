@@ -2,9 +2,12 @@ package idsdict
 
 import (
 	"database/sql"
+	"github.com/VukoDrakkeinen/Quasar/eventq"
 	"strings"
 	"sync"
 )
+
+var IdAssigned = eventq.NewEventType()
 
 type idAssigner struct {
 	names         []string
@@ -12,13 +15,12 @@ type idAssigner struct {
 	constantNames []string
 	lock          sync.RWMutex
 
-	replacer *strings.Replacer //TODO FIXME: see bug #233830
+	eventq.Messenger
 }
 type Id int
 
 func newIdAssigner(constantNames ...string) idAssigner {
 	ret := idAssigner{
-		replacer:      strings.NewReplacer("/S", "/s", "'S", "'s"), //TODO FIXME: see bug #233830
 		constantNames: constantNames,
 	}
 	ret.reset()
@@ -57,8 +59,8 @@ func (this *idAssigner) ExecuteQueryStmt(stmt *sql.Stmt, unused ...interface{}) 
 
 func (this *idAssigner) reset() {
 	this.lock.Lock()
-	this.names = make([]string, 0, 10)
-	this.mapping = make(map[string]Id)
+	this.names = make([]string, 0, 64)
+	this.mapping = make(map[string]Id, 64)
 	this.lock.Unlock()
 	this.assign(append([]string{"Unknown"}, this.constantNames...))
 }
@@ -68,14 +70,16 @@ func (this *idAssigner) assign(names []string) (ids []Id, added []bool) {
 	defer this.lock.Unlock()
 
 	for _, name := range names {
-		name = strings.ToLower(name)
-		_, exists := this.mapping[name]
+		lname := strings.ToLower(name)
+		_, exists := this.mapping[lname]
 		if !exists {
 			this.names = append(this.names, name)
-			this.mapping[name] = Id(len(this.names) - 1)
+			id := Id(len(this.names) - 1)
+			this.mapping[lname] = id
+			this.Event(IdAssigned, id)
 		}
 		added = append(added, !exists)
-		ids = append(ids, this.mapping[name])
+		ids = append(ids, this.mapping[lname])
 	}
 	return
 }
@@ -95,6 +99,5 @@ func (this *idAssigner) nameOf(id Id) string {
 	if int(id) >= len(this.names) {
 		id = Id(0)
 	}
-	//TODO FIXME: bug #233830: strings.Title() has a bug where it will occasionally capitalize wrong letters
-	return this.replacer.Replace(strings.Title(this.names[id]))
+	return this.names[id]
 }

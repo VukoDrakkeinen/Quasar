@@ -2,12 +2,6 @@ package core
 
 import (
 	"bytes"
-	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
-	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
-	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
-	"github.com/VukoDrakkeinen/Quasar/qregexp"
-	"github.com/VukoDrakkeinen/Quasar/qutils"
-	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"html"
 	"net/url"
 	"path"
@@ -15,6 +9,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qregexp"
+	"github.com/VukoDrakkeinen/Quasar/qutils"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 )
 
 var (
@@ -134,28 +135,23 @@ func (this *batoto) findComicURLList(title string) (links []string, titles []str
 	return
 }
 
-func (this *batoto) comicInfo(comic *Comic) *ComicInfo {
-	contents, err := this.fetcher().DownloadData(this.id, comic.GetSource(this.id).URL, true)
+func (this *batoto) comicInfo(source SourceLink) *ComicInfo {
+	if source.SourceId != this.id {
+		panic("Incompatible SourceLink of " + string(source.SourceId) + "::" + source.URL + " provided!")
+	}
+
+	contents, err := this.fetcher().DownloadData(this.id, source.URL, true)
 	if err != nil {
 		panic(err)
 	}
 
 	infoRegion := batoto_rInfoRegion.Find(contents)
 	title := html.UnescapeString(string(batoto_rTitle.Find(infoRegion)))
+	titles := append([]string{title}, qutils.ByteSlicesToStrings(batoto_rExtract.FindAll(batoto_rAltTitlesLine.Find(infoRegion), -1))...)
 
-	altTitles := make(map[string]struct{})
-	for _, altTitle := range batoto_rExtract.FindAll(batoto_rAltTitlesLine.Find(infoRegion), -1) {
-		altTitles[string(altTitle)] = struct{}{}
-	}
-
-	authors, _ := Authors.AssignIdsBytes(batoto_rExtractStrict.FindAll(batoto_rAuthorsLine.Find(infoRegion), -1))
-	artists, _ := Artists.AssignIdsBytes(batoto_rExtractStrict.FindAll(batoto_rArtistsLine.Find(infoRegion), -1))
-
-	genres := make(map[ComicGenreId]struct{})
-	genreNames := batoto_rExtract.FindAll(batoto_rGenresLine.Find(infoRegion), -1)
-	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(genreNames))[0].([]ComicGenreId) {
-		genres[genre] = struct{}{}
-	}
+	authors, _ := this.fetcher().authors().AssignIdsBytes(batoto_rExtractStrict.FindAll(batoto_rAuthorsLine.Find(infoRegion), -1))
+	artists, _ := this.fetcher().artists().AssignIdsBytes(batoto_rExtractStrict.FindAll(batoto_rArtistsLine.Find(infoRegion), -1))
+	genres, _ := this.fetcher().genres().AssignIdsBytes(batoto_rExtract.FindAll(batoto_rGenresLine.Find(infoRegion), -1))
 
 	cType := InvalidComic
 	switch string(batoto_rType.Find(infoRegion)) {
@@ -197,24 +193,28 @@ func (this *batoto) comicInfo(comic *Comic) *ComicInfo {
 	}
 
 	return &ComicInfo{
-		MainTitle:         title,
-		AltTitles:         altTitles,
-		Authors:           authors,
-		Artists:           artists,
-		Genres:            genres,
-		Categories:        make(map[ComicTagId]struct{}), //empty
-		Type:              cType,
-		Status:            status,
-		ScanlationStatus:  scanStatus,
-		Description:       desc,
-		Rating:            uint16(rating * 200), // x/5 * 10 * 100 (e.g. 4.81/5 * 10 = 9.62 on a 10pt scale)
-		Mature:            mature,
-		ThumbnailFilename: thumbnailFilename,
+		MainTitleIdx:     0,
+		Titles:           titles,
+		Authors:          authors,
+		Artists:          artists,
+		Genres:           genres,
+		Categories:       []ComicTagId(nil), //empty
+		Type:             cType,
+		Status:           status,
+		ScanlationStatus: scanStatus,
+		Description:      desc,
+		Rating:           uint16(rating * 200), // x/5 * 10 * 100 (e.g. 4.81/5 * 10 = 9.62 on a 10pt scale)
+		Mature:           mature,
+		ThumbnailIdx:     0,
+		Thumbnails:       []string{thumbnailFilename},
 	}
 }
 
-func (this *batoto) chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
-	source := comic.GetSource(this.id)
+func (this *batoto) chapterList(source SourceLink) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
+	if source.SourceId != this.id {
+		panic("Incompatible SourceLink of " + string(source.SourceId) + "::" + source.URL + " provided!")
+	}
+
 	contents, err := this.fetcher().DownloadData(this.id, source.URL, true)
 	if err != nil {
 		panic(err)
@@ -228,6 +228,15 @@ func (this *batoto) chapterList(comic *Comic) (identities []ChapterIdentity, cha
 	identities = make([]ChapterIdentity, 0, len(chaptersList))
 	chapters = make([]Chapter, 0, len(chaptersList))
 
+	cachedComicTitle := "" //in case of errors
+	comicTitle := func() string {
+		if cachedComicTitle == "" {
+			infoRegion := batoto_rInfoRegion.Find(contents)
+			cachedComicTitle = html.UnescapeString(string(batoto_rTitle.Find(infoRegion)))
+		}
+		return cachedComicTitle
+	}
+
 	for i := len(chaptersList) - 1; i >= 0; i-- { //cannot use range, because we're iterating in reverse :(
 		chapterInfo := chaptersList[i]
 
@@ -235,8 +244,9 @@ func (this *batoto) chapterList(comic *Comic) (identities []ChapterIdentity, cha
 			continue // skip some bullshit they sometimes insert in the middle
 		}
 
-		lang := Langs.Id(string(batoto_rLang.Find(chapterInfo)))
-		if !this.fetcher().settings.Languages[LangName(Langs.NameOf(lang))] {
+		langsDict := this.fetcher().langs()
+		lang := langsDict.Id(string(batoto_rLang.Find(chapterInfo)))
+		if !this.fetcher().settings.Languages[LangName(langsDict.NameOf(lang))] {
 			continue // skip disabled languages
 		}
 
@@ -244,19 +254,19 @@ func (this *batoto) chapterList(comic *Comic) (identities []ChapterIdentity, cha
 
 		identityAndTitle := batoto_rIdentityAndTitle.FindSubmatch(chapterInfo)
 		if identityAndTitle == nil {
-			qlog.Logf(qlog.Error, `Failed to extract identity and title for comic %s`, comic.Info().MainTitle)
+			qlog.Logf(qlog.Error, `Failed to extract %s chapter identity and title for comic %s`, this.Name(), comicTitle())
 			qlog.Logf(qlog.Error, "\n%s\n", string(chapterInfo))
 			continue
 		}
 		idStr, sortHint := string(identityAndTitle[1]), string(identityAndTitle[3])
-		identity, strict, color, err := parseBatotoIdentity(idStr, sortHint)
+		identity, strict, color, version, err := parseBatotoIdentity(idStr, sortHint)
 		if err != nil {
-			qlog.Logf(qlog.Error, "Parsing %s identity for comic \"%s\" failed: %v", this.Name(), comic.Info().MainTitle, err)
+			qlog.Logf(qlog.Error, "Parsing %s chapter identity for comic \"%s\" failed: %v", this.Name(), comicTitle(), err)
 			continue
 		}
 		if !strict {
-			qlog.Logf(qlog.Warning, "Irregular %s identity \"%s | %s\" for comic \"%s\"; parsed as %v",
-				this.Name(), idStr, sortHint, comic.Info().MainTitle, identity,
+			qlog.Logf(qlog.Warning, "Irregular %s chapter identity \"%s | %s\" for comic \"%s\"; parsed as %v",
+				this.Name(), idStr, sortHint, comicTitle(), identity,
 			)
 		}
 
@@ -270,21 +280,22 @@ func (this *batoto) chapterList(comic *Comic) (identities []ChapterIdentity, cha
 		for i, scanlator := range scanlatorNames {
 			scanlatorNames[i] = []byte(html.UnescapeString(string(scanlator)))
 		}
-		scanlators, _ := Scanlators.AssignIdsBytes(scanlatorNames)
+		scanlators, _ := this.fetcher().scanlators().AssignIdsBytes(scanlatorNames)
 
-		chapter := NewChapter(source.MarkAsRead)
+		chapter := Chapter{MarkedRead: source.MarkAsRead}
 		chapter.AddScanlation(ChapterScanlation{
-			Title:      title,
-			Language:   lang,
-			Scanlators: JoinScanlators(scanlators),
-			PluginName: this.id,
-			URL:        url,
-			PageLinks:  make([]string, 0),
+			SourceId:    this.id,
+			Scanlators:  JoinScanlators(scanlators),
+			Version:     version,
+			Color:       color,
+			Title:       title,
+			Language:    lang,
+			MetadataURL: url,
+			PageLinks:   make([]string, 0),
 		})
-		_ = color //TODO
 
 		identities = append(identities, identity)
-		chapters = append(chapters, *chapter)
+		chapters = append(chapters, chapter)
 	}
 	return
 }
@@ -325,7 +336,7 @@ func (this *batoto) chapterDataLinks(url string) []string { //TODO: also handle 
 	return pageLinks
 }
 
-func parseBatotoIdentity(idStr, sortHint string) (identity ChapterIdentity, strict, color bool, err error) {
+func parseBatotoIdentity(idStr, sortHint string) (identity ChapterIdentity, strict, color bool, version byte, err error) {
 	normalizeNumbers := func(r rune) rune {
 		if r >= '０' && r <= '９' { //should probably also handle the rest of unicode digits,
 			return r - '０' + '0' //but they're very unlikely to show up in practice
@@ -386,13 +397,13 @@ func parseBatotoIdentity(idStr, sortHint string) (identity ChapterIdentity, stri
 		}
 		if str := parsing[6]; str != "" {
 			i, _ := strconv.ParseUint(str, 10, 8)
-			identity.Version = byte(i)
+			version = byte(i)
 		} else {
-			identity.Version = 1
+			version = 1
 		}
 
 		if identity.Volume != 0 && strict {
-			return identity, strict, color, nil
+			return identity, strict, color, version, nil
 		}
 	}
 
@@ -427,20 +438,20 @@ func parseBatotoIdentity(idStr, sortHint string) (identity ChapterIdentity, stri
 	if len(majorHint) > 3 {
 		i, err := strconv.ParseUint(majorHint[:len(majorHint)-3], 10, 8)
 		if err != nil {
-			return ChapterIdentity{}, false, false, qerr.NewParse("Malformed sort hint (volume part)", err, strconv.Quote(sortHint))
+			return ChapterIdentity{}, false, false, 0, qerr.NewParse("Malformed sort hint (volume part)", err, strconv.Quote(sortHint))
 		}
 		identity.Volume = byte(i)
 		majorHint = majorHint[len(majorHint)-3:]
 	}
 
 	if strict {
-		return identity, strict, color, nil
+		return identity, strict, color, version, nil
 	}
 
 	if identity.MajorNum == 0 {
 		i, err := strconv.ParseUint(majorHint, 10, 16)
 		if err != nil {
-			return ChapterIdentity{}, false, false, qerr.NewParse("Malformed sort hint (chapter-major part)", err, strconv.Quote(sortHint))
+			return ChapterIdentity{}, false, false, 0, qerr.NewParse("Malformed sort hint (chapter-major part)", err, strconv.Quote(sortHint))
 		}
 		identity.MajorNum = uint16(i)
 	}
@@ -448,7 +459,7 @@ func parseBatotoIdentity(idStr, sortHint string) (identity ChapterIdentity, stri
 	if identity.MinorNum == 0 {
 		i, err := strconv.ParseUint(minorHint[:1], 10, 8)
 		if err != nil {
-			return ChapterIdentity{}, false, false, qerr.NewParse("Malformed sort hint (chapter-minor part)", err, strconv.Quote(sortHint))
+			return ChapterIdentity{}, false, false, 0, qerr.NewParse("Malformed sort hint (chapter-minor part)", err, strconv.Quote(sortHint))
 		}
 		if i == 0 && !strings.ContainsRune(idStr, '+') &&
 			(strings.Contains(idStr, "Extra") || strings.Contains(idStr, "Special") || strings.Contains(idStr, "Omake")) {
@@ -457,9 +468,9 @@ func parseBatotoIdentity(idStr, sortHint string) (identity ChapterIdentity, stri
 		identity.MinorNum = byte(i)
 	}
 
-	if identity.Version == 0 {
-		identity.Version = 1
+	if version == 0 {
+		version = 1
 	}
 
-	return identity, strict, color, nil
+	return identity, strict, color, version, nil
 }

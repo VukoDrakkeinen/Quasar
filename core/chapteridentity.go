@@ -12,15 +12,15 @@ type ChapterIdentity struct {
 	MajorNum uint16
 	MinorNum byte
 	Letter   byte
-	Version  byte //TODO: not actually significant; move to scanlation metadata?
+	_        byte //unused, reserved
 }
 
 func (this ChapterIdentity) Equals(another ChapterIdentity) bool {
 	return this.Volume == another.Volume &&
 		this.MajorNum == another.MajorNum &&
 		this.MinorNum == another.MinorNum &&
-		this.Letter == another.Letter &&
-		this.Version == another.Version
+		this.Letter == another.Letter /*&&
+		this.unused == another.unused*/
 }
 
 func (this ChapterIdentity) Less(another ChapterIdentity) bool {
@@ -40,7 +40,7 @@ func (this ChapterIdentity) MoreEq(another ChapterIdentity) bool {
 }
 
 func (this ChapterIdentity) n() int64 {
-	return int64(this.Volume)<<40 | int64(this.MajorNum)<<24 | int64(this.MinorNum)<<16 | int64(this.Letter)<<8 | int64(this.Version)
+	return int64(this.Volume)<<40 | int64(this.MajorNum)<<24 | int64(this.MinorNum)<<16 | int64(this.Letter)<<8 /*| int64(this.unused)*/
 }
 
 func (this ChapterIdentity) Stringify() string {
@@ -68,7 +68,7 @@ func (this *ChapterIdentity) Scan(src interface{}) error {
 	if !ok || src == nil {
 		return errors.New("ChapterIdentity.Scan: type assert failed (must be an int64!)")
 	}
-	this.Version = byte(n)
+	//this.unused = byte(n)
 	this.Letter = byte(n >> 8)
 	this.MinorNum = byte(n >> 16)
 	this.MajorNum = uint16(n >> 24)
@@ -95,25 +95,42 @@ func (this ChapterIdentitiesSlice) Swap(i, j int) {
 	this[i], this[j] = this[j], this[i]
 }
 
-func (this ChapterIdentitiesSlice) Insert(at int, ci ChapterIdentity) ChapterIdentitiesSlice {
-	this = append(this, ChapterIdentity{})
-	copy(this[at+1:], this[at:])
-	this[at] = ci
-	return this
+func (this *ChapterIdentitiesSlice) Insert(at int, ci ChapterIdentity) {
+	*this = append(*this, ChapterIdentity{})
+	copy((*this)[at+1:], (*this)[at:])
+	(*this)[at] = ci
 }
 
-func (this ChapterIdentitiesSlice) InsertMultiple(at int, cis []ChapterIdentity) ChapterIdentitiesSlice {
-	newSize := len(this) + len(cis)
-	if cap(this) < newSize {
+func (this *ChapterIdentitiesSlice) InsertMultiple(at int, cis []ChapterIdentity) {
+	newSize := len(*this) + len(cis)
+	if cap(*this) < newSize {
 		newSlice := make([]ChapterIdentity, newSize, GrownCap(newSize))
-		copy(newSlice, this[:at])
+		copy(newSlice, (*this)[:at])
 		copy(newSlice[at:], cis)
-		copy(newSlice[at+len(cis):], this[at:])
-		return newSlice
+		copy(newSlice[at+len(cis):], (*this)[at:])
+		*this = newSlice
 	} else {
-		this = this[:newSize]
-		copy(this[at+len(cis):], this[at:])
-		copy(this[at:], cis)
-		return this
+		(*this) = (*this)[:newSize]
+		copy((*this)[at+len(cis):], (*this)[at:])
+		copy((*this)[at:], cis)
+	}
+}
+
+func (this *ChapterIdentitiesSlice) InsertMultipleIdentified(at int, cis []IdentifiedChapter) {
+	newSize := len(*this) + len(cis)
+	if cap(*this) < newSize {
+		newSlice := make([]ChapterIdentity, newSize, GrownCap(newSize))
+		copy(newSlice, (*this)[:at])
+		for i, ichap := range cis {
+			newSlice[at+i] = ichap.identity
+		}
+		copy(newSlice[at+len(cis):], (*this)[at:])
+		(*this) = newSlice
+	} else {
+		(*this) = (*this)[:newSize]
+		copy((*this)[at+len(cis):], (*this)[at:])
+		for i, ichap := range cis {
+			(*this)[at+i] = ichap.identity
+		}
 	}
 }

@@ -22,6 +22,19 @@ int ComicInfoModel::columnCount(const QModelIndex& parent) const
 
 QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 {
+	static auto joinIds = [this](const QList<int>& ids, QString (*nameOf)(void* goComicList, int id), int avgLen) {
+		QString joined;
+        joined.reserve(ids.size() * avgLen);
+        for (auto id : ids) {
+            joined.append("<a href=\"");
+            joined.append(QString::number(id));
+            joined.append("\">");
+            joined.append(nameOf(this->goComicList, id));
+            joined.append("</a>, ");
+        }
+        joined.chop(2);    //remove the trailing ", "
+        return joined;
+	};
 	if (!index.isValid()) return QVariant();
 
 	ComicInfoRow info;
@@ -29,73 +42,45 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 		info = this->cache.get();
 	} else {
 		auto goComic = go_ComicList_GetComic(this->goComicList, index.row());
-		auto goInfo = go_Comic_Info(goComic);
-		info = convertComicInfo(goInfo);
+		info = *reinterpret_cast<ComicInfoRow*>(go_Comic_Info(goComic));
 		this->cache.hold(index, info);
-		go_collectGarbage(goComic); //TODO: wrapper
+		go_collectGarbage(goComic); //todo: wrapper
 	}
 
 	switch (role)
 	{
 		case Qt::DecorationRole:
 		{
-			return QUrl(go_getThumbnailPathQ(info.thumbnailFilename));
+			return QUrl(go_getThumbnailPathQ(info.thumbnails[info.thumbnailIdx]));
 		}
 		break;
 
 		case Qt::DisplayRole:
-			switch (index.column())	//TODO: roles, not column ids?
+			switch (index.column())	//todo: roles, not column ids?
 			{
 				case 0:
-					return info.mainTitle;
+					return info.titles[info.mainTitleIdx];
 				break;
 
 				case 1:
+					info.titles.removeAt(info.mainTitleIdx);
 					return info.titles.join(", ");
 				break;
 
 				case 2:
-				{
-					QStringList authors;
-					authors.reserve(info.authorIds.size());
-					for (auto id : info.authorIds) {
-						authors.append(go_authorNameByIdQ(id));
-					}
-					return authors.join(", ");
-				}
+					return joinIds(info.authorIds, go_authorNameByIdQ, 33);
 				break;
 
 				case 3:
-				{
-					QStringList artists;
-					artists.reserve(info.artistIds.size());
-					for (auto id : info.artistIds) {
-						artists.append(go_artistNameByIdQ(id));
-					}
-					return artists.join(", ");	//TODO: nah, don't join. shit must be separate to be clickable
-				}
+					return joinIds(info.artistIds, go_artistNameByIdQ, 33);
 				break;
 				
 				case 4:
-				{
-					QStringList genres;
-					genres.reserve(info.genreIds.size());
-					for (auto id : info.genreIds) {
-						genres.append(go_genreNameByIdQ(id));
-					}
-					return genres.join(", ");
-				}
+					return joinIds(info.genreIds, go_genreNameByIdQ, 28);
 				break;
 					
 				case 5:
-				{
-					QStringList tags;
-					tags.reserve(info.categoryIds.size());
-					for (auto id : info.categoryIds) {
-						tags.append(go_categoryNameByIdQ(id));
-					}
-					return tags.join(", ");
-				}
+					return joinIds(info.categoryIds, go_categoryNameByIdQ, 34);
 				break;
 					
 				case 6:
@@ -122,6 +107,15 @@ QVariant ComicInfoModel::data(const QModelIndex& index, int role) const
 					return info.desc;
 				break;
 			}
+
+			case ComicInfoModel::IdRole:
+				switch (index.column())
+				{
+					case 2:	return QVariant::fromValue(info.authorIds);
+					case 3:	return QVariant::fromValue(info.artistIds);
+					case 4:	return QVariant::fromValue(info.genreIds);
+					case 5:	return QVariant::fromValue(info.categoryIds);
+				}
 	}
 
 	return QVariant();
@@ -204,6 +198,7 @@ QHash<int, QByteArray> ComicInfoModel::roleNames() const
 	roles[Qt::DecorationRole] = "decoration";
 	roles[Qt::DisplayRole] = "display";
 	roles[Qt::ForegroundRole] = "foreground";
+	roles[ComicInfoModel::IdRole] = "id";
 	return roles;
 }
 

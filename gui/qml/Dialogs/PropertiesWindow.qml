@@ -23,12 +23,12 @@ Window {
     }
     
     function __setSettings(settings) {
-		notifChooser.mode = settings.notificationMode
-		notifChooser.accumulationCount = settings.accumulativeModeCount
+		notifChooser.mode = settings.notificationMode|0
+		notifChooser.accumulationCount = settings.accumulativeModeCount|0
 		var duration = settings.delayedModeDuration
-		notifChooser.delayedHours = duration.hours
-		notifChooser.delayedDays = duration.days
-		notifChooser.delayedWeeks = duration.weeks
+		notifChooser.delayedHours = duration.hours|0
+		notifChooser.delayedDays = duration.days|0
+		notifChooser.delayedWeeks = duration.weeks|0
     }
 	
 	function resetAndShow() {
@@ -40,17 +40,17 @@ Window {
 		
 		var sources = quasarCore.comicSources(this.comicId)
 		var mappedSources = sources.map(function (source) {
-			return {"priority": -1, "sourceIdx": sourcesView.indexForPluginName(source.pluginName), "url": source.url, "markAsRead": source.markAsRead}
+			return {"priority": -1, "sourceIdx": sourcesView.indexForPluginName(source.sourceId), "url": source.url, "markAsRead": source.markAsRead}
 		})
 		sourcesModel.append(mappedSources)
 		
-		var settings = quasarCore.comicSettings(this.comicId)
-		this.__setSettings(settings)
+		var cfg = quasarCore.comicConfig(this.comicId)
+		this.__setSettings(cfg)
 		this.show()
 	}
 	
 	function __defaults() {
-		var settings = quasarCore.globalSettings()
+		var settings = quasarCore.globalSettings
 		this.__setSettings(settings)
 	}
 
@@ -88,15 +88,18 @@ Window {
 			onCancel: root.hide()
 			onDefaults: root.__defaults()
 			onOK: {
-				var settings = {"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount}
+				var cfg = {
+					"notificationMode": notifChooser.mode,
+					"accumulativeModeCount": notifChooser.accumulationCount,
+					"delayedModeDuration": {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
+				}
 				var sources = []
 				for (var i = 0; i < sourcesModel.count; i++) {
 					var item = sourcesModel.get(i);
-					sources.push({"pluginName": sourcesView.pluginNameForIndex(item.sourceIdx), "url": item.url, "markAsRead": item.markAsRead})
+					sources.push({"sourceId": sourcesView.pluginNameForIndex(item.sourceIdx), "url": item.url, "markAsRead": item.markAsRead})
 				}
-				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
 				
-				quasarCore.setComicSettingsAndSources(root.comicId, settings, delayedModeDuration, sources)
+				quasarCore.setComicConfigAndSources(root.comicId, cfg, sources)
 				root.hide()
 			}
 		}

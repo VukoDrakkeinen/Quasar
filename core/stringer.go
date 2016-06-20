@@ -1,6 +1,9 @@
 package core
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 const (
 	_NotificationMode_name = "ImmediateAccumulativeDelayed"
@@ -26,7 +29,7 @@ func (i NotificationMode) String() string {
 	return _NotificationMode_name[lo:hi]
 }
 
-func NotificationModeFromString(s string) NotificationMode {
+func notificationModeFromString(s string) NotificationMode {
 	for i := 0; i < len(_NotificationMode_index); i++ {
 		u := NotificationMode(i)
 		if u.String() == s {
@@ -42,6 +45,21 @@ func NotificationModeValueNames() (names []string) {
 		names = append(names, u.String())
 	}
 	return
+}
+
+func (this NotificationMode) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(this.String())
+	return data, err
+}
+
+func (this *NotificationMode) UnmarshalJSON(data []byte) error {
+	var str string
+	err := json.Unmarshal(data, &str)
+	if err != nil {
+		return err
+	}
+	*this = notificationModeFromString(str)
+	return nil
 }
 
 func (i comicType) String() string {

@@ -193,7 +193,7 @@ GridLayout {
 		
 		TableViewColumn {
 			role: "markAsRead"
-			title: qsTr("Mark")
+			title: qsTr("Read")
 			width: 40
 			delegate: Item {
 				Label {

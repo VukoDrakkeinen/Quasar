@@ -11,12 +11,19 @@ typedef void ChapterModel_;
 typedef void GoComicList_;
 typedef void NotifiableModel_;
 typedef void WrappedModel_;
+typedef void ComicInfoRow_;
+typedef void ScanlationRow_;
+typedef void UpdateInfoRow_;
 
 InfoModel_* newInfoModel(GoComicList_* data);
 UpdateModel_* newUpdateModel(GoComicList_* data);
 ChapterModel_* newChapterModel(GoComicList_* data);
 WrappedModel_* wrapModel(NotifiableModel_* model);  //wrap in SortFilter proxy
 void registerQMLTypes();
+int assertSyncedHashes();
+ComicInfoRow_* convertComicInfo(void* info);
+ScanlationRow_* convertScanlation(void* scanlation, void* scanlatorsPtr);
+UpdateInfoRow_* convertUpdateInfo(void* updateInfo);
 void modelSetGoData(NotifiableModel_* model, void* goData);
 void notifyModelInsertStart(NotifiableModel_* model, int row, int count);
 void notifyModelInsertEnd(NotifiableModel_* model);
@@ -29,6 +36,9 @@ void notifyModelDataChanged(NotifiableModel_* model, int row, int count, int col
 void* go_Offsets_ComicInfo;
 void* go_Offsets_Scanlation;
 void* go_Offsets_UpdateInfo;
+unsigned long long go_Hash_ComicInfo;
+unsigned long long go_Hash_Scanlation;
+unsigned long long go_Hash_UpdateInfo;
 
 /// from _cgo_export.h
 typedef signed char GoInt8;
@@ -62,13 +72,13 @@ typedef struct { void *data; GoInt len; GoInt cap; } cgo_GoSlice;
 ///
 
 //For some reason we have to declare those manually if the file has a .cpp extension
-//TODO: wrap all Go pointers in classes (RAII ftw)
-char* go_authorNameById(GoInt);
-char* go_artistNameById(GoInt);
-char* go_genreNameById(GoInt);
-char* go_categoryNameById(GoInt);
-char* go_scanlatorNameById(GoInt);
-char* go_langNameById(GoInt);
+//TODO: wrap all Go pointers in classes (RAII!)
+char* go_authorNameById(void*, GoInt);
+char* go_artistNameById(void*, GoInt);
+char* go_genreNameById(void*, GoInt);
+char* go_categoryNameById(void*, GoInt);
+char* go_scanlatorNameById(void*, GoInt);
+char* go_langNameById(void*, GoInt);
 char* go_getThumbnailPath(char*);
 void* go_ComicList_GetComic(void*, int);
 int   go_ComicList_Len(void*);

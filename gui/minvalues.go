@@ -3,7 +3,7 @@ package gui
 import (
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
-	"gopkg.in/qml.v1"
+	"github.com/VukoDrakkeinen/qml"
 )
 
 func init() {
@@ -13,7 +13,6 @@ func init() {
 }
 
 type ValuesValidator struct {
-	qml.Object
 	ValidationFunc func(objs []qml.Object) (valid bool)
 	CorrectionFunc func(objs []qml.Object, valid bool)
 	children       []qml.Object
@@ -27,6 +26,7 @@ func (this *ValuesValidator) UnbindObject(obj qml.Object) {
 	index, err := qutils.IndexOf(this.children, obj)
 	if err == nil {
 		this.children = append(this.children[:index], this.children[index+1:]...)
+		//this.children[len(this.children)-1] = nil
 	}
 }
 
@@ -63,8 +63,7 @@ func CorrectSplitDuration(objs []qml.Object, valid bool) {
 	}
 }
 
-func initSplitDurationValidator(v *ValuesValidator, obj qml.Object) {
-	v.Object = obj
+func initSplitDurationValidator(v *ValuesValidator, _ qml.Object) {
 	v.ValidationFunc = ValidateSplitDuration
 	v.CorrectionFunc = CorrectSplitDuration
 }

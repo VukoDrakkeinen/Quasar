@@ -49,8 +49,7 @@ QVariant UpdateInfoModel::data(const QModelIndex& index, int role) const
 	if (this->cache.valid(index)) {
 		updateInfo = this->cache.get();
 	} else {
-		auto goComic = go_ComicList_ComicUpdateInfo(this->goComicList, index.row());
-		updateInfo = convertUpdateInfo(goComic);
+		updateInfo = *reinterpret_cast<UpdateInfoRow*>(go_ComicList_ComicUpdateInfo(this->goComicList, index.row()));
 		this->cache.hold(index, updateInfo);
 	}
 

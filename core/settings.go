@@ -2,25 +2,32 @@ package core
 
 import (
 	"encoding/json"
-	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
-	"github.com/VukoDrakkeinen/Quasar/datadir"
-	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
-	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
 	"time"
+
+	"database/sql/driver"
+	"errors"
+	"fmt"
+	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
+	"github.com/VukoDrakkeinen/Quasar/datadir"
+	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
+	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
+	"github.com/VukoDrakkeinen/qml"
 )
 
 const (
-	hoursPerDay time.Duration = 24
-	daysPerWeek               = 7
+	hoursPerDay Duration = 24
+	daysPerWeek          = 7
+	hourTime             = Duration(time.Hour)
+	dayTime              = hourTime * hoursPerDay
+	weekTime             = dayTime * daysPerWeek
+
 	//weeksPerMonth               = 4 //uniform
-	//monthsPerYear               = 13 //4*7*13 = 364; 13th month is Nonuary :P
-	dayTime  = time.Hour * hoursPerDay
-	weekTime = dayTime * daysPerWeek
+	//monthsPerYear               = 13 //4*7*13 = 364; 13th month is... Nonuary?
 	//monthTime = weekTime * weeksPerMonth
 	//yearTime = monthTime * monthsPerYear
 )
@@ -30,24 +37,13 @@ const (
 	Delayed
 )
 
-var bitlength_comic = reflect.TypeOf(IndividualSettings{}).NumField() - 1
-var bitlength_plugin = reflect.TypeOf(SourceConfig{}).NumField() - 1
+var bitlength_common = reflect.TypeOf(CommonSettings{}).NumField() - 1
+var bitlength_comiccfg = reflect.TypeOf(ComicConfig{}).NumField() - 1 + bitlength_common
+var bitlength_sourcecfg = reflect.TypeOf(SourceConfig{}).NumField() - 1 + bitlength_common
 
-type BitfieldType int
-
-const (
-	ComicSettings BitfieldType = iota
-	PluginSettings
-)
-
-func Bitlength(typ BitfieldType) int {
-	switch typ {
-	case ComicSettings:
-		return bitlength_comic
-	case PluginSettings:
-		return bitlength_plugin
-	default:
-		return -1
+func init() {
+	if bitlength_comiccfg > 64 || bitlength_sourcecfg > 64 {
+		panic("Too many booleans to encode in a single 64-bit field!")
 	}
 }
 
@@ -58,77 +54,64 @@ type (
 	LangName         string
 )
 
-type GlobalSettings struct {
-	IAmADirtyLeecher      bool
+type CommonSettings struct {
 	FetchOnStartup        bool
 	IntervalFetching      bool
-	FetchFrequency        time.Duration
-	MaxConnectionsToHost  uint
+	FetchFrequency        Duration
 	NotificationMode      NotificationMode
 	AccumulativeModeCount uint
-	DelayedModeDuration   time.Duration
-	DownloadsPath         string
-	Plugins               map[SourceId]PluginEnabled
-	Languages             map[LangName]LanguageEnabled //TODO: languages validation
+	DelayedModeDuration   Duration
+}
+
+type GlobalSettings struct {
+	CommonSettings
+	IAmADirtyLeecher     bool
+	MaxConnectionsToHost uint
+	DownloadsPath        string
+	Plugins              map[SourceId]PluginEnabled   `json:"PluginsEnabled"`
+	Languages            map[LangName]LanguageEnabled `json:"LangsEnabled"` //TODO: languages validation
+	Ignore_JSONComment0  []string                     `json:"#ValidNModeValues"`
 	//TODO: default plugin priority?
 	//TODO: color scheme
 	//TODO: user-agent
 }
 
 func (this *GlobalSettings) Save() { //TODO: if this == nil, save defaults?
-	jsonData, _ := json.MarshalIndent(this.toJSONProxy(), "", "\t")
+	this.Ignore_JSONComment0 = NotificationModeValueNames()
+	jsonData, _ := json.MarshalIndent(this, "", "\t")
 	WriteConfig(globalConfigFilename, jsonData)
-}
-
-func (this *GlobalSettings) toJSONProxy() *globalSettingsJSONProxy {
-	proxy := &globalSettingsJSONProxy{
-		IAmADirtyLeecher:      this.IAmADirtyLeecher,
-		FetchOnStartup:        this.FetchOnStartup,
-		IntervalFetching:      this.IntervalFetching,
-		FetchFrequency:        DurationToSplit(this.FetchFrequency),
-		MaxConnectionsToHost:  this.MaxConnectionsToHost,
-		ValidModeValues:       NotificationModeValueNames(),
-		NotificationMode:      this.NotificationMode.String(),
-		AccumulativeModeCount: this.AccumulativeModeCount,
-		DelayedModeDuration:   DurationToSplit(this.DelayedModeDuration),
-		DownloadsPath:         this.DownloadsPath,
-		Plugins:               this.Plugins,
-		Languages:             this.Languages,
-	}
-	return proxy
 }
 
 func NewGlobalSettings() *GlobalSettings {
 	return &GlobalSettings{
-		IAmADirtyLeecher:      false,
-		FetchOnStartup:        true,
-		IntervalFetching:      true,
-		FetchFrequency:        time.Duration(time.Hour * 3),
-		MaxConnectionsToHost:  10,
-		NotificationMode:      Immediate,
-		AccumulativeModeCount: 10,
-		DelayedModeDuration:   time.Duration(time.Hour * 24 * 7),
-		DownloadsPath:         downloadsPath,
-		Plugins:               make(map[SourceId]PluginEnabled),
-		Languages:             map[LangName]LanguageEnabled{LangName(ENGLISH_LANG_NAME): LanguageEnabled(true)},
+		IAmADirtyLeecher: false,
+		CommonSettings: CommonSettings{
+			FetchOnStartup:        true,
+			IntervalFetching:      true,
+			FetchFrequency:        Duration(time.Hour * 3),
+			NotificationMode:      Immediate,
+			AccumulativeModeCount: 10,
+			DelayedModeDuration:   Duration(time.Hour * 24 * 7),
+		},
+		MaxConnectionsToHost: 10,
+		DownloadsPath:        downloadsPath,
+		Plugins:              make(map[SourceId]PluginEnabled),
+		Languages:            map[LangName]LanguageEnabled{LangName(ENGLISH_LANG_NAME): LanguageEnabled(true)},
 	}
 }
 
 func LoadGlobalSettings() (settings *GlobalSettings, e error) {
+	jsonData, err := ReadConfig(globalConfigFilename)
 	configPath := filepath.Join(datadir.Configs(), globalConfigFilename)
-	file, err := os.Open(configPath)
-	defer file.Close()
 	if os.IsNotExist(err) {
 		settings = NewGlobalSettings()
 		settings.Save()
-		return
+		return settings, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	jsonData, _ := ioutil.ReadAll(file)
-	var proxy globalSettingsJSONProxy = *NewGlobalSettings().toJSONProxy()
-	err = json.Unmarshal(jsonData, &proxy)
+	err = json.Unmarshal(jsonData, &settings)
 	if err != nil {
 		corruptedConfigPath := configPath + ".corrupted"
 		os.Remove(corruptedConfigPath)
@@ -136,50 +119,18 @@ func LoadGlobalSettings() (settings *GlobalSettings, e error) {
 		return nil, qerr.NewParse("Error while unmarshaling settings", err, string(jsonData))
 	}
 
-	if proxy.MaxConnectionsToHost < 1 { //TODO: better validation
-		proxy.MaxConnectionsToHost = 1
+	if settings.MaxConnectionsToHost < 1 { //TODO: better validation
+		settings.MaxConnectionsToHost = 1
 		qlog.Log(qlog.Warning, "Invalid number of maximum connections! Can't be zero.")
-	} else if proxy.MaxConnectionsToHost > 5 {
-		proxy.MaxConnectionsToHost = 5 //bigger values seem to trigger a DDoS protection, so clamp for now
+	} else if settings.MaxConnectionsToHost > 5 {
+		settings.MaxConnectionsToHost = 5 //bigger values seem to trigger a DDoS protection, so clamp for now
 		qlog.Log(qlog.Warning, "More than 5 simultaneous connections may trigger a DDoS protection!")
 	}
-	settings = proxy.toSettings()
 
-	return
+	return settings, nil
 }
 
-type globalSettingsJSONProxy struct {
-	IAmADirtyLeecher      bool
-	FetchOnStartup        bool
-	IntervalFetching      bool
-	FetchFrequency        SplitDuration
-	MaxConnectionsToHost  uint
-	ValidModeValues       []string //can't have comments in JSON, make it a dummy value instead
-	NotificationMode      string
-	AccumulativeModeCount uint
-	DelayedModeDuration   SplitDuration
-	DownloadsPath         string
-	Plugins               map[SourceId]PluginEnabled   `json:"PluginsEnabled"`
-	Languages             map[LangName]LanguageEnabled `json:"LangsEnabled"`
-}
-
-func (this *globalSettingsJSONProxy) toSettings() *GlobalSettings {
-	return &GlobalSettings{
-		IAmADirtyLeecher:      this.IAmADirtyLeecher,
-		FetchOnStartup:        this.FetchOnStartup,
-		IntervalFetching:      this.IntervalFetching,
-		FetchFrequency:        this.FetchFrequency.ToDuration(),
-		MaxConnectionsToHost:  this.MaxConnectionsToHost,
-		NotificationMode:      NotificationModeFromString(this.NotificationMode),
-		AccumulativeModeCount: this.AccumulativeModeCount,
-		DelayedModeDuration:   this.DelayedModeDuration.ToDuration(),
-		DownloadsPath:         this.DownloadsPath,
-		Plugins:               this.Plugins,
-		Languages:             this.Languages,
-	}
-}
-
-type SplitDuration struct {
+type splitDuration struct {
 	Hours uint8 `json:"hours"`
 	Days  uint8 `json:"days"`
 	Weeks uint8 `json:"weeks"`
@@ -187,44 +138,96 @@ type SplitDuration struct {
 	//Years  uint8 `json:"years"`
 }
 
-func (this SplitDuration) ToDuration() (d time.Duration) {
-	d += time.Duration(this.Hours) * time.Hour
-	d += time.Duration(this.Days) * dayTime
-	d += time.Duration(this.Weeks) * weekTime
+func (this splitDuration) duration() (d Duration) {
+	d += Duration(this.Hours) * hourTime
+	d += Duration(this.Days) * dayTime
+	d += Duration(this.Weeks) * weekTime
 	return
 }
 
-func DurationToSplit(d time.Duration) (s SplitDuration) {
-	s.Weeks, d = uint8(d/weekTime), d%weekTime
-	s.Days, d = uint8(d/dayTime), d%dayTime
-	s.Hours = uint8(d / time.Hour)
-	return
+type Duration time.Duration
+
+func (this Duration) Split() (s splitDuration) {
+	s.Weeks, this = uint8(this/weekTime), this%weekTime
+	s.Days, this = uint8(this/dayTime), this%dayTime
+	s.Hours = uint8(this / hourTime)
+	return s
 }
 
-type IndividualSettings struct { //TODO: rename -> PerComicSettings
-	OverrideDefaults      []bool
-	FetchOnStartup        bool
-	IntervalFetching      bool
-	FetchFrequency        time.Duration
-	NotificationMode      NotificationMode
-	AccumulativeModeCount uint
-	DelayedModeDuration   time.Duration
-	DownloadPath          string
+func (this Duration) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(this.Split())
+	return data, err
 }
 
-func (this *IndividualSettings) Valid() bool {
+func (this *Duration) UnmarshalJSON(data []byte) error {
+	var split splitDuration
+	err := json.Unmarshal(data, &split)
+	if err != nil {
+		return err
+	}
+	*this = split.duration()
+	return nil
+}
+
+func (this Duration) MarshalQML() interface{} {
+	return this.Split()
+}
+
+func (this *Duration) UnmarshalQML(data interface{}) (err error) {
+	defer func() { //todo: get rid of this defer, use normal errors
+		r := recover()
+		if r != nil {
+			err = r.(error)
+		}
+	}()
+	switch data := data.(type) {
+	case splitDuration:
+		*this = data.duration()
+	case *qml.Map:
+		var split splitDuration
+		data.Unmarshal(&split)
+		*this = split.duration()
+	default:
+		_ = data.(Duration)
+	}
+	return err
+}
+
+func (this Duration) Value() (driver.Value, error) {
+	return int64(this), nil
+}
+
+func (this *Duration) Scan(src interface{}) error {
+	n, ok := src.(int64)
+	if !ok || src == nil {
+		return errors.New(fmt.Sprintf("%T.Scan: type assert failed (must be an int64, got %T!)", *this, src))
+	}
+	*this = Duration(n)
+	return nil
+}
+
+type ComicConfig struct {
+	OverrideDefaults []bool
+	CommonSettings
+	DownloadPath string
+}
+
+func (this *ComicConfig) Valid() bool {
 	return len(this.OverrideDefaults) != 0
 }
 
-func NewIndividualSettings(defaults *GlobalSettings) *IndividualSettings {
-	return &IndividualSettings{
-		OverrideDefaults:      make([]bool, bitlength_comic),
-		FetchOnStartup:        defaults.FetchOnStartup,
-		IntervalFetching:      defaults.IntervalFetching,
-		NotificationMode:      defaults.NotificationMode,
-		AccumulativeModeCount: defaults.AccumulativeModeCount,
-		DelayedModeDuration:   defaults.DelayedModeDuration,
-		DownloadPath:          defaults.DownloadsPath,
+func NewComicConfig(defaults *GlobalSettings) ComicConfig {
+	return ComicConfig{
+		OverrideDefaults: make([]bool, bitlength_comiccfg),
+		CommonSettings: CommonSettings{
+			FetchOnStartup:        defaults.FetchOnStartup,
+			FetchFrequency:        defaults.FetchFrequency,
+			IntervalFetching:      defaults.IntervalFetching,
+			NotificationMode:      defaults.NotificationMode,
+			AccumulativeModeCount: defaults.AccumulativeModeCount,
+			DelayedModeDuration:   defaults.DelayedModeDuration,
+		},
+		DownloadPath: defaults.DownloadsPath,
 	}
 }
 
@@ -254,27 +257,24 @@ func ReadConfig(filename string) (contents []byte, err error) {
 }
 
 type SourceConfig struct {
-	OverrideDefaults      []bool
-	FetchOnStartup        bool
-	IntervalFetching      bool
-	FetchFrequency        time.Duration
-	MaxConnectionsToHost  uint
-	NotificationMode      NotificationMode
-	AccumulativeModeCount uint
-	DelayedModeDuration   time.Duration
-	Languages             map[LangName]LanguageEnabled
+	OverrideDefaults []bool
+	CommonSettings
+	MaxConnectionsToHost uint
+	Languages            map[LangName]LanguageEnabled
 }
 
-func NewPerPluginSettings(defaults *GlobalSettings) SourceConfig {
+func NewSourceConfig(defaults *GlobalSettings) SourceConfig {
 	return SourceConfig{
-		OverrideDefaults:      make([]bool, bitlength_plugin),
-		FetchOnStartup:        defaults.FetchOnStartup,
-		IntervalFetching:      defaults.IntervalFetching,
-		FetchFrequency:        defaults.FetchFrequency,
-		MaxConnectionsToHost:  defaults.MaxConnectionsToHost,
-		NotificationMode:      defaults.NotificationMode,
-		AccumulativeModeCount: defaults.AccumulativeModeCount,
-		DelayedModeDuration:   defaults.DelayedModeDuration,
-		Languages:             defaults.Languages,
+		OverrideDefaults: make([]bool, bitlength_sourcecfg),
+		CommonSettings: CommonSettings{
+			FetchOnStartup:        defaults.FetchOnStartup,
+			IntervalFetching:      defaults.IntervalFetching,
+			FetchFrequency:        defaults.FetchFrequency,
+			NotificationMode:      defaults.NotificationMode,
+			AccumulativeModeCount: defaults.AccumulativeModeCount,
+			DelayedModeDuration:   defaults.DelayedModeDuration,
+		},
+		MaxConnectionsToHost: defaults.MaxConnectionsToHost,
+		Languages:            defaults.Languages,
 	}
 }

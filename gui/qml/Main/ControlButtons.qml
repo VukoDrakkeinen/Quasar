@@ -34,7 +34,7 @@ Item {
 		var reparented = false;
 		Array.prototype.slice.apply(this.children)
 			.forEach(function (child, i) {
-				if (i >= 1) {	//WARNING: change the value for every internal Item added!
+				if (i >= 1) {	//WARNING(fixme): change the value for every internal Item added! (can we use JS hasOwnProperty and stuff to fix this?)
 					child.Layout.fillWidth = true;
 					child.parent = buttons;
 					reparented = true;

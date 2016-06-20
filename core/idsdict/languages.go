@@ -8,10 +8,8 @@ import (
 
 const ENGLISH_LANG_NAME = "English"
 
-var Langs = NewLangDict()
-
-func ENGLISH_LANG() LangId {
-	return Langs.Id(ENGLISH_LANG_NAME)
+func ENGLISH_LANG_ID() LangId {
+	return LangId{1}
 }
 
 type LangsDict struct {
@@ -43,7 +41,7 @@ func (this *LangsDict) NameOf(id LangId) string {
 }
 
 func (this LangId) String() string {
-	return fmt.Sprintf("(%d)%s", int(this.ordinal), Langs.NameOf(this))
+	return fmt.Sprintf("(%d)%s", int(this.ordinal), "TODO") //TODO
 }
 
 func (this *LangId) Scan(src interface{}) error {

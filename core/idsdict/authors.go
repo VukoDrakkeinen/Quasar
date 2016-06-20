@@ -7,8 +7,6 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/qutils"
 )
 
-var Authors = NewAuthorDict()
-
 type AuthorsDict struct {
 	idAssigner
 }
@@ -42,7 +40,7 @@ func (this *AuthorsDict) NameOf(id AuthorId) string {
 }
 
 func (this AuthorId) String() string {
-	return fmt.Sprintf("(%d)%s", int(this.ordinal), Authors.NameOf(this))
+	return fmt.Sprintf("(%d)%s", int(this.ordinal), "TODO") //TODO
 }
 
 func (this AuthorId) Value() (driver.Value, error) {

@@ -48,8 +48,8 @@ class ScanlationStatus : public QObject {
 };
 
 typedef struct {
-	QString mainTitle;
-	QStringList titles; 
+	int mainTitleIdx;
+	QStringList titles;
 	QList<int> authorIds;
 	QList<int> artistIds;
 	QList<int> genreIds;
@@ -60,7 +60,8 @@ typedef struct {
 	QString desc;
 	quint16 rating;
 	bool mature;
-	QString thumbnailFilename;
+	int thumbnailIdx;
+	QStringList thumbnails;
 } ComicInfoRow;
 
 class ComicInfoModel : public NotifiableModel
@@ -78,8 +79,12 @@ class ComicInfoModel : public NotifiableModel
 		QHash<int, QByteArray> roleNames() const;
 		void setGoData(void* goComicList);
 		Q_INVOKABLE QVariant qmlGet(int row, int column, const QString& roleName);
+	public:
+		enum DataRole {
+            IdRole = Qt::UserRole,
+        };
 	private:
-		mutable RowCache<ComicInfoRow, 13, 1> cache;
+		mutable RowCache<ComicInfoRow, 14, 1> cache;
 };
 
 QML_DECLARE_TYPE(ComicInfoModel)

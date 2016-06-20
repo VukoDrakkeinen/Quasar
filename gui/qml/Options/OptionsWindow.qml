@@ -2,6 +2,7 @@ import QtQuick 2.5
 import QtQuick.Window 2.2
 import QtQuick.Controls 1.4
 import QtQuick.Layouts 1.2
+//import "../utils.js" as U
 
 Window {
 	title: qsTr("Options")
@@ -19,12 +20,12 @@ Window {
 	}
 	
 	function __setSettings(settings) {
-		notifChooser.mode = settings.notificationMode
+		notifChooser.mode = settings.notificationMode|0
 		notifChooser.accumulationCount = settings.accumulativeModeCount
 		var duration = settings.delayedModeDuration
-		notifChooser.delayedHours = duration.hours
-		notifChooser.delayedDays = duration.days
-		notifChooser.delayedWeeks = duration.weeks
+		notifChooser.delayedHours = duration.hours|0
+		notifChooser.delayedDays = duration.days|0
+		notifChooser.delayedWeeks = duration.weeks|0
 		
 		downloadsPath.text = settings.downloadsPath
 		fonCheckBox.checked = settings.fetchOnStartup
@@ -45,11 +46,11 @@ Window {
 	}
 	
 	function __reset() {
-		this.__setSettings(quasarCore.globalSettings())
+		this.__setSettings(quasarCore.globalSettings)
 	}
 	
 	function __defaults() {
-		this.__setSettings(quasarCore.defaultGlobalSettings())
+		this.__setSettings(quasarCore.defaultGlobalSettings)
 	}
 
 	ColumnLayout {
@@ -212,17 +213,19 @@ Window {
 			onDefaults: root.__defaults()
 			onOK: {
 				var settings = {
-					"fetchOnStartup": fonCheckBox.checked, "intervalFetching": intFetCheckBox.checked,
+					"fetchOnStartup": fonCheckBox.checked,
+					"intervalFetching": intFetCheckBox.checked,
+					"fetchFrequency": {"hours": frequencySpin.hours, "days": frequencySpin.days, "weeks": frequencySpin.weeks},
 					"maxConnectionsToHost": maxConnSpinBox.value,
-					"notificationMode": notifChooser.mode, "accumulativeModeCount": notifChooser.accumulationCount,
+					"notificationMode": notifChooser.mode,
+					"accumulativeModeCount": notifChooser.accumulationCount,
+					"delayedModeDuration": {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks},
 					"downloadsPath": downloadsPath.text,
 					"plugins": {"batoto": true, "bakaUpdates": false},
 					"languages": langOpts.getLanguages()
 				}
-				var delayedModeDuration = {"hours": notifChooser.delayedHours, "days": notifChooser.delayedDays, "weeks": notifChooser.delayedWeeks}
-				var fetchFrequency = {"hours": frequencySpin.hours, "days": frequencySpin.days, "weeks": frequencySpin.weeks}
 				
-				quasarCore.setGlobalSettings(settings, delayedModeDuration, fetchFrequency)
+				quasarCore.setGlobalSettings(settings)
 				root.hide()
 			}
 		}

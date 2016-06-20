@@ -4,7 +4,7 @@ import (
 	"math/big"
 )
 
-func (this ChapterIdentitiesSlice) vestedIndexOf(ci ChapterIdentity) (index int) {
+func (this ChapterIdentitiesSlice) fittingIndexOf(ci ChapterIdentity) (index int) {
 	low := int64(0)
 	mid := int64(0)
 	high := int64(0)

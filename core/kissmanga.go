@@ -72,34 +72,31 @@ func (this *kissmanga) comicURL(title string) string {
 	return ""
 }
 
-func (this *kissmanga) comicInfo(comic *Comic) *ComicInfo {
-	contents, err := this.fetcher().DownloadData(this.id, comic.GetSource(this.id).URL, true)
+func (this *kissmanga) comicInfo(source SourceLink) *ComicInfo {
+	if source.SourceId != this.id {
+		panic("Incompatible SourceLink of " + string(source.SourceId) + "::" + source.URL + " provided!")
+	}
+
+	contents, err := this.fetcher().DownloadData(this.id, source.URL, true)
 	if err != nil {
 		panic(err)
 	}
 
 	infoRegion := kissmanga_rInfoRegion.Find(contents)
 	mainTitle := html.UnescapeString(string(kissmanga_rMainTitle.Find(infoRegion)))
-
-	titles := make(map[string]struct{})
-	for _, altTitle := range kissmanga_rExtract.FindAll(kissmanga_rTitlesLine.Find(infoRegion), -1) {
-		titles[string(altTitle)] = struct{}{}
-	}
+	titles := append([]string{mainTitle}, qutils.ByteSlicesToStrings(kissmanga_rExtract.FindAll(kissmanga_rTitlesLine.Find(infoRegion), -1))...)
 
 	aAA := kissmanga_rExtract.FindAll(kissmanga_rAuthorsLine.Find(infoRegion), -1)
-	var author []AuthorId
-	var artist []ArtistId
+	var authors []AuthorId
+	var artists []ArtistId
 	if alen := len(aAA); alen > 1 {
-		artist, _ = Artists.AssignIdsBytes([][]byte{aAA[1]})
+		artists, _ = this.fetcher().artists().AssignIdsBytes([][]byte{aAA[1]})
 	} else if alen > 0 {
-		author, _ = Authors.AssignIdsBytes([][]byte{aAA[0]})
+		authors, _ = this.fetcher().authors().AssignIdsBytes([][]byte{aAA[0]})
 	}
 
-	genres := make(map[ComicGenreId]struct{})
 	genreNames := kissmanga_rExtract.FindAll(kissmanga_rGenresLine.Find(infoRegion), -1)
-	for _, genre := range qutils.Vals(ComicGenres.AssignIdsBytes(genreNames))[0].([]ComicGenreId) {
-		genres[genre] = struct{}{}
-	}
+	genres, _ := this.fetcher().genres().AssignIdsBytes(genreNames)
 
 	cType := InvalidComic
 	for _, genre := range genreNames { //TODO
@@ -133,7 +130,7 @@ func (this *kissmanga) comicInfo(comic *Comic) *ComicInfo {
 			[]byte(nil),
 		)),
 	)
-	_, mature := genres[MATURE_GENRE()]
+	mature := qutils.Contains(genres, MATURE_GENRE_ID())
 
 	var thumbnailFilename string
 	thumbnailUrl := string(kissmanga_rImageURL.Find(contents))
@@ -148,24 +145,28 @@ func (this *kissmanga) comicInfo(comic *Comic) *ComicInfo {
 	}
 
 	return &ComicInfo{
-		MainTitle:         mainTitle,
-		AltTitles:         titles,
-		Authors:           author,
-		Artists:           artist,
-		Genres:            genres,
-		Categories:        make(map[ComicTagId]struct{}), //empty
-		Type:              cType,
-		Status:            status,
-		ScanlationStatus:  scanStatus,
-		Description:       desc,
-		Rating:            0,
-		Mature:            mature,
-		ThumbnailFilename: thumbnailFilename,
+		MainTitleIdx:     0,
+		Titles:           titles,
+		Authors:          authors,
+		Artists:          artists,
+		Genres:           genres,
+		Categories:       []ComicTagId(nil), //empty
+		Type:             cType,
+		Status:           status,
+		ScanlationStatus: scanStatus,
+		Description:      desc,
+		Rating:           0,
+		Mature:           mature,
+		ThumbnailIdx:     0,
+		Thumbnails:       []string{thumbnailFilename},
 	}
 }
 
-func (this *kissmanga) chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
-	source := comic.GetSource(this.id)
+func (this *kissmanga) chapterList(source SourceLink) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool) {
+	if source.SourceId != this.id {
+		panic("Incompatible SourceLink of " + string(source.SourceId) + "::" + source.URL + " provided!")
+	}
+
 	contents, err := this.fetcher().DownloadData(this.id, source.URL, true)
 	if err != nil {
 		panic(err)
@@ -193,20 +194,22 @@ func (this *kissmanga) chapterList(comic *Comic) (identities []ChapterIdentity, 
 			title = titleFromIdentity(identity)
 		}
 
-		scanlators, _ := Scanlators.AssignIds([]string{"Unknown - hosted by " + this.Name()})
+		scanlators, _ := this.fetcher().scanlators().AssignIds([]string{"Unknown [" + this.Name() + "]"})
 
-		chapter := NewChapter(source.MarkAsRead)
+		chapter := Chapter{MarkedRead: source.MarkAsRead}
 		chapter.AddScanlation(ChapterScanlation{
-			Title:      title,
-			Language:   ENGLISH_LANG(),
-			Scanlators: JoinScanlators(scanlators),
-			PluginName: this.id,
-			URL:        url,
-			PageLinks:  make([]string, 0),
+			SourceId:    this.id,
+			Scanlators:  JoinScanlators(scanlators),
+			Version:     1,
+			Color:       false,
+			Title:       title,
+			Language:    ENGLISH_LANG_ID(),
+			MetadataURL: url,
+			PageLinks:   make([]string, 0),
 		})
 
 		identities = append(identities, identity)
-		chapters = append(chapters, *chapter)
+		chapters = append(chapters, chapter)
 	}
 
 	return identities, chapters, true

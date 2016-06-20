@@ -7,8 +7,6 @@ import (
 	"github.com/VukoDrakkeinen/Quasar/qutils"
 )
 
-var ComicTags = NewComicTagsDict()
-
 type ComicTagsDict struct {
 	idAssigner
 }
@@ -42,7 +40,7 @@ func (this *ComicTagsDict) NameOf(id ComicTagId) string {
 }
 
 func (this ComicTagId) String() string {
-	return fmt.Sprintf("(%d)%s", int(this.ordinal), ComicTags.NameOf(this))
+	return fmt.Sprintf("(%d)%s", int(this.ordinal), "TODO") //TODO
 }
 
 func (this ComicTagId) Value() (driver.Value, error) {

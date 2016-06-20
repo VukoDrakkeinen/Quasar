@@ -75,7 +75,7 @@ RowLayout {
 			action: Action {
 				onTriggered: root.__moveLangs(tableOfDisabled, tableOfEnabled)
 			}
-			//TODO: how the fuck do I disable them when there is no selection?! shit always reenables itself and removes my bindings ಠ_ಠ
+			//TODO: how the fuck do I disable the buttons when there is no selection?! shit always reenables itself and removes my bindings ಠ_ಠ
 		}
 		Button {
 			Layout.fillWidth: true

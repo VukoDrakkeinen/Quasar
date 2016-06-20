@@ -24,8 +24,8 @@ type Source interface {
 	IsURLValid(url string) bool
 	search(title, author string, genres []idsdict.ComicGenreId, status comicStatus, ctype comicType, mature bool) []comicSearchResult
 	advert() advert
-	comicInfo(comic *Comic) *ComicInfo
-	chapterList(comic *Comic) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
+	comicInfo(source SourceLink) *ComicInfo
+	chapterList(source SourceLink) (identities []ChapterIdentity, chapters []Chapter, missingVolumes bool)
 	chapterDataLinks(url string) []string
 	setParent(parent *fetcher)
 	comicURL(title string) string //TODO: remove
@@ -73,7 +73,7 @@ func (this *sourceSharedImpl) SetConfig(cfg SourceConfig) {
 	if overrideMaxConns := cfg.OverrideDefaults[4]; overrideMaxConns {
 		maxConns = cfg.MaxConnectionsToHost
 	}
-	this.fetcher().PluginLimitsUpdated(this.id, maxConns)
+	this.fetcher().pluginLimitsUpdated(this.id, maxConns)
 	this.settings = cfg
 }
 

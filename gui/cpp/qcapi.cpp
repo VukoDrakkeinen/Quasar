@@ -51,8 +51,8 @@ GoSlice GoSliceC(GoUintptr ptr) {
 }
 
 #define declareNameByIdQFuncFor(entity) \
-QString go_ ## entity ## NameByIdQ(int id) {   \
-	auto cstr = go_ ## entity ## NameById(id); \
+QString go_ ## entity ## NameByIdQ(void* goComicList, int id) {   \
+	auto cstr = go_ ## entity ## NameById(goComicList, id); \
 	QString str(cstr);                  \
 	free(cstr);                         \
 	return str;                         \
@@ -114,9 +114,9 @@ WrappedModel_* wrapModel(NotifiableModel_* model) {
     return reinterpret_cast<WrappedModel_*>(wrapper);
 }
 
-ComicInfoRow convertComicInfo(void* info) {
+ComicInfoRow_* convertComicInfo(void* info) {
 	typedef struct {
-		GoUintptr mainTitle;
+		GoUintptr mainTitleIdx;
 		GoUintptr titles;
 		GoUintptr authors;
 		GoUintptr artists;
@@ -128,13 +128,14 @@ ComicInfoRow convertComicInfo(void* info) {
 		GoUintptr description;
 		GoUintptr rating;
 		GoUintptr mature;
-		GoUintptr thumbnailFilename;
+		GoUintptr thumbnailIdx;
+		GoUintptr thumbnails;
 	} infoOffsets;
 	auto offsets = (infoOffsets*) go_Offsets_ComicInfo;
 
 	GoUintptr infoPtr = (GoUintptr) info;
 
-	QString mainTitle = GoStringQ(infoPtr + offsets->mainTitle);
+	int mainTitleIdx = *(GoInt*)(infoPtr + offsets->mainTitleIdx);
     auto titles = SliceQ<GoString, QString>(GoSliceC(infoPtr + offsets->titles));
     auto authors = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->authors));
     auto artists = SliceQ<GoInt, int>(GoSliceC(infoPtr + offsets->artists));
@@ -146,21 +147,22 @@ ComicInfoRow convertComicInfo(void* info) {
     auto desc = GoStringQ(infoPtr + offsets->description);
     auto rating = *(GoUint16*)(infoPtr + offsets->rating);
     bool mature = *(GoInt*)(infoPtr + offsets->mature);
-    QString thumbnail = GoStringQ(infoPtr + offsets->thumbnailFilename);
+    int thumbnailIdx = *(GoInt*)(infoPtr + offsets->thumbnailIdx);
+    auto thumbnails = SliceQ<GoString, QString>(GoSliceC(infoPtr + offsets->thumbnails));
 
-    go_collectGarbage(info);
-
-	return ComicInfoRow{
-        mainTitle, titles, authors, artists, genres, tags, type, status, scanStatus, desc, rating, mature, thumbnail
+	return new ComicInfoRow{
+        mainTitleIdx, titles, authors, artists, genres, tags, type, status, scanStatus, desc, rating, mature, thumbnailIdx, thumbnails
     };
 }
 
-ScanlationRow convertScanlation(void* scanlation) {
+ScanlationRow_* convertScanlation(void* scanlation, void* scanlatorsPtr) {
 	typedef struct {
+		GoUintptr pluginName;
+		GoUintptr scanlators;
+		GoUintptr version;
+		GoUintptr color;
 		GoUintptr title;
 		GoUintptr language;
-		GoUintptr scanlators;
-		GoUintptr pluginName;
 		GoUintptr url;
 		GoUintptr pageLinks;
 	} scanlationOffsets;
@@ -168,22 +170,21 @@ ScanlationRow convertScanlation(void* scanlation) {
 
 	GoUintptr scanlationPtr = (GoUintptr) scanlation;
 
+	auto pluginName = GoStringQ(scanlationPtr + offsets->pluginName);
+//	auto scanlatorsPtr = go_JointScanlators_ToSlice(scanlationPtr + offsets->scanlators);
+    auto scanlators = SliceQ<GoInt, int>(*(GoSlice*)scanlatorsPtr);
+    auto version = (int)*(GoInt*)(scanlationPtr + offsets->version);
+    auto color = (bool)*(GoUint8*)(scanlationPtr + offsets->color);
 	auto title = GoStringQ(scanlationPtr + offsets->title);
 	auto language = (int)*(GoInt*)(scanlationPtr + offsets->language);
-	auto scanlatorsPtr = go_JointScanlators_ToSlice(scanlationPtr + offsets->scanlators); //TODO: don't convert every time (see scanlators.go)
-    auto scanlators = SliceQ<GoInt, int>(GoSliceC(scanlatorsPtr));
 	//auto scanlators = SliceQ<GoInt, int>(GoSliceC(scanlationPtr + offsets->scanlators));
-	auto pluginName = GoStringQ(scanlationPtr + offsets->pluginName);
 	auto url = GoStringQ(scanlationPtr + offsets->url);
 	auto pageLinks = SliceQ<GoString, QString>(GoSliceC(scanlationPtr + offsets->pageLinks));
 
-	go_collectGarbage(scanlation);
-	go_collectGarbage(scanlatorsPtr);
-
-	return ScanlationRow{title, language, scanlators, pluginName, url, pageLinks};
+	return new ScanlationRow{pluginName, scanlators, version, color, title, language, url, pageLinks};
 }
 
-UpdateInfoRow convertUpdateInfo(void* updateInfo) {
+UpdateInfoRow_* convertUpdateInfo(void* updateInfo) {
 	typedef struct {
 		GoUintptr title;
         GoUintptr chaptersCount;
@@ -205,7 +206,7 @@ UpdateInfoRow convertUpdateInfo(void* updateInfo) {
 
 	go_collectGarbage(updateInfo);
 
-	return UpdateInfoRow{title, chaptersCount, chaptersRead, updated, progress, status};
+	return new UpdateInfoRow{title, chaptersCount, chaptersRead, updated, progress, status};
 }
 
 void* copyRawGoData(void* data, int size) {
@@ -224,6 +225,19 @@ void registerQMLTypes() {
 	qmlRegisterUncreatableType<ScanlationStatus>("QuasarGUI", 1, 0, "ScanlationStatus", enumText);
 	qmlRegisterUncreatableType<UpdateInfoModel>("QuasarGUI", 1, 0, "CellType", enumText);
 	qmlRegisterType<RegExp>("QuasarGUI", 1, 0, "RegExp");
+}
+
+int assertSyncedHashes() {
+	if (go_Hash_ComicInfo != 104341795181230237ull) {
+		return 1;
+	}
+	if (go_Hash_Scanlation != 11865116033827439021ull) {
+		return 2;
+	}
+	if (go_Hash_UpdateInfo != 10184097189468485639ull) {
+		return 3;
+    }
+    return 0;
 }
 
 void modelSetGoData(NotifiableModel_* model, void* goData) {

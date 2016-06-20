@@ -1,23 +1,24 @@
 package core
 
 import (
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+	"unsafe"
+
+	"database/sql"
 	"github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qlog"
 	"github.com/VukoDrakkeinen/Quasar/eventq"
 	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
-	"math"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
-	"unsafe"
 )
 
-type ViewNotificationType int
-
 var (
+	saveOff = true //todo: remove this unholy abomination
+
 	ComicsAboutToBeAdded = eventq.NewEventType()
 	ComicsAdded          = eventq.NewEventType()
 
@@ -40,10 +41,6 @@ var (
 		id INTEGER PRIMARY KEY,
 		scanlator TEXT UNIQUE NOT NULL
 	);
-	CREATE TABLE IF NOT EXISTS altTitles(
-		id INTEGER PRIMARY KEY,
-		title TEXT NOT NULL
-	);
 	CREATE TABLE IF NOT EXISTS authors(
 		id INTEGER PRIMARY KEY,
 		author TEXT UNIQUE NOT NULL
@@ -63,24 +60,90 @@ var (
 	`
 	scheduleSchema = `
 	CREATE TABLE IF NOT EXISTS schedule(
-		comicId INTEGER PRIMARY KEY,
+		comicId INTEGER NOT NULL REFERENCES comics(id),
 		nextFetchTime TIMESTAMP NOT NULL,
 		lastUpdated TIMESTAMP NOT NULL
 	);
-	`
+	CREATE INDEX IF NOT EXISTS schedule_cid_idx ON schedule(comicId);
+	` //TODO: db version
 	idsInsertionPreCmd   = `INSERT OR IGNORE INTO $tableName($colName) VALUES(?);`
 	idsQueryPreCmd       = `SELECT $colName FROM $tableName;`
 	scheduleInsertionCmd = `INSERT OR REPLACE INTO schedule(comicId, nextFetchTime, lastUpdated)
 							VALUES((SELECT id FROM comics WHERE id = ?), ?, ?);`
 	scheduleQueryCmd = `SELECT nextFetchTime, lastUpdated FROM schedule WHERE comicId = ?;`
+
+	scheduleQuery *sql.Stmt
+
+	langIdInsertion      *sql.Stmt
+	scanlatorIdInsertion *sql.Stmt
+	authorIdInsertion    *sql.Stmt
+	artistIdInsertion    *sql.Stmt
+	genreIdInsertion     *sql.Stmt
+	tagIdInsertion       *sql.Stmt
 )
 
-func NewComicList(fetcher *fetcher) *ComicList {
-	return &ComicList{
-		comics:   make([]*Comic, 0, 10),
-		metadata: make([]comicMetadata, 0, 10),
-		fetcher:  fetcher,
+func init() {
+	qdb.PrepareStmt(&scheduleQuery, scheduleQueryCmd)
+
+	type tuple struct {
+		assignToVar **sql.Stmt
+		name        string
 	}
+	for _, tuple := range []tuple{
+		{&langIdInsertion, "lang"},
+		{&scanlatorIdInsertion, "scanlator"},
+		{&authorIdInsertion, "author"},
+		{&artistIdInsertion, "artist"},
+		{&genreIdInsertion, "genre"},
+		{&tagIdInsertion, "tag"},
+	} {
+		rep := strings.NewReplacer("$tableName", tuple.name+"s", "$colName", tuple.name)
+		qdb.PrepareStmt(tuple.assignToVar, rep.Replace(idsInsertionPreCmd))
+	}
+}
+
+func NewComicList(fetcher fetcher) *ComicList {
+	list := &ComicList{
+		comics:     make([]Comic, 0, 10),
+		metadata:   make([]comicMetadata, 0, 10),
+		fetcher:    fetcher,
+		langs:      idsdict.NewLangDict(),
+		scanlators: idsdict.NewScanlatorsDict(),
+		authors:    idsdict.NewAuthorDict(),
+		artists:    idsdict.NewArtistsDict(),
+		genres:     idsdict.NewComicGenresDict(),
+		tags:       idsdict.NewComicTagsDict(),
+
+		Messenger: eventq.NewMessenger(),
+	}
+
+	if !saveOff {
+		list.langs.On(idsdict.IdAssigned).Do(func(args ...interface{}) {
+			id := args[0].(idsdict.Id)
+			langIdInsertion.Exec(int(id) + 1)
+		})
+		list.scanlators.On(idsdict.IdAssigned).Do(func(args ...interface{}) {
+			id := args[0].(idsdict.Id)
+			scanlatorIdInsertion.Exec(int(id) + 1)
+		})
+		list.authors.On(idsdict.IdAssigned).Do(func(args ...interface{}) {
+			id := args[0].(idsdict.Id)
+			authorIdInsertion.Exec(int(id) + 1)
+		})
+		list.artists.On(idsdict.IdAssigned).Do(func(args ...interface{}) {
+			id := args[0].(idsdict.Id)
+			artistIdInsertion.Exec(int(id) + 1)
+		})
+		list.genres.On(idsdict.IdAssigned).Do(func(args ...interface{}) {
+			id := args[0].(idsdict.Id)
+			genreIdInsertion.Exec(int(id) + 1)
+		})
+		list.tags.On(idsdict.IdAssigned).Do(func(args ...interface{}) {
+			id := args[0].(idsdict.Id)
+			tagIdInsertion.Exec(int(id) + 1)
+		})
+	}
+	return list
 }
 
 const (
@@ -97,24 +160,57 @@ type comicMetadata struct {
 
 type ComicUpdatingEnum uint32
 type ComicList struct {
-	comics   []*Comic
+	comics   []Comic
 	metadata []comicMetadata
-	fetcher  *fetcher
+	fetcher  fetcher
 	dataLock sync.RWMutex
 	metaLock sync.RWMutex
+
+	langs      idsdict.LangsDict
+	scanlators idsdict.ScanlatorsDict
+	authors    idsdict.AuthorsDict
+	artists    idsdict.ArtistsDict
+	genres     idsdict.ComicGenresDict
+	tags       idsdict.ComicTagsDict
+
+	eventq.Messenger
 }
 
-func (list ComicList) Fetcher() *fetcher {
-	return list.fetcher
+func (list *ComicList) Fetcher() *fetcher {
+	return &list.fetcher
 }
 
-func (this *ComicList) AddComics(comics ...*Comic) {
+func (list *ComicList) Langs() *idsdict.LangsDict {
+	return &list.langs
+}
+
+func (list *ComicList) Scanlators() *idsdict.ScanlatorsDict {
+	return &list.scanlators
+}
+
+func (list *ComicList) Authors() *idsdict.AuthorsDict {
+	return &list.authors
+}
+
+func (list *ComicList) Artists() *idsdict.ArtistsDict {
+	return &list.artists
+}
+
+func (list *ComicList) Genres() *idsdict.ComicGenresDict {
+	return &list.genres
+}
+
+func (list *ComicList) Tags() *idsdict.ComicTagsDict {
+	return &list.tags
+}
+
+func (this *ComicList) AddComics(comics ...Comic) {
 	this.dataLock.Lock()
 	this.metaLock.Lock()
-	eventq.Event(ComicsAboutToBeAdded, len(this.comics), len(comics))
+	this.Event(ComicsAboutToBeAdded, len(this.comics), len(comics))
 	defer this.dataLock.Unlock()
 	defer this.metaLock.Unlock()
-	defer eventq.Event(ComicsAdded)
+	defer this.Event(ComicsAdded)
 
 	this.comics = append(this.comics, comics...)
 	mlen := len(this.metadata)
@@ -136,10 +232,10 @@ func (this *ComicList) AddComics(comics ...*Comic) {
 func (this *ComicList) RemoveComics(index, count int) {
 	this.dataLock.Lock()
 	this.metaLock.Lock()
-	eventq.Event(ComicsAboutToBeRemoved, index, count)
+	this.Event(ComicsAboutToBeRemoved, index, count)
 	defer this.dataLock.Unlock()
 	defer this.metaLock.Unlock()
-	defer eventq.Event(ComicsRemoved)
+	defer this.Event(ComicsRemoved)
 
 	this.comics = this.comics[:index+copy(this.comics[index:], this.comics[index+count:])]
 	for i := index; i < (index + count); i++ {
@@ -167,7 +263,7 @@ func (this ComicList) ComicIsUpdating(idx int) bool {
 func (this ComicList) GetComic(idx int) *Comic {
 	this.dataLock.Lock()
 	defer this.dataLock.Unlock()
-	return this.comics[idx]
+	return &this.comics[idx]
 }
 
 func (this *ComicList) Len() int {
@@ -191,18 +287,16 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 	intervalFetching := this.fetcher.settings.IntervalFetching
 
 	go func() {
+		return //todo: temp, remove
 		if fetchOnStartup && !reschedule {
-			this.metadata[comicIdx].nextFetchAt = time.Time{} //FIXME: this is hack, but I'm too fed up with this piece of code to fix it
-			this.comicFetch(comicIdx, false, false)
-		} else if intervalFetching && this.metadata[comicIdx].nextFetchAt.Before(time.Now().UTC()) {
-			this.comicFetch(comicIdx, true, false)
+			this.comicFetch(Startup, comicIdx)
 		}
 
 		if intervalFetching {
 			for {
 				select {
 				case <-time.After(this.metadata[comicIdx].nextFetchAt.Sub(time.Now().UTC())):
-					this.comicFetch(comicIdx, false, false)
+					this.comicFetch(Scheduled, comicIdx)
 				case <-this.metadata[comicIdx].schedInterrupt:
 					return
 				}
@@ -213,20 +307,33 @@ func (this ComicList) scheduleComicFetchFor(comicIdx int, reschedule bool) {
 }
 
 func (this ComicList) UpdateComic(comicId int) {
-	this.comicFetch(comicId, false, true)
+	this.comicFetch(Manual, comicId)
 }
 
-func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
+type fetchType int
+
+const (
+	Scheduled fetchType = iota
+	Startup
+	Manual
+)
+
+var unixEpoch = time.Unix(0, 0)
+
+func (this ComicList) comicFetch(fetchType fetchType, comicIdx int) {
+	if fetchType == Startup && comicIdx != 88 { //FIXME: test
+		return
+	}
 	now := time.Now().UTC()
 	canUpdate := atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)),
 		uint32(ComicNotUpdating), uint32(ComicUpdating),
 	)
-	eventq.Event(ComicsUpdateStatusChanged, comicIdx, 1)
+	this.Event(ComicsUpdateStatusChanged, comicIdx, 1)
 	if !canUpdate {
 		return
 	}
 
-	if manual {
+	if fetchType == Manual {
 		this.dataLock.Lock()
 		this.cancelScheduleForComic(comicIdx)
 		this.dataLock.Unlock()
@@ -236,39 +343,43 @@ func (this ComicList) comicFetch(comicIdx int, missedFetches, manual bool) {
 	freq := this.comicUpdateFrequency(comicIdx)
 
 	prev := this.metadata[comicIdx].nextFetchAt
-	if manual || prev.IsZero() {
-		prev = now
-		missedFetches = false
+	next := prev
+	switch fetchType {
+	case Startup:
+		if prev.Before(unixEpoch) {
+			next = now.Add(freq)
+			break
+		}
+		fallthrough
+	case Scheduled:
+		next = prev.Add(freq * divCeil(now.Sub(prev), freq))
+	case Manual:
+		next = now.Add(freq)
 	}
-	if !missedFetches {
-		this.metadata[comicIdx].nextFetchAt = prev.Add(freq)
-	} else {
-		multiplier := divCeil(now.Sub(prev), freq)
-		this.metadata[comicIdx].nextFetchAt = prev.Add(multiplier * freq)
-	}
+	this.metadata[comicIdx].nextFetchAt = next
 
-	eventq.Event(ChapterListAboutToChange) //do only when comicIdx == chapterView.comicId
+	this.Event(ChapterListAboutToChange) //todo: do only when comicIdx == chapterView.comicId
 	this.fetcher.FetchChapterListFor(comic)
-	eventq.Event(ChapterListChanged)
+	this.Event(ChapterListChanged)
 	this.metadata[comicIdx].updatedAt = now
 
 	atomic.StoreUint32((*uint32)(unsafe.Pointer(&this.metadata[comicIdx].status)), uint32(ComicNotUpdating))
-	eventq.Event(ComicsUpdateStatusChanged, comicIdx, 1)
+	this.Event(ComicsUpdateStatusChanged, comicIdx, 1)
 
-	if manual {
+	if fetchType == Manual {
 		this.scheduleComicFetchFor(comicIdx, true)
 	}
 }
 
 func (this ComicList) comicUpdateFrequency(comicIdx int) time.Duration {
 	comic := this.GetComic(comicIdx)
-	cSettings := comic.Settings()
+	cSettings := comic.Config()
 	fSettings := this.fetcher.settings
 
 	if overrideFrequency := cSettings.OverrideDefaults[2]; overrideFrequency {
-		return cSettings.FetchFrequency
+		return time.Duration(cSettings.FetchFrequency)
 	} else {
-		return fSettings.FetchFrequency
+		return time.Duration(fSettings.FetchFrequency)
 	}
 }
 
@@ -285,13 +396,12 @@ func (this *ComicList) cancelScheduleForComic(comicId int) { //How?!
 	this.metadata[comicId].schedInterrupt = make(chan struct{}) //DATA RACE: write
 }
 
-func divCeil(divident, divisor time.Duration) (multiplier time.Duration) {
-	x := float64(divident)
-	y := float64(divisor)
-	return time.Duration(math.Ceil(x / y))
+func divCeil(dividend, divisor time.Duration) (multiplier time.Duration) {
+	return (dividend + divisor - 1) / divisor
 }
 
 func CreateDB(db *qdb.QDB) (err error) {
+	//TODO: error out on nil db
 	transaction, _ := db.Begin()
 	defer transaction.Rollback()
 	_, err = transaction.Exec(idsSchema)
@@ -313,74 +423,80 @@ func CreateDB(db *qdb.QDB) (err error) {
 //TODO: more error checking
 //TODO: write some unit tests
 //TODO: return errors, so we can show the user a pop-up
-func (this ComicList) SaveToDB() { //TODO: lock during the whole function execution
-	db := qdb.DB()
-	if db == nil {
-		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
-		return
-	}
-	err := CreateDB(db)
-	if err != nil {
-		qlog.Log(qlog.Error, "Creating database failed.", qerr.NewLocated(err))
-		return
-	}
-
-	type tuple struct {
-		dict qdb.InsertionStmtExecutor
-		name string
-	}
-	for _, tuple := range []tuple{ //TODO?: global state is bad
-		{&idsdict.Langs, "lang"},
-		{&idsdict.Scanlators, "scanlator"},
-		{&idsdict.Authors, "author"},
-		{&idsdict.Artists, "artist"},
-		{&idsdict.ComicGenres, "genre"},
-		{&idsdict.ComicTags, "tag"},
-	} {
-		transaction, _ := db.Begin()
-		defer transaction.Rollback()
-		rep := strings.NewReplacer("$tableName", tuple.name+"s", "$colName", tuple.name)
-		idsInsertionStmt, _ := transaction.Prepare(rep.Replace(idsInsertionPreCmd))
-		err = tuple.dict.ExecuteInsertionStmt(idsInsertionStmt)
-		if err != nil {
-			qlog.Log(qlog.Error, "Error while inserting into", tuple.name, "table:", err)
-			return
-		}
-		transaction.Commit()
-	}
-
-	this.dataLock.RLock()
-	this.metaLock.RLock()
-	defer this.dataLock.RUnlock()
-	defer this.metaLock.RUnlock()
-
-	scheduleInsertionStmt := db.MustPrepare(scheduleInsertionCmd)
-	dbStmts := SQLComicInsertStmts(db)
-	defer dbStmts.Close()
-	for i, comic := range this.comics {
-		transaction, _ := db.Begin()
-
-		err := comic.SQLInsert(dbStmts.ToTransactionSpecific(transaction))
-		if err != nil { // no need to manually close statements, Commit() or Rollback() take care of that
-			qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
-			transaction.Rollback()
-			continue
-		}
-		_, err = transaction.Stmt(scheduleInsertionStmt).Exec(comic.sqlId, this.metadata[i].nextFetchAt, this.metadata[i].updatedAt)
-		if err != nil {
-			qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
-			transaction.Rollback()
-			continue
-		}
-		transaction.Commit()
-	}
-}
+//func (this ComicList) SaveToDB() { //TODO: lock during the whole function execution
+//	db := qdb.DB()
+//	if db == nil {
+//		qlog.Log(qlog.Error, "Database handle is nil! Aborting save.")
+//		return
+//	}
+//	err := CreateDB(db)
+//	if err != nil {
+//		qlog.Log(qlog.Error, "Creating database failed.", qerr.NewLocated(err))
+//		return
+//	}
+//
+//	type tuple struct {
+//		dict qdb.InsertionStmtExecutor
+//		name string
+//	}
+//	for _, tuple := range []tuple{
+//		{&this.langs, "lang"},
+//		{&this.scanlators, "scanlator"},
+//		{&this.authors, "author"},
+//		{&this.artists, "artist"},
+//		{&this.genres, "genre"},
+//		{&this.tags, "tag"},
+//	} {
+//		func() {
+//			transaction, _ := db.Begin()
+//			defer transaction.Rollback()
+//			rep := strings.NewReplacer("$tableName", tuple.name + "s", "$colName", tuple.name)
+//			idsInsertionStmt, _ := transaction.Prepare(rep.Replace(idsInsertionPreCmd))
+//			err = tuple.dict.ExecuteInsertionStmt(idsInsertionStmt)
+//			if err != nil {
+//				qlog.Log(qlog.Error, "Error while inserting into", tuple.name, "table:", err)
+//				return
+//			}
+//			transaction.Commit()
+//		}()
+//	}
+//
+//	this.dataLock.RLock()
+//	this.metaLock.RLock()
+//	defer this.dataLock.RUnlock()
+//	defer this.metaLock.RUnlock()
+//
+//	scheduleInsertionStmt := db.MustPrepare(scheduleInsertionCmd)
+//	for i, comic := range this.comics {
+//		func() {
+//			transaction, _ := db.Begin()
+//			defer transaction.Rollback()
+//
+//			err := comic.SQLInsert()
+//			if err != nil {
+//				// no need to manually close statements, Commit() or Rollback() take care of that
+//				qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
+//				return
+//			}
+//			_, err = transaction.Stmt(scheduleInsertionStmt).Exec(comic.sqlId, this.metadata[i].nextFetchAt, this.metadata[i].updatedAt)
+//			if err != nil {
+//				qlog.Log(qlog.Error, "Error while saving, rolling back:", qerr.NewLocated(err))
+//				return
+//			}
+//			transaction.Commit()
+//		}()
+//	}
+//}
 
 func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole function execution
 	list.cancelSchedule()
 
 	db := qdb.DB()
-	CreateDB(db)
+	err = CreateDB(db)
+	if err != nil {
+		return qerr.NewLocated(err)
+	}
+
 	transaction, _ := db.Begin()
 	defer transaction.Rollback()
 
@@ -388,13 +504,13 @@ func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole 
 		dict qdb.QueryStmtExecutor
 		name string
 	}
-	for _, tuple := range []tuple{ //FIXME: Global dicts are bad
-		{&idsdict.Langs, "lang"},
-		{&idsdict.Scanlators, "scanlator"},
-		{&idsdict.Authors, "author"},
-		{&idsdict.Artists, "artist"},
-		{&idsdict.ComicGenres, "genre"},
-		{&idsdict.ComicTags, "tag"},
+	for _, tuple := range []tuple{
+		{&list.langs, "lang"},
+		{&list.scanlators, "scanlator"},
+		{&list.authors, "author"},
+		{&list.artists, "artist"},
+		{&list.genres, "genre"},
+		{&list.tags, "tag"},
 	} {
 		rep := strings.NewReplacer("$tableName", tuple.name+"s", "$colName", tuple.name)
 		idsQueryStmt, _ := transaction.Prepare(rep.Replace(idsQueryPreCmd))
@@ -405,7 +521,7 @@ func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole 
 		idsQueryStmt.Close()
 	}
 
-	idsdict.Langs.AssignIds(list.fetcher.PluginProvidedLanguages())
+	list.langs.AssignIds(list.fetcher.PluginProvidedLanguages())
 
 	list.dataLock.RLock()
 	comicSqlIds := make(map[int64]struct{}) //TODO: not satisfied with this part, rewrite
@@ -414,17 +530,13 @@ func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole 
 	}
 	list.dataLock.RUnlock()
 
-	dbStmts := SQLComicQueryStmts(db)
-	defer dbStmts.Close()
-	stmts := dbStmts.ToTransactionSpecific(transaction)
-	scheduleQueryStmt := db.MustPrepare(scheduleQueryCmd)
-	comicRows, err := stmts[comicsQuery].Query()
+	comicRows, err := comicsQuery.Query()
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
 
 	for comicRows.Next() {
-		comic, err := SQLComicQuery(comicRows, stmts)
+		comic, err := SQLComicQuery(comicRows)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -434,13 +546,13 @@ func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole 
 			continue
 		}
 
-		eventq.Event(ComicsAboutToBeAdded, len(list.comics), 1)
+		list.Event(ComicsAboutToBeAdded, len(list.comics), 1)
 		list.dataLock.Lock()
 		list.metaLock.Lock()
 
-		list.comics = append(list.comics, comic)
+		list.comics = append(list.comics, comic) //FIXME: raw access
 		var nextFetchTime, lastUpdated time.Time
-		err = scheduleQueryStmt.QueryRow(comic.sqlId).Scan(&nextFetchTime, &lastUpdated)
+		err = scheduleQuery.QueryRow(comic.sqlId).Scan(&nextFetchTime, &lastUpdated)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -455,7 +567,7 @@ func (list *ComicList) LoadFromDB() (err error) { //TODO: lock during the whole 
 		)
 		list.dataLock.Unlock()
 		list.metaLock.Unlock()
-		eventq.Event(ComicsAdded)
+		list.Event(ComicsAdded)
 	}
 
 	transaction.Commit()

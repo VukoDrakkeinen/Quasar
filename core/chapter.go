@@ -2,55 +2,66 @@ package core
 
 import (
 	"database/sql"
+	"sort"
+
 	. "github.com/VukoDrakkeinen/Quasar/core/idsdict"
 	"github.com/VukoDrakkeinen/Quasar/datadir/qdb"
-	"github.com/VukoDrakkeinen/Quasar/qutils"
 	"github.com/VukoDrakkeinen/Quasar/qutils/qerr"
 )
 
-var ( //SQL Statements Group keys
-	chapterInsertion    qdb.StmtId = qdb.NewStmtId()
-	chapterRelation                = qdb.NewStmtId()
-	scanlationInsertion            = qdb.NewStmtId()
-	scanlationRelation             = qdb.NewStmtId()
-	scanlatorRelation              = qdb.NewStmtId()
-	pageLinkInsertion              = qdb.NewStmtId()
-	pageLinkRelation               = qdb.NewStmtId()
-
-	chaptersQuery    = qdb.NewStmtId()
-	scanlationsQuery = qdb.NewStmtId()
-	scanlatorsQuery  = qdb.NewStmtId()
-	pageLinksQuery   = qdb.NewStmtId()
+var (
+	chapterInsertion        *sql.Stmt
+	chaptersQuery           *sql.Stmt
+	chapterChangeReadStatus *sql.Stmt
 )
 
-const (
-	LQ_Modifier byte = 10 * iota
-	MQ_Modifier
-	HQ_Modifier
-)
+func init() {
+	qdb.PrepareStmt(&chapterInsertion, `
+			INSERT OR REPLACE INTO chapters(id, comicId, identity, alreadyRead)
+			VALUES((SELECT id FROM chapters WHERE id = ?), ?, ?, ?);`) //todo: remove optional id?
+	qdb.PrepareStmt(&chaptersQuery, `SELECT id, identity, alreadyRead FROM chapters WHERE comicId = ?;`)
+	qdb.PrepareStmt(&chapterChangeReadStatus, `UPDATE chapters SET alreadyRead = ?2 WHERE id = ?1;`)
+}
 
-type scanlationIndex int
+func SQLChapterSchema() string {
+	return `
+	CREATE TABLE IF NOT EXISTS chapters(
+		id INTEGER PRIMARY KEY,
+		comicId INTEGER NOT NULL REFERENCES comics(id) ON DELETE CASCADE,
+		identity INTEGER NOT NULL,
+		alreadyRead INTEGER NOT NULL --bool
+	);
+	CREATE INDEX IF NOT EXISTS chapters_cid_idx ON chapters(comicId);
+	` + SQLChapterScanlationSchema()
+	//--CONSTRAINT uq_CH_ID UNIQUE (id, identity)
+}
+
 type Chapter struct {
-	parent      *Comic
-	scanlations []ChapterScanlation
-	mapping     map[SourceId]map[JointScanlatorIds]scanlationIndex
-	usedPlugins []SourceId
-	AlreadyRead bool
+	MarkedRead bool
+
+	parent        *Comic
+	scanlations   []ChapterScanlation
+	orderCacheKey cacheKey
 
 	sqlId int64
 }
+type IdentifiedChapter struct {
+	chapter  Chapter
+	identity ChapterIdentity
+}
 
-func NewChapter(alreadyRead bool) *Chapter {
-	return &Chapter{
-		AlreadyRead: alreadyRead,
-		mapping:     make(map[SourceId]map[JointScanlatorIds]scanlationIndex),
-	}
-
+func (this *Chapter) reorderScanlations() {
+	sort.Sort(scanlationsOrder{
+		this.scanlations, this.parent.PreferredSources(), this.parent.PreferredScanlators(), this.parent.PrefersColor(),
+	})
+	this.orderCacheKey = this.parent.preferencesCacheKey()
 }
 
 func (this *Chapter) Scanlation(index int) ChapterScanlation {
-	pluginName, scanlators := this.indexToPath(index)
-	return this.scanlations[this.mapping[pluginName][scanlators]]
+	if this.parent != nil && this.parent.preferencesStale(this.orderCacheKey) {
+		this.reorderScanlations()
+	}
+	return this.scanlations[index]
 }
 
 func (this *Chapter) ScanlationsCount() int {
@@ -58,119 +69,68 @@ func (this *Chapter) ScanlationsCount() int {
 }
 
 func (this *Chapter) MergeWith(another *Chapter) *Chapter {
-	this.AlreadyRead = another.AlreadyRead || this.AlreadyRead
+	if this.sqlId == 0 {
+		//this.sqlInsert(parent, identity)	//todo
+	}
+
+	prevRead := this.MarkedRead
+	this.MarkedRead = another.MarkedRead || this.MarkedRead
+	if !saveOff && this.MarkedRead != prevRead {
+		chapterChangeReadStatus.Exec(this.sqlId, this.MarkedRead)
+	}
+
 	for _, scanlation := range another.scanlations {
-		this.AddScanlation(scanlation)
+		replaced := this.AddScanlation(scanlation)
+		if !saveOff && !replaced {
+			scanlation.sqlInsert(this.sqlId)
+		} else {
+			//todo: handle scanlation replacement
+		}
 	}
 	return this
 }
 
 func (this *Chapter) AddScanlation(scanlation ChapterScanlation) (replaced bool) {
-	if mapped, pluginExists := this.mapping[scanlation.PluginName]; pluginExists {
-		if index, jointExists := mapped[scanlation.Scanlators]; jointExists {
-			scanlation.sqlId = this.scanlations[index].sqlId //copy sqlId, so SQLInsert will treat new struct as old modified
-			this.scanlations[index] = scanlation             //replace
-			return true
-		}
-	} else {
-		this.usedPlugins = append(this.usedPlugins, scanlation.PluginName)
+	exists := false //todo: detect existing scanlations
+	if exists {
+		index := 0
+		scanlation.sqlId = this.scanlations[index].sqlId
+		this.scanlations[index] = scanlation
+		return true
 	}
-
-	if this.mapping[scanlation.PluginName] == nil { //TODO: refactor
-		this.mapping[scanlation.PluginName] = make(map[JointScanlatorIds]scanlationIndex)
-	}
-	this.mapping[scanlation.PluginName][scanlation.Scanlators] = scanlationIndex(len(this.scanlations))
 	this.scanlations = append(this.scanlations, scanlation)
 	return false
 }
 
 func (this *Chapter) RemoveScanlation(index int) {
-	pluginName, scanlators := this.indexToPath(index)
-	realIndex := this.mapping[pluginName][scanlators]
-
-	this.scanlations = append(this.scanlations[:realIndex], this.scanlations[realIndex+1:]...)
-	delete(this.mapping[pluginName], scanlators)
-
-	if len(this.mapping[pluginName]) == 0 {
-		delete(this.mapping, pluginName)
-		deletionIndex, _ := qutils.IndexOf(this.usedPlugins, pluginName)
-		this.usedPlugins = append(this.usedPlugins[:deletionIndex], this.usedPlugins[deletionIndex+1:]...)
-	}
+	this.scanlations = append(this.scanlations[:index], this.scanlations[index+1:]...)
 }
 
 func (this *Chapter) RemoveScanlationsForPlugin(pluginName SourceId) {
-	for _, realIndex := range this.mapping[pluginName] {
-		this.scanlations = append(this.scanlations[:realIndex], this.scanlations[realIndex+1:]...)
+	for index, scanlation := range this.scanlations {
+		if scanlation.SourceId == pluginName {
+			this.scanlations = append(this.scanlations[:index], this.scanlations[index+1:]...)
+		}
 	}
-	delete(this.mapping, pluginName)
-	deletionIndex, _ := qutils.IndexOf(this.usedPlugins, pluginName)
-	this.usedPlugins = append(this.usedPlugins[:deletionIndex], this.usedPlugins[deletionIndex+1:]...)
 }
 
 func (this *Chapter) Scanlators() (ret []JointScanlatorIds) {
-	if this.parent != nil {
-		for _, pluginName := range this.usedPlugins {
-			perPlugin := this.mapping[pluginName]
-			for _, scanlator := range this.parent.ScanlatorsPriority() {
-				if _, exists := perPlugin[scanlator]; exists {
-					ret = append(ret, scanlator)
-				}
-			}
-		}
-	} else {
-		for _, scanlation := range this.scanlations {
-			ret = append(ret, scanlation.Scanlators)
-		}
+	for _, scanlation := range this.scanlations {
+		ret = append(ret, scanlation.Scanlators)
 	}
 	return
 }
 
-func (this *Chapter) SetParent(comic *Comic) {
+func (this *Chapter) setParent(comic *Comic) {
 	this.parent = comic
 }
 
-func (this *Chapter) indexToPath(index int) (SourceId, JointScanlatorIds) {
-	if this.parent == nil { //We have no parent, so we can't access priority lists for plugins and scanlators
-		scanlation := this.scanlations[index]
-		return scanlation.PluginName, scanlation.Scanlators
+func (this *Chapter) sqlInsert(parent *Comic, identity ChapterIdentity) (err error) {
+	if saveOff {
+		return nil
 	}
-
-	var pluginNames []SourceId                     //Create a set of plugin names with prioritized ones at the beginning
-	for _, source := range this.parent.Sources() { //Add prioritized plugin names
-		if _, exists := this.mapping[source.SourceId]; exists {
-			pluginNames = append(pluginNames, source.SourceId)
-		}
-	}
-	for _, pluginName := range this.usedPlugins { //Add the rest
-		if !this.parent.UsesPlugin(pluginName) {
-			pluginNames = append(pluginNames, pluginName)
-		}
-	}
-
-	var pluginName SourceId
-	for _, pluginName = range pluginNames { //Absolute index => relative index
-		jointsPerPlugin := len(this.mapping[pluginName])
-		if index >= jointsPerPlugin {
-			index -= jointsPerPlugin
-		} else {
-			break
-		}
-	}
-
-	scanlatorSet := this.mapping[pluginName]
-	var scanlators []JointScanlatorIds
-	for _, scanlator := range this.parent.ScanlatorsPriority() { //Create a set of this chapter's scanlators (prioritized first)
-		if _, exists := scanlatorSet[scanlator]; exists {
-			scanlators = append(scanlators, scanlator)
-		}
-	}
-
-	return pluginName, scanlators[index]
-}
-
-func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts qdb.StmtGroup) (err error) {
 	var newId int64
-	result, err := stmts[chapterInsertion].Exec(this.sqlId, identity.n(), this.AlreadyRead)
+	result, err := chapterInsertion.Exec(this.sqlId, parent.SQLId(), identity.n(), this.MarkedRead)
 	if err != nil {
 		return qerr.NewLocated(err)
 	}
@@ -179,14 +139,9 @@ func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts qdb.StmtGroup) (e
 		return qerr.NewLocated(err)
 	}
 	this.sqlId = newId
-
-	result, err = stmts[chapterRelation].Exec(this.parent.SQLId(), this.sqlId)
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
 
 	for i := range this.scanlations {
-		err = this.scanlations[i].SQLInsert(this.sqlId, stmts)
+		err = this.scanlations[i].sqlInsert(this.sqlId)
 		if err != nil {
 			return qerr.NewLocated(err)
 		}
@@ -195,205 +150,25 @@ func (this *Chapter) SQLInsert(identity ChapterIdentity, stmts qdb.StmtGroup) (e
 	return nil
 }
 
-func SQLChapterQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*Chapter, ChapterIdentity, error) {
+func SQLChapterQuery(rows *sql.Rows) (Chapter, ChapterIdentity, error) {
 	var identity ChapterIdentity
-	chapter := NewChapter(false)
-	err := rows.Scan(&chapter.sqlId, &identity, &chapter.AlreadyRead)
+	chapter := Chapter{MarkedRead: false}
+	err := rows.Scan(&chapter.sqlId, &identity, &chapter.MarkedRead)
 	if err != nil {
-		return nil, identity, qerr.NewLocated(err)
+		return Chapter{}, ChapterIdentity{}, qerr.NewLocated(err)
 	}
 
-	scanlationRows, err := stmts[scanlationsQuery].Query(chapter.sqlId)
+	scanlationRows, err := scanlationsQuery.Query(chapter.sqlId)
 	if err != nil {
-		return nil, identity, qerr.NewLocated(err)
+		return Chapter{}, ChapterIdentity{}, qerr.NewLocated(err)
 	}
 	for scanlationRows.Next() {
-		scanlation, err := SQLChapterScanlationQuery(scanlationRows, stmts)
+		scanlation, err := SQLChapterScanlationQuery(scanlationRows)
 		if err != nil {
-			return nil, identity, qerr.NewLocated(err)
+			return Chapter{}, ChapterIdentity{}, qerr.NewLocated(err)
 		}
-		chapter.AddScanlation(*scanlation)
+		chapter.AddScanlation(scanlation)
 	}
 
-	return chapter, identity, err
-}
-
-func SQLChapterSchema() string {
-	return `
-	CREATE TABLE IF NOT EXISTS chapters(
-		id INTEGER PRIMARY KEY,
-		identity INTEGER NOT NULL,
-		alreadyRead INTEGER NOT NULL,
-		CONSTRAINT uq_CH_ID UNIQUE (id, identity)
-	);
-	CREATE TABLE IF NOT EXISTS rel_Comic_Chapters(
-		comicId INTEGER NOT NULL REFERENCES comics(id) ON DELETE CASCADE,
-		chapterId INTEGER NOT NULL UNIQUE REFERENCES chapters(id) ON DELETE CASCADE,
-		CONSTRAINT pk_CO_CH PRIMARY KEY (comicId, chapterId)
-	);
-	` + SQLChapterScanlationSchema()
-}
-
-func sqlAddChapterInsertStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
-	stmts[chapterInsertion] = db.MustPrepare(`
-		INSERT OR REPLACE INTO chapters(id, identity, alreadyRead)
-		VALUES((SELECT id FROM chapters WHERE id = ?), ?, ?);`)
-	stmts[chapterRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Comic_Chapters(comicId, chapterId) VALUES(?, ?);`)
-	sqlAddChapterScanlationInsertStmts(db, stmts)
-}
-
-func sqlAddChapterQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
-	stmts[chaptersQuery] = db.MustPrepare(`
-		SELECT id, identity, alreadyRead
-		FROM chapters
-		WHERE id IN(SELECT chapterId FROM rel_Comic_Chapters WHERE comicId = ?);`)
-	sqlAddChapterScanlationQueryStmts(db, stmts)
-}
-
-type ChapterScanlation struct {
-	Title      string
-	Language   LangId
-	Scanlators JointScanlatorIds //TODO: see scanlators.go
-	PluginName SourceId
-	URL        string
-	PageLinks  []string
-
-	plSQLIds []int64
-	sqlId    int64
-}
-
-func (this *ChapterScanlation) SQLInsert(chapterId int64, stmts qdb.StmtGroup) (err error) {
-	var newId int64
-	result, err := stmts[scanlationInsertion].Exec(this.sqlId, this.Title, this.Language, string(this.PluginName), this.URL)
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
-	newId, err = result.LastInsertId()
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
-	this.sqlId = newId
-
-	result, err = stmts[scanlationRelation].Exec(chapterId, this.sqlId)
-	if err != nil {
-		return qerr.NewLocated(err)
-	}
-
-	for _, scanlator := range this.Scanlators.ToSlice() {
-		result, err = stmts[scanlatorRelation].Exec(this.sqlId, scanlator)
-		if err != nil {
-			return qerr.NewLocated(err)
-		}
-	}
-
-	if this.plSQLIds == nil {
-		this.plSQLIds = make([]int64, len(this.PageLinks))
-	}
-	for i, pageLink := range this.PageLinks {
-		var pageLinkId int64 = this.plSQLIds[i] //WARNING: may go out of bounds (shouldn't ever; leaving it for the sake of experiment)
-		result, err = stmts[pageLinkInsertion].Exec(pageLink)
-		if err != nil {
-			return qerr.NewLocated(err)
-		}
-		pageLinkId, err = result.LastInsertId()
-		if err != nil {
-			return qerr.NewLocated(err)
-		}
-		this.plSQLIds[i] = pageLinkId
-		stmts[pageLinkRelation].Exec(this.sqlId, pageLinkId)
-	}
-
-	return nil
-}
-
-func SQLChapterScanlationQuery(rows *sql.Rows, stmts qdb.StmtGroup) (*ChapterScanlation, error) {
-	scanlation := &ChapterScanlation{}
-	err := rows.Scan(&scanlation.sqlId, &scanlation.Title, &scanlation.Language, &scanlation.PluginName, &scanlation.URL)
-	if err != nil {
-		return nil, qerr.NewLocated(err)
-	}
-
-	scanlatorRows, err := stmts[scanlatorsQuery].Query(scanlation.sqlId)
-	if err != nil {
-		return nil, qerr.NewLocated(err)
-	}
-	var scanlators []ScanlatorId
-	for scanlatorRows.Next() {
-		var scanlator ScanlatorId
-		err = scanlatorRows.Scan(&scanlator)
-		if err != nil {
-			return nil, qerr.NewLocated(err)
-		}
-		scanlators = append(scanlators, scanlator)
-	}
-	scanlation.Scanlators = JoinScanlators(scanlators)
-
-	pageLinkRows, err := stmts[pageLinksQuery].Query(scanlation.sqlId)
-	if err != nil {
-		return nil, qerr.NewLocated(err)
-	}
-	for pageLinkRows.Next() {
-		var pageLinkId int64
-		var pageLink string
-		err = pageLinkRows.Scan(&pageLinkId, &pageLink)
-		if err != nil {
-			return nil, qerr.NewLocated(err)
-		}
-		scanlation.PageLinks = append(scanlation.PageLinks, pageLink)
-		scanlation.plSQLIds = append(scanlation.plSQLIds, pageLinkId)
-	}
-
-	return scanlation, nil
-}
-
-func SQLChapterScanlationSchema() string {
-	return `
-	CREATE TABLE IF NOT EXISTS scanlations(
-		id INTEGER PRIMARY KEY,
-		title TEXT NOT NULL,
-		lang INTEGER NOT NULL DEFAULT 1 REFERENCES langs(id) ON DELETE SET DEFAULT,
-		pluginName TEXT NOT NULL,
-		url TEXT NOT NULL
-	);
-	CREATE TABLE IF NOT EXISTS rel_Chapter_Scanlations(
-		chapterId INTEGER NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
-		scanlationId INTEGER NOT NULL REFERENCES scanlations(id) ON DELETE CASCADE,
-		CONSTRAINT pk_CH_SC PRIMARY KEY (chapterId, scanlationId)
-	);
-	CREATE TABLE IF NOT EXISTS rel_Scanlation_Scanlators(
-		scanlationId INTEGER NOT NULL REFERENCES scanlations(id) ON DELETE CASCADE,
-		scanlatorId INTEGER NOT NULL REFERENCES scanlators(id) ON DELETE CASCADE,
-		CONSTRAINT pk_SC_SC PRIMARY KEY (scanlationId, scanlatorId)
-	);
-	CREATE TABLE IF NOT EXISTS pageLinks(
-		id INTEGER PRIMARY KEY,
-		url TEXT NOT NULL
-	);
-	CREATE TABLE IF NOT EXISTS rel_Scanlation_PageLinks(
-		scanlationId INTEGER NOT NULL REFERENCES scanlations(id) ON DELETE CASCADE,
-		pageLinkId INTEGER NOT NULL REFERENCES pageLinks(id) ON DELETE CASCADE,
-		CONSTRAINT pk_SC_PA PRIMARY KEY (scanlationId, pageLinkId)
-	);`
-}
-
-func sqlAddChapterScanlationInsertStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
-	stmts[scanlationInsertion] = db.MustPrepare(`
-		INSERT OR REPLACE INTO scanlations(id, title, lang, pluginName, url)
-		VALUES((SELECT id FROM scanlations WHERE id = ?), ?, ?, ?, ?);`)
-	stmts[scanlationRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Chapter_Scanlations(chapterId, scanlationid) VALUES(?, ?);`)
-	stmts[scanlatorRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Scanlation_Scanlators(scanlationId, scanlatorId) VALUES(?, ?);`)
-	stmts[pageLinkInsertion] = db.MustPrepare(`INSERT OR REPLACE INTO pageLinks(id, url) VALUES((SELECT id FROM pageLinks WHERE id = ?), ?);`)
-	stmts[pageLinkRelation] = db.MustPrepare(`INSERT OR IGNORE INTO rel_Scanlation_PageLinks(scanlationId, pageLinkId) VALUES(?, ?);`)
-}
-
-func sqlAddChapterScanlationQueryStmts(db *qdb.QDB, stmts qdb.StmtGroup) {
-	stmts[scanlationsQuery] = db.MustPrepare(`
-		SELECT id, title, lang, pluginName, url
-		FROM scanlations
-		WHERE id IN(SELECT scanlationId FROM rel_Chapter_Scanlations WHERE chapterId = ?);`)
-	stmts[scanlatorsQuery] = db.MustPrepare(`SELECT scanlatorId FROM rel_Scanlation_Scanlators WHERE scanlationId = ?;`)
-	stmts[pageLinksQuery] = db.MustPrepare(`
-		SELECT id, url
-		FROM pageLinks
-		WHERE id IN(SELECT pageLinkId FROM rel_Scanlation_PageLinks WHERE scanlationId = ?);`)
+	return chapter, identity, nil
 }

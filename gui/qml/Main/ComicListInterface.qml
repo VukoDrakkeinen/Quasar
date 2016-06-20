@@ -6,6 +6,7 @@ import QuasarGUI 1.0
 SplitView {	
 	id: root
 	orientation: Qt.Horizontal
+	focus: true
 	property var comicId: updateModel.comicId	//Somebody explain to me why the fuck can't it be a goddamn alias
 	
 	Binding {
@@ -15,6 +16,8 @@ SplitView {
 	}
 	
 	ControlButtons {
+		id: cb
+		function comicIdValid() { return comicListView.currentRow != -1 }
 		Button {
 			text: qsTr("Add comic")
 			action: Action {
@@ -38,7 +41,7 @@ SplitView {
 					removeComic.resetAndShow(indices, names)
 				}
 			}
-			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})
+			Component.onCompleted: this.enabled = Qt.binding(cb.comicIdValid)
 		}
 		Button {
 			text: qsTr("Search")
@@ -65,23 +68,48 @@ SplitView {
 					quasarCore.updateComics(comicIndices)
 				}
 			}
-			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})
+			Component.onCompleted: this.enabled = Qt.binding(cb.comicIdValid)
 		}
 		Button {
 			text: qsTr("Chapters")
 			action: Action {
 				onTriggered: stos.push(chapterInterface)
 			}
-			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})
+			Component.onCompleted: this.enabled = Qt.binding(cb.comicIdValid)
 		}
 		Button {
 			text: qsTr("Properties")
 			action: Action {
 				onTriggered: properties.resetAndShow()
 			}
-			Component.onCompleted: this.enabled = Qt.binding(function() { return comicListView.currentRow != -1})
+			Component.onCompleted: this.enabled = Qt.binding(cb.comicIdValid)
 		}
+		Button {
+			text: "print value"
+			action: Action {
+				onTriggered: console.log(justGoInt)
+			}
+		}
+		Button {
+            text: "print object"
+            action: Action {
+                onTriggered: console.log(quasarCore.globalSettings.notificationMode)
+            }
+        }
+        Button {
+            text: "object value"
+            action: Action {
+                onTriggered: console.log(quasarCore.globalSettings.notificationMode|0)
+            }
+        }
 		
+	}
+
+	Keys.onPressed: {
+		if (event.modifiers != Qt.ControlModifier) {
+			rtf.text = event.text
+			rtf.focus = true
+		}
 	}
 	
 	ColumnLayout {
@@ -97,38 +125,41 @@ SplitView {
 				value: root.comicId
 			}
 		}
-		
-		RowLayout {
+
+		TextField {
+			id: rtf
 			Layout.fillWidth: true
-			Label {
-				text: qsTr("Search:")
+			placeholderText: qsTr("Quick search")
+			onLengthChanged: queryDoneTimer.restart()
+			onEditingFinished: {
+				regexp.pattern = rtf.text
+				queryDoneTimer.stop()
 			}
-			TextField {
-				id: rtf
-				Layout.fillWidth: true
-				onEditingFinished: {
-					regexp.pattern = this.text
+			Timer {
+				id: queryDoneTimer
+				interval: 500;
+				onTriggered: regexp.pattern = rtf.text
+            }
+			RegExp {
+				id: regexp
+				caseSensitive: false
+			}
+			Binding {
+				target: updateModel
+				property: "filterRegExp"
+				when: regexp.valid
+				value: regexp.regexp
+			}
+			Behavior on textColor {
+				ColorAnimation {
+					duration: 400
 				}
-				RegExp {
-					id: regexp
-				}
-				Binding {
-					target: updateModel
-					property: "filterRegExp"
-					when: regexp.valid
-					value: regexp.regexp
-				}
-				Behavior on textColor {
-					ColorAnimation {
-						duration: 400
-					}
-				}
-				Binding {
-					target: rtf
-					property: "textColor"
-					when: !regexp.valid
-					value: "red"
-				}
+			}
+			Binding {
+				target: rtf
+				property: "textColor"
+				when: !regexp.valid
+				value: "red"
 			}
 		}
 		
